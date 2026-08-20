@@ -304,10 +304,24 @@ def build_caption(map_data, style=None, base=None):
     # 4c. Walls. Until now the renderer was handed room rectangles and left to
     #     invent every wall line itself, which is exactly where the layout came
     #     apart. The architect knows each run, so each run is given.
-    wall_word = style.get("wall") or "solid stone wall with visible courses"
+    # Caves and woodland have no straight walls to speak of; calling their rock
+    # a "straight unbroken run" would be a lie the renderer would try to obey.
+    organic = str(meta.get("layout", "")).lower() in ("cavern", "forest", "swamp")
+    wall_word = style.get("wall") or (
+        "solid rough rock wall" if organic else "solid stone wall with visible courses")
     for (x, y, w, h) in _merge_runs(grid, A.WALL)[:MAX_WALL_RUNS]:
-        if w * h < 2:
-            continue                      # a single stub reads as noise
+        # Only genuinely elongated runs. Everything else is a stub or, in a cave,
+        # one lump of an irregular mass, and describing it as a wall adds noise.
+        if max(w, h) < 3 or w * h < 2:
+            continue
+        if organic:
+            walls.append({
+                "type": "obj",
+                "bbox": _bbox(x, y, w, h, cols, rows),
+                "desc": (f"A mass of {wall_word} filling this whole rectangle solidly, its "
+                         f"face irregular and broken but with no passage, gap or opening "
+                         f"through it anywhere. {_EXACT}")})
+            continue
         if w >= h:
             shape = ("a horizontal wall running the full width of this rectangle from its "
                      "left edge to its right edge")

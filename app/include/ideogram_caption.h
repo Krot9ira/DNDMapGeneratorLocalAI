@@ -212,10 +212,28 @@ public:
         //     to invent every wall line itself, which is exactly where the
         //     layout came apart. The architect knows each run, so each is given.
         {
+            // Caves and woodland have no straight walls to speak of; calling
+            // their rock a "straight unbroken run" would be a lie the renderer
+            // would then try to obey.
+            bool organic = map.meta.layout == "cavern" || map.meta.layout == "forest" ||
+                           map.meta.layout == "swamp";
             int emitted = 0;
             for (const Rect& r : MergeRuns(g, Tile::Wall, cols, rows)) {
                 if (emitted >= kMaxWallRuns) break;
-                if (r.w * r.h < 2) continue;      // a single stub reads as noise
+                // Only genuinely elongated runs. The rest are stubs, or one lump
+                // of an irregular mass, and read as noise either way.
+                if (std::max(r.w, r.h) < 3 || r.w * r.h < 2) continue;
+                if (organic) {
+                    walls.push_back({
+                        {"type", "obj"},
+                        {"bbox", Bbox(r.x, r.y, r.w, r.h, cols, rows)},
+                        {"desc", std::string("A mass of solid rough rock wall filling this "
+                                 "whole rectangle solidly, its face irregular and broken but "
+                                 "with no passage, gap or opening through it anywhere. ") +
+                                 kExact}});
+                    ++emitted;
+                    continue;
+                }
                 std::string shape =
                     (r.w >= r.h)
                         ? "a horizontal wall running the full width of this rectangle from "
