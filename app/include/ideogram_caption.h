@@ -127,6 +127,27 @@ public:
         nlohmann::json normal = nlohmann::json::array();
         nlohmann::json filler = nlohmann::json::array();
 
+        // 0. The blank margin. Said in the background too, but a sentence is
+        //    weaker than a box: with a full-map effect the renderer painted
+        //    straight over it. These four go first so nothing outranks them.
+        const int border = arch::BorderOf(map);
+        if (border > 0) {
+            const std::string marginText =
+                "Flat empty unpainted margin filling this whole strip, the blank paper "
+                "border outside the map: no ground texture, no scenery, no building, no "
+                "water, no prop, no smoke and no effect of any kind reaches into it. ";
+            const Rect strips[4] = {{0, 0, cols, border},
+                                    {0, rows - border, cols, border},
+                                    {0, border, border, rows - 2 * border},
+                                    {cols - border, border, border, rows - 2 * border}};
+            for (const Rect& r : strips) {
+                if (r.w <= 0 || r.h <= 0) continue;
+                critical.push_back({{"type", "obj"},
+                                    {"bbox", Bbox(r.x, r.y, r.w, r.h, cols, rows)},
+                                    {"desc", marginText + kExact}});
+            }
+        }
+
         // 1. Hand-written annotations win: the user placed them deliberately.
         for (const auto& a : map.annotations) {
             if (a.label.empty()) continue;
@@ -371,7 +392,6 @@ public:
         // The blank ring around the playable field. Content boxes are already
         // inset by it, but the model still has to be told the margin is meant
         // to stay empty, or it fills the space with invented scenery.
-        int border = arch::BorderOf(map);
         if (border > 0 && cols > 0 && rows > 0) {
             int pctX = std::max(1, (int)std::lround(border * 100.0 / cols));
             int pctY = std::max(1, (int)std::lround(border * 100.0 / rows));

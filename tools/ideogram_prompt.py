@@ -213,6 +213,23 @@ def build_caption(map_data, style=None, base=None):
     # walls is the wrong map, however well painted.
     critical, walls, structure, normal, filler = [], [], [], [], []
 
+    # 0. The blank margin. Said in the background too, but a sentence is weaker
+    #    than a box: with a full-map effect the renderer painted straight over
+    #    it. These four go first so nothing outranks them.
+    border = A.border_of(map_data)
+    if border > 0:
+        margin_text = ("Flat empty unpainted margin filling this whole strip, the blank "
+                       "paper border outside the map: no ground texture, no scenery, no "
+                       "building, no water, no prop, no smoke and no effect of any kind "
+                       "reaches into it")
+        for rect in ((0, 0, cols, border),
+                     (0, rows - border, cols, border),
+                     (0, border, border, rows - 2 * border),
+                     (cols - border, border, border, rows - 2 * border)):
+            critical.append({"type": "obj",
+                             "bbox": _bbox(rect[0], rect[1], rect[2], rect[3], cols, rows),
+                             "desc": margin_text + ". " + _EXACT})
+
     # 1. User-written annotations win over everything: they were placed by hand.
     for ann in map_data.get("annotations", []) or []:
         label = str(ann.get("label", "")).strip()
@@ -439,7 +456,6 @@ def build_caption(map_data, style=None, base=None):
     # The blank ring around the playable field. Content boxes are already inset
     # by it, but the model still has to be told the margin is meant to be empty,
     # or it fills the space with invented scenery.
-    border = A.border_of(map_data)
     if border > 0:
         note = base.get("border_note") or (
             "A plain flat unpainted margin runs right around the outside of the image on "
