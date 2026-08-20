@@ -357,9 +357,10 @@ def build_caption(map_data, style=None, base=None):
         walls.append({
             "type": "obj",
             "bbox": _bbox(x, y, w, h, cols, rows),
-            "desc": (f"Open ground of {open_word} filling this whole rectangle, entirely "
-                     f"clear from edge to edge: no building, no wall, no partition and no "
-                     f"structure of any kind stands anywhere inside it. {_EXACT}")})
+            "desc": (f"Open ground of {open_word} filling this whole rectangle, unbroken "
+                     f"from edge to edge: no building, no wall and no partition stands "
+                     f"anywhere inside it, only loose objects lying on the ground. "
+                     f"{_EXACT}")})
 
     # 5. Terrain bodies large enough to matter, biggest first.
     for kind, phrase in _TERRAIN_WORDS.items():

@@ -280,9 +280,9 @@ public:
                     {"type", "obj"},
                     {"bbox", Bbox(r.x, r.y, r.w, r.h, cols, rows)},
                     {"desc", "Open ground of " + openWord + " filling this whole rectangle, "
-                             "entirely clear from edge to edge: no building, no wall, no "
-                             "partition and no structure of any kind stands anywhere inside "
-                             "it. " + kExact}});
+                             "unbroken from edge to edge: no building, no wall and no "
+                             "partition stands anywhere inside it, only loose objects lying "
+                             "on the ground. " + kExact}});
                 ++given;
             }
         }

@@ -95,8 +95,26 @@ and low in contrast.
 1. **The app closed itself once**, after a successful render. The file was saved and the
    image written. No entry in the Windows event log, and it has not happened since. Worth
    watching.
-2. **Prompt adherence for walls is not perfect.** The overall layout lands, but wall runs are
-   sometimes redrawn a cell or two off. This is the next thing being worked on.
+2. **Prompt adherence is better but not solved.** Three test renders of the same harbour
+   plan, each changing one thing:
+
+   | Round | Change | Result |
+   |---|---|---|
+   | 1 | wall runs given their own bounding boxes | walls straight, thick and continuous instead of wandering; margin respected; renderer added a row of archways along one long wall |
+   | 2 | caption states how many doors and windows exist in total | the invented archways stopped; layout came back mirrored and over-subdivided |
+   | 3 | each logical wall merged into one rectangle, open ground described, "not symmetrical" stated | open quay stayed genuinely open; symmetry reduced but not gone |
+
+   What is fixed: walls exist in the caption at all, they are straight and continuous, the
+   bleed margin is honoured, no invented openings, and the open ground is no longer filled
+   with buildings the renderer made up.
+
+   What is not: on a scene with several similar buildings, the renderer still tends towards a
+   symmetrical arrangement and subdivides the interiors more than the plan asks for.
+
+   **The next lever to try** is describing each building as one footprint object with its own
+   distinct wording — "the large cargo warehouse", "the small harbourmaster's office" — rather
+   than as a set of wall runs that all read alike. Distinct objects should break the symmetry
+   the way a dozen similar walls provoke it.
 
 ---
 
