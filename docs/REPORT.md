@@ -132,6 +132,7 @@ reasoning, is in `AGENTS.md` under **How the renderer reads what you give it**.
 | Negations are weak; positive statements and local counts hold | wall and door wording |
 | Describe the top face, never the front; never mention ceilings | `viewpoint_note` in the shared contract |
 | Past ~40 elements adherence collapses across the board | `MAX_ELEMENTS = 24`, priority tiers |
+| A style's own text outweighs the caption's elements and can contradict the plan | `style_warnings()`, reported by `build_map` |
 
 ---
 

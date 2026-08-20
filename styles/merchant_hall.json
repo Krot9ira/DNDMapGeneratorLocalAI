@@ -1,0 +1,41 @@
+{
+  "id": "merchant_hall",
+  "name": "Merchant Hall",
+  "category": "Interior",
+  "description": "One great pillared hall filling the whole map: a rich shop floor, guildhall or audience chamber with nothing subdividing it.",
+  "palette": "pale marble white, dark green inlay, gilded brass, deep red velvet, dark walnut",
+  "lighting": "broad daylight falling in from tall windows, warm lamp glow at the walls, soft shadows pooling behind the columns",
+  "default_layout": "arena",
+  "props": [
+    "column",
+    "counter",
+    "display_case",
+    "cabinet",
+    "pedestal",
+    "vase",
+    "chest",
+    "rug",
+    "statue",
+    "lamp",
+    "bench"
+  ],
+  "tags": [
+    "hall",
+    "shop",
+    "guildhall",
+    "interior",
+    "rich",
+    "marble",
+    "audience"
+  ],
+  "aesthetics": "Hand-painted fantasy cartography, rough painterly brushwork with visible strokes, strong dark ink outlines around every object and wall, subtle black and brown linework, restrained desaturated colour, carefully shaded volumetric detail, inked line art over watercolour and gouache, premium hand-drawn D&D virtual tabletop map, dense environmental storytelling",
+  "hex_palette": [
+    "#D9D2C4",
+    "#3F5147",
+    "#B08A3E",
+    "#6E2A2A",
+    "#2A241D"
+  ],
+  "ground": "pale polished marble laid in large squares with an inlaid border of dark green and black stone, buffed to a soft sheen and worn faintly along the walking lines",
+  "materials": "One single great hall seen from directly above with the roof taken off, filling the whole picture from wall to wall. It is one undivided room: the only walls anywhere in the image are the four thick outer walls that enclose it, and there is not one partition, screen, corridor or smaller room inside them. The floor is pale polished marble in large squares with a dark inlaid border, unbroken from one side of the hall to the other. Free-standing square stone columns with carved capitals stand in rows on that open floor, each one an isolated block of stone with floor visible all the way round it, never joined to another and never forming a line of wall. Everything else standing on the marble is furniture and nothing more: heavy carved hardwood counters out on the open floor, glazed display cabinets and cases pushed flat against the inside face of the outer walls, tall glazed vases, iron-bound chests and carved pedestals between them, woven rugs laid on the marble. Tapestries, heraldic banners, old charts and decorative weapons hang flat on the outer walls."
+}

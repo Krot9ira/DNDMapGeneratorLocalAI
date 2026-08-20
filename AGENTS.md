@@ -250,6 +250,17 @@ renderer subdivided it - a grand hall came back as a hotel corridor. When a buil
 exactly one area the caption now also says, with that area's rectangle, that it is one
 undivided space. You get this automatically; it is worth knowing why it is there.
 
+### The style's own words are part of the instruction
+
+A style file's `materials` text goes into the caption background, which outweighs any single
+element. If it describes something the plan does not have, the style wins. Six render rounds
+went into arguing with `city_townhouse`, whose text says "partition walls divide the inside
+into rooms" - correct for a townhouse, fatal for a single hall, and no amount of saying
+"one undivided room" elsewhere in the caption could beat it.
+
+`build_map` now warns when a style written for divided interiors is used on a map that is
+one room filling the field. Read `result["problems"]` before spending GPU time on it.
+
 ### Negations are weak, positive statements are strong
 
 "No arch, no gap" is close to useless: the text encoder handles negation badly. State what

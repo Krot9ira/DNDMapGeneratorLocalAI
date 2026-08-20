@@ -51,6 +51,7 @@ from ideogram_prompt import build_caption_json
 from ollama_client import OllamaClient
 from planner import MapPlanner
 from render import render_preview, render_svg, trim_to_margin
+from ideogram_prompt import style_warnings
 from workflow import build_ideogram4
 
 from paths import ROOT as PROJECT
@@ -79,7 +80,18 @@ def list_layouts():
 
 def build_map(spec, seed=None, cols=None, rows=None):
     """Spec -> map dict + caption inputs. No network calls, no LLM."""
-    return MapPlanner().compose(spec, seed=seed, cols=cols, rows=rows)
+    planner = MapPlanner()
+    result = planner.compose(spec, seed=seed, cols=cols, rows=rows)
+    # A style whose own text argues with the plan beats anything the caption
+    # says about it, so it is worth saying out loud before the GPU is spent.
+    try:
+        style = planner.load_style(result["map_json"]["meta"].get("style", ""))
+        warnings = style_warnings(result["map_json"], style)
+        if warnings:
+            result.setdefault("problems", []).extend(warnings)
+    except Exception:
+        pass
+    return result
 
 
 def target_size(map_data, megapixels=1.8):

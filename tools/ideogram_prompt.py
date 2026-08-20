@@ -294,6 +294,49 @@ def _elab(saying, value):
     return saying.get("elaboration_" + key, saying["elaboration_some"])
 
 
+# Words that tell the renderer to divide an interior up. Harmless in a style
+# meant for a house; ruinous in one applied to a single hall, because the style
+# text lands in the caption background and outweighs any single element.
+_DIVIDING_WORDS = ("partition", "divided into rooms", "divide the inside",
+                   "separate rooms", "smaller rooms", "series of rooms",
+                   "warren", "corridor")
+
+
+def style_warnings(map_data, style):
+    """Places where the chosen style argues with the plan it is painting."""
+    out = []
+    if not style:
+        return out
+    named = [a for a in (map_data.get("areas") or [])
+             if str(a.get("label", "")).strip()]
+    grid_cfg = map_data.get("grid") or {}
+    cols = int(grid_cfg.get("cols", 0) or 0)
+    rows = int(grid_cfg.get("rows", 0) or 0)
+    text = " ".join(str(style.get(k, "")) for k in ("materials", "description")).lower()
+
+    if len(named) == 1 and cols and rows:
+        only = named[0]
+        covers = (only.get("w", 0) * only.get("h", 0)) / max(1, cols * rows)
+        if covers > 0.45:
+            hits = []
+            for w in _DIVIDING_WORDS:
+                at = text.find(w)
+                while at != -1:
+                    lead = text[max(0, at - 60):at]
+                    if not any(n in lead for n in (" no ", " not ", "never", "without",
+                                                   "nor ", "n't ")):
+                        hits.append(w)
+                        break
+                    at = text.find(w, at + 1)
+            if hits:
+                out.append(
+                    f"style '{style.get('id', '?')}' describes interiors split up by "
+                    f"{hits[0]}, but this map is one single room filling the field - the "
+                    f"style text will fight the plan and the renderer will subdivide it. "
+                    f"Pick a style written for one open space.")
+    return out
+
+
 def build_caption(map_data, style=None, base=None):
     """Return the structured caption as a dict."""
     grid = A.zones_to_grid(map_data)
@@ -337,6 +380,18 @@ def build_caption(map_data, style=None, base=None):
         f"doors and {window_count} windows in the whole picture, each one listed below with "
         f"its own rectangle, and no other door, doorway, archway, gate, gap or window exists "
         f"anywhere in any wall.")
+    named_areas = [a for a in (map_data.get("areas") or [])
+                   if str(a.get("label", "")).strip()]
+    if len(named_areas) == 1:
+        only = named_areas[0]
+        covers = (only.get("w", 0) * only.get("h", 0)) / max(1, cols * rows)
+        if covers > 0.45:
+            caption["high_level_description"] += (
+                f" The whole of this map is one single room, the {only['label']}, and "
+                f"nothing else: one continuous floor from wall to wall with no interior "
+                f"wall, no partition, no corridor and no smaller room anywhere inside it. "
+                f"Everything standing on that floor is furniture, not architecture.")
+
     caption["high_level_description"] += " " + opening_note
     # Nothing in the contract forbade perspective, so a scene that happened to
     # mention a ceiling came back drawn from the corner of the room.
