@@ -9,6 +9,7 @@
 #define WIN32_LEAN_AND_MEAN
 #define NOMINMAX  // windows.h min/max macros break std::min/std::max
 #include <windows.h>
+#include <commdlg.h>
 #include <d3d11.h>
 
 #include <imgui.h>
@@ -1875,6 +1876,46 @@ static void DrawPropPicker() {
                     IM_COL32(210, 208, 200, 255), label.c_str());
         ImGui::PopID();
     }
+
+    // Anything in the Objects section of the wording file that the built-in
+    // catalogue has never heard of. This is how somebody's own raspberry bush
+    // becomes a thing you can place.
+    int extra = IM_ARRAYSIZE(kProps);
+    auto propWords = g_app.styles.phrases.sections.find("props");
+    if (propWords != g_app.styles.phrases.sections.end()) {
+        for (const auto& [kind, phrase] : propWords->second) {
+            bool builtIn = false;
+            for (const auto& info : kProps)
+                if (kind == info.kind) builtIn = true;
+            if (builtIn) continue;
+
+            if (extra % perRow != 0) ImGui::SameLine();
+            bool active = g_app.propKind == kind;
+            ImGui::PushID(extra++);
+            ImVec2 p0 = ImGui::GetCursorScreenPos();
+            if (ImGui::InvisibleButton("##pc", ImVec2(cellW - 6.0f, cellH - 6.0f)))
+                g_app.propKind = kind;
+            bool hov = ImGui::IsItemHovered();
+            if (hov)
+                ImGui::SetTooltip("%s\nYour own object. The renderer is told:\n%s",
+                                  kind.c_str(), phrase.c_str());
+            ImVec2 p1(p0.x + cellW - 6.0f, p0.y + cellH - 6.0f);
+            if (active || hov)
+                dl->AddRectFilled(p0, p1, active ? IM_COL32(90, 70, 26, 255)
+                                                 : IM_COL32(52, 56, 66, 255), 4.0f);
+            if (active) dl->AddRect(p0, p1, IM_COL32(250, 200, 70, 255), 4.0f, 0, 2.0f);
+            // No drawn form for something we know nothing about - a marked
+            // point, the same as a custom object placed by hand.
+            ImVec2 c((p0.x + p1.x) * 0.5f, p0.y + 26.0f);
+            dl->AddCircle(c, 13.0f, IM_COL32(236, 226, 200, 255), 16, 2.0f);
+            dl->AddCircleFilled(c, 4.5f, IM_COL32(236, 226, 200, 255), 12);
+            std::string label = FitText(kind, cellW - 10.0f);
+            ImVec2 ts = ImGui::CalcTextSize(label.c_str());
+            dl->AddText(ImVec2((p0.x + p1.x) * 0.5f - ts.x * 0.5f, p1.y - 18.0f),
+                        IM_COL32(210, 208, 200, 255), label.c_str());
+            ImGui::PopID();
+        }
+    }
     ImGui::EndChild();
 }
 
@@ -2413,6 +2454,41 @@ static void DrawPhraseEditor() {
     std::string needle = filter;
     for (char& c : needle) c = (char)tolower((unsigned char)c);
 
+    // Adding your own object, which is the whole point of this being a file.
+    ImGui::Separator();
+    static std::string newKey, newPhrase;
+    ImGui::TextColored(AccentGold(), "Add your own object");
+    ImGui::PushTextWrapPos(0.0f);
+    ImGui::TextDisabled(
+        "Give it a short name with no spaces - raspberry_bush - and describe what the "
+        "renderer should draw. It then appears in the prop catalogue on the Editor tab like "
+        "any built-in object, and is drawn from your description every time.");
+    ImGui::PopTextWrapPos();
+    ImGui::SetNextItemWidth(220.0f);
+    InputTextString("Name##newprop", &newKey);
+    ImGui::SetNextItemWidth(-1.0f);
+    InputTextMultilineString("##newpropdesc", &newPhrase, ImVec2(-1, 46));
+    bool named = !newKey.empty() && !newPhrase.empty();
+    ImGui::BeginDisabled(!named);
+    if (ImGui::Button("Add to the catalogue")) {
+        std::string key;
+        for (char c : newKey) key += (c == ' ' ? '_' : (char)tolower((unsigned char)c));
+        g_app.styles.phrases.sections["props"][key] = newPhrase;
+        if (g_app.styles.SavePhrases()) {
+            g_app.job.Log("Added object '" + key + "' to styles/_phrases.json");
+            newKey.clear();
+            newPhrase.clear();
+        } else {
+            g_app.job.Log("Could not save: " + g_app.styles.lastError);
+        }
+    }
+    ImGui::EndDisabled();
+    if (!named) {
+        ImGui::SameLine();
+        ImGui::TextDisabled("give it a name and a description first");
+    }
+    ImGui::Separator();
+
     ImGui::BeginChild("##phrases", ImVec2(0, 0), ImGuiChildFlags_Borders);
     for (const PhraseSection& sec : kPhraseSections) {
         auto it = g_app.styles.phrases.sections.find(sec.key);
@@ -2657,6 +2733,44 @@ static void ReleaseMapEntries() {
 
 // Built once when the dialog opens: scanning and rasterizing every plan on each
 // frame would be far too slow.
+// The native open dialog. Worth the Win32 for this one job: an agent writes a
+// plan wherever it likes, and asking somebody to type that path is not a
+// serious answer.
+static HWND g_hwnd = nullptr;
+
+static std::string PickMapFile() {
+    wchar_t buf[MAX_PATH] = L"";
+    OPENFILENAMEW ofn{};
+    ofn.lStructSize = sizeof(ofn);
+    ofn.hwndOwner = g_hwnd;
+    ofn.lpstrFilter = L"Map plans (map.json)\0*.json\0All files\0*.*\0";
+    ofn.lpstrFile = buf;
+    ofn.nMaxFile = MAX_PATH;
+    ofn.lpstrTitle = L"Open a map.json";
+    ofn.Flags = OFN_FILEMUSTEXIST | OFN_PATHMUSTEXIST | OFN_NOCHANGEDIR;
+    if (!GetOpenFileNameW(&ofn)) return {};
+    int n = WideCharToMultiByte(CP_UTF8, 0, buf, -1, nullptr, 0, nullptr, nullptr);
+    std::string out((size_t)std::max(0, n - 1), 0);
+    WideCharToMultiByte(CP_UTF8, 0, buf, -1, out.data(), n, nullptr, nullptr);
+    return out;
+}
+
+// What somebody actually pastes: a quoted path from Explorer, a folder rather
+// than the file inside it, a trailing newline. Accept all of it.
+static std::string TidyMapPath(std::string p) {
+    while (!p.empty() && (isspace((unsigned char)p.front()) || p.front() == '"'))
+        p.erase(p.begin());
+    while (!p.empty() && (isspace((unsigned char)p.back()) || p.back() == '"'))
+        p.pop_back();
+    if (p.empty()) return p;
+    std::error_code ec;
+    if (fs::is_directory(p, ec)) {
+        fs::path inside = fs::path(p) / "map.json";
+        if (fs::exists(inside, ec)) return inside.string();
+    }
+    return p;
+}
+
 static void ScanMaps() {
     ReleaseMapEntries();
     std::error_code ec;
@@ -2691,6 +2805,7 @@ static void DrawOpenDialog() {
     static bool wasOpen = false;
     static std::string chosen;
     static std::string manualPath;
+    static std::string openError;
 
     if (g_app.showOpenDialog && !wasOpen) {
         // Only open it on the transition. Calling OpenPopup every frame kept
@@ -2716,12 +2831,30 @@ static void DrawOpenDialog() {
         return;
     }
 
-    auto loadPath = [&](const std::string& path) {
+    auto loadPath = [&](const std::string& raw) {
+        std::string path = TidyMapPath(raw);
         MapData loaded;
-        if (path.empty() || !MapSerializer::LoadFromFile(path, loaded)) {
-            if (!path.empty()) g_app.job.Log("Could not read " + path);
+        if (path.empty()) return false;
+        std::error_code ec;
+        if (!fs::exists(path, ec)) {
+            openError = "There is no file at that path:\n" + path;
             return false;
         }
+        if (fs::is_directory(path, ec)) {
+            openError = "That folder has no map.json in it:\n" + path;
+            return false;
+        }
+        if (!MapSerializer::LoadFromFile(path, loaded)) {
+            openError = "That file is not a map plan this app can read:\n" + path +
+                        "\n\nA plan is the map.json written beside preview.png. "
+                        "caption.json and spec.json are not plans.";
+            return false;
+        }
+        if (loaded.grid.cols <= 0 || loaded.grid.rows <= 0) {
+            openError = "That plan has no grid in it, so there is nothing to open:\n" + path;
+            return false;
+        }
+        openError.clear();
         std::vector<std::string> problems;
         arch::ValidateMap(loaded, &problems);
         g_app.map = loaded;
@@ -2835,12 +2968,49 @@ static void DrawOpenDialog() {
         ImGui::PopID();
     }
     if (g_mapEntries.empty())
-        ImGui::TextDisabled("No plans yet. Build one on the Create tab, or paste a path below.");
+        ImGui::TextDisabled("No plans in this folder yet. Build one on the Create tab, or use "
+                            "Browse to open a plan from anywhere.");
     ImGui::EndChild();
 
-    ImGui::Text("Or paste a full path to a map.json");
-    InputTextString("##manualpath", &manualPath);
+    ImGui::Text("Somewhere else? Point at any map.json:");
+    ImGui::SetNextItemWidth(-140.0f);
+    if (InputTextString("##manualpath", &manualPath,
+                        ImGuiInputTextFlags_EnterReturnsTrue)) {
+        if (loadPath(manualPath)) {
+            manualPath.clear();
+            g_app.showOpenDialog = false;
+            ImGui::CloseCurrentPopup();
+        }
+    }
+    ImGui::SetItemTooltip("Paste a path and press Enter. A folder works too, and so do the "
+                          "quotes Explorer's \"Copy as path\" puts round it.");
+    ImGui::SameLine();
+    if (ImGui::Button("Browse...", ImVec2(-1, 0))) {
+        std::string picked = PickMapFile();
+        if (!picked.empty() && loadPath(picked)) {
+            manualPath.clear();
+            g_app.showOpenDialog = false;
+            ImGui::CloseCurrentPopup();
+        }
+    }
+    if (!openError.empty()) {
+        ImGui::PushTextWrapPos(0.0f);
+        ImGui::TextColored(ImVec4(0.93f, 0.45f, 0.35f, 1.0f), "%s", openError.c_str());
+        ImGui::PopTextWrapPos();
+    }
     ImGui::EndPopup();
+}
+
+static void SaveCurrentMap() {
+    g_app.SyncMapFromGrid();
+    std::string dir = OutputDir(g_app.map.meta.name);
+    if (MapSerializer::SaveToFile(dir + "/map.json", g_app.map)) {
+        g_app.dirty = false;
+        g_app.handEdited = false;
+        g_app.job.Log("Saved " + dir + "/map.json");
+    } else {
+        g_app.job.Log("Could not save " + dir + "/map.json");
+    }
 }
 
 static void MainMenu() {
@@ -2864,18 +3034,10 @@ static void MainMenu() {
         }
         ImGui::SetItemTooltip("A blank field at the size set on the Create tab, walled and "
                               "ready to paint.");
-        if (ImGui::MenuItem("Open map.json...")) g_app.showOpenDialog = true;
+        if (ImGui::MenuItem("Open map.json...", "Ctrl+O")) g_app.showOpenDialog = true;
         ImGui::SetItemTooltip("Load a plan built by an agent, the command line, or an earlier "
                               "session, and edit it here.");
-        if (ImGui::MenuItem("Save map.json")) {
-            g_app.SyncMapFromGrid();
-            std::string dir = OutputDir(g_app.map.meta.name);
-            if (MapSerializer::SaveToFile(dir + "/map.json", g_app.map)) {
-                g_app.dirty = false;
-                g_app.handEdited = false;
-                g_app.job.Log("Saved " + dir + "/map.json");
-            }
-        }
+        if (ImGui::MenuItem("Save map.json", "Ctrl+S")) SaveCurrentMap();
         if (ImGui::MenuItem("Export plan preview PNG")) {
             g_app.SyncMapFromGrid();
             std::string dir = OutputDir(g_app.map.meta.name);
@@ -3051,6 +3213,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int nCmdShow) {
     io.IniFilename = "imgui.ini";
     SetupFonts();
     SetupDarkFantasyTheme();
+    g_hwnd = hwnd;
     ImGui_ImplWin32_Init(hwnd);
     ImGui_ImplDX11_Init(g_device, g_context);
 
@@ -3118,6 +3281,12 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int nCmdShow) {
         ImGui::PopStyleVar(2);
 
         MainMenu();
+
+        // The two shortcuts everybody tries first.
+        if (ImGui::GetIO().KeyCtrl && !ImGui::GetIO().WantTextInput) {
+            if (ImGui::IsKeyPressed(ImGuiKey_O, false)) g_app.showOpenDialog = true;
+            if (ImGui::IsKeyPressed(ImGuiKey_S, false)) SaveCurrentMap();
+        }
 
         // Tabs host their content in child regions - never in nested windows,
         // which is what made the old build render panels on top of each other.

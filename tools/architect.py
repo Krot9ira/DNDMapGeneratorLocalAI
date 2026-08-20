@@ -17,6 +17,7 @@ Public API:
     zones_to_grid(map_dict)  -> TileGrid  (rasterize rect zones back to tiles)
     SIZE_PRESETS             -> named grid sizes
 """
+import json
 import math
 import random
 from collections import deque
@@ -136,9 +137,37 @@ STRUCTURAL_PROPS = {
 }
 
 
+_CUSTOM_PROPS = None
+
+
+def custom_props():
+    """Object kinds somebody added to styles/_phrases.json themselves.
+
+    Read straight from the file rather than through the caption builder, which
+    imports this module. Cached: it is read once per run.
+    """
+    global _CUSTOM_PROPS
+    if _CUSTOM_PROPS is None:
+        _CUSTOM_PROPS = set()
+        try:
+            from paths import ROOT as _ROOT
+            path = _ROOT / "styles" / "_phrases.json"
+            if path.exists():
+                data = json.loads(path.read_text(encoding="utf-8"))
+                for key, value in (data.get("props") or {}).items():
+                    if isinstance(value, str) and value.strip() and key not in KNOWN_PROPS:
+                        _CUSTOM_PROPS.add(key)
+        except (OSError, ValueError):
+            _CUSTOM_PROPS = set()
+    return _CUSTOM_PROPS
+
+
 def is_structural_prop(kind):
     """Should this prop get its own bounding box, or be left to the renderer?"""
-    return str(kind).lower() in STRUCTURAL_PROPS
+    name = str(kind).lower()
+    # Something defined by hand was defined deliberately, so it is pinned and
+    # described exactly rather than left to the renderer's judgement.
+    return name in STRUCTURAL_PROPS or name in custom_props()
 
 
 def normalize_prop(raw):
@@ -150,6 +179,10 @@ def normalize_prop(raw):
     if not name:
         return ""
     if name in KNOWN_PROPS:
+        return name
+    # A kind somebody defined themselves is left exactly as written, or
+    # "raspberry_bush" would collapse into "bush" and lose its description.
+    if name in custom_props():
         return name
     if name.endswith("s") and name[:-1] in KNOWN_PROPS:
         return name[:-1]
@@ -521,7 +554,7 @@ def _gen_cavern(grid, spec, rng):
     grid.fill_rect(0, 0, grid.cols, grid.rows, VOID)
     span = min(grid.cols, grid.rows)
 
-    n = _clamp(len(spec["rooms"]), 2, 6)
+    n = _clamp(len(spec["rooms"]), 1, 6)
     centres = []
     rooms = []
     for i in range(n):
@@ -532,7 +565,7 @@ def _gen_cavern(grid, spec, rng):
         cy = grid.rows / 2.0 + math.sin(ang) * grid.rows * spread
         size_hint = {"l": 0.30, "m": 0.24, "s": 0.18}.get(
             str(spec["rooms"][i].get("size", "m"))[:1], 0.24)
-        radius = _clamp(span * size_hint * rng.uniform(0.9, 1.25), 3.0, 16.0)
+        radius = _clamp(span * size_hint * rng.uniform(0.9, 1.25), 3.0, span * 0.34)
         cx = _clamp(cx, radius + 2, grid.cols - radius - 2)
         cy = _clamp(cy, radius + 2, grid.rows - radius - 2)
         _blob(grid, cx, cy, radius, FLOOR, rng, squish=rng.uniform(0.7, 1.5))
@@ -578,6 +611,43 @@ def _gen_cavern(grid, spec, rng):
         for y in range(grid.rows):
             if x == 0 or y == 0 or x == grid.cols - 1 or y == grid.rows - 1:
                 grid.set(x, y, VOID)
+
+    # A cave has to be worth walking into. If the chambers landed small or on
+    # top of each other, grow them until the field is properly hollowed out.
+    field = grid.cols * grid.rows
+    for _ in range(4):
+        floor_now = sum(1 for y in range(grid.rows) for x in range(grid.cols)
+                        if grid.get(x, y) != VOID)
+        if floor_now >= field * 0.30:
+            break
+        for (ccx, ccy) in centres:
+            _blob(grid, ccx, ccy, span * rng.uniform(0.16, 0.24), FLOOR, rng,
+                  squish=rng.uniform(0.8, 1.4))
+
+    # Roughen the rock face. The passages are carved along axes, so without
+    # this a cave ends up with long straight edges and looks quarried.
+    edge = []
+    for y in range(1, grid.rows - 1):
+        for x in range(1, grid.cols - 1):
+            if grid.get(x, y) != VOID:
+                continue
+            if any(grid.get(x + dx, y + dy) == FLOOR
+                   for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1))):
+                edge.append((x, y))
+    for cell in edge:
+        if rng.random() < 0.32:
+            grid.set(cell[0], cell[1], FLOOR)
+    edge = []
+    for y in range(1, grid.rows - 1):
+        for x in range(1, grid.cols - 1):
+            if grid.get(x, y) != VOID:
+                continue
+            if any(grid.get(x + dx, y + dy) == FLOOR
+                   for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1))):
+                edge.append((x, y))
+    for cell in edge:
+        if rng.random() < 0.18:
+            grid.set(cell[0], cell[1], FLOOR)
 
     keep = _largest_component(grid, {FLOOR})
     for y in range(grid.rows):
@@ -685,7 +755,7 @@ def _gen_street(grid, spec, rng):
             continue
         for i in range(per_side):
             idx = side * per_side + i
-            if idx >= n:
+            if idx >= n or idx >= len(specs):
                 break
             bx = 1 + i * (bw + 1)
             if bx + bw > grid.cols - 1:
@@ -1197,10 +1267,10 @@ def _place_props(grid, rooms, spec, rng, style_props=None):
             primary = wall_slots if prefers_wall else open_slots
             secondary = open_slots if prefers_wall else wall_slots
             placed = False
-            for pool in (primary, secondary):
-                for cell in list(pool):
+            for slots in (primary, secondary):
+                for cell in list(slots):
                     if commit(kind, cell):
-                        pool.remove(cell)
+                        slots.remove(cell)
                         placed = True
                         break
                 if placed:

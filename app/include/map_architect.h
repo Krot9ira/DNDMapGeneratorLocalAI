@@ -475,7 +475,7 @@ inline RoomList GenCavern(TileGrid& g, const DesignSpec& spec, Rng& rng, PathLis
     g.FillRect(0, 0, g.cols, g.rows, Tile::Void);
     float span = (float)std::min(g.cols, g.rows);
 
-    int n = Clampi((int)spec.rooms.size(), 2, 6);
+    int n = Clampi((int)spec.rooms.size(), 1, 6);
     std::vector<std::pair<int, int>> centres;
     RoomList rooms;
     for (int i = 0; i < n; ++i) {
@@ -486,7 +486,7 @@ inline RoomList GenCavern(TileGrid& g, const DesignSpec& spec, Rng& rng, PathLis
         float cy = g.rows / 2.0f + std::sin(ang) * g.rows * spread;
         char size = spec.rooms[(size_t)i].size ? spec.rooms[(size_t)i].size : 'm';
         float hint = size == 'l' ? 0.30f : (size == 's' ? 0.18f : 0.24f);
-        float radius = std::clamp(span * hint * rng.Float(0.9f, 1.25f), 3.0f, 16.0f);
+        float radius = std::clamp(span * hint * rng.Float(0.9f, 1.25f), 3.0f, span * 0.34f);
         cx = std::clamp(cx, radius + 2, g.cols - radius - 2);
         cy = std::clamp(cy, radius + 2, g.rows - radius - 2);
         Blob(g, cx, cy, radius, Tile::Floor, rng, nullptr, rng.Float(0.7f, 1.5f));
@@ -536,6 +536,46 @@ inline RoomList GenCavern(TileGrid& g, const DesignSpec& spec, Rng& rng, PathLis
         for (int y = 0; y < g.rows; ++y)
             if (x == 0 || y == 0 || x == g.cols - 1 || y == g.rows - 1)
                 g.Set(x, y, Tile::Void);
+
+    // A cave has to be worth walking into. If the chambers landed small or on
+    // top of each other, grow them until the field is properly hollowed out.
+    for (int grow = 0; grow < 4; ++grow) {
+        int floorNow = 0;
+        for (int y = 0; y < g.rows; ++y)
+            for (int x = 0; x < g.cols; ++x)
+                if (g.Get(x, y) != Tile::Void) ++floorNow;
+        if (floorNow >= (int)(g.cols * g.rows * 0.30)) break;
+        for (auto& c : centres)
+            Blob(g, (float)c.first, (float)c.second, span * rng.Float(0.16f, 0.24f),
+                 Tile::Floor, rng, nullptr, rng.Float(0.8f, 1.4f));
+    }
+
+    // Roughen the rock face. The passages are carved along axes, so without
+    // this a cave ends up with long straight edges and looks quarried.
+    {
+        std::vector<std::pair<int, int>> edge;
+        for (int y = 1; y < g.rows - 1; ++y) {
+            for (int x = 1; x < g.cols - 1; ++x) {
+                if (g.Get(x, y) != Tile::Void) continue;
+                if (g.Get(x + 1, y) == Tile::Floor || g.Get(x - 1, y) == Tile::Floor ||
+                    g.Get(x, y + 1) == Tile::Floor || g.Get(x, y - 1) == Tile::Floor)
+                    edge.push_back({x, y});
+            }
+        }
+        for (auto& c : edge)
+            if (rng.Chance(0.32f)) g.Set(c.first, c.second, Tile::Floor);
+        edge.clear();
+        for (int y = 1; y < g.rows - 1; ++y) {
+            for (int x = 1; x < g.cols - 1; ++x) {
+                if (g.Get(x, y) != Tile::Void) continue;
+                if (g.Get(x + 1, y) == Tile::Floor || g.Get(x - 1, y) == Tile::Floor ||
+                    g.Get(x, y + 1) == Tile::Floor || g.Get(x, y - 1) == Tile::Floor)
+                    edge.push_back({x, y});
+            }
+        }
+        for (auto& c : edge)
+            if (rng.Chance(0.18f)) g.Set(c.first, c.second, Tile::Floor);
+    }
 
     auto keep = LargestComponent(g, {Tile::Floor});
     for (int y = 0; y < g.rows; ++y)
@@ -741,7 +781,7 @@ inline RoomList GenStreet(TileGrid& g, const DesignSpec& spec, Rng& rng, PathLis
         if (h < 4) continue;
         for (int i = 0; i < perSide; ++i) {
             int idx = side * perSide + i;
-            if (idx >= n) break;
+            if (idx >= n || idx >= (int)spec.rooms.size()) break;
             int bx = 1 + i * (bw + 1);
             if (bx + bw > g.cols - 1) break;
             g.FillRect(bx, top, bw, h, Tile::Void);

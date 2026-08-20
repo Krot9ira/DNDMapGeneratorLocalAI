@@ -32,6 +32,7 @@ target_link_libraries(DndBattlemapGenerator PRIVATE
     d3d11
     dxgi
     winhttp
+    comdlg32
     dwmapi
 )
 
@@ -76,6 +77,7 @@ add_custom_command(TARGET DndBattlemapGenerator POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy
             "${CMAKE_CURRENT_SOURCE_DIR}/tools/agent_api.py"
             "${CMAKE_CURRENT_SOURCE_DIR}/tools/architect.py"
+            "${CMAKE_CURRENT_SOURCE_DIR}/tools/check_layouts.py"
             "${CMAKE_CURRENT_SOURCE_DIR}/tools/comfy.py"
             "${CMAKE_CURRENT_SOURCE_DIR}/tools/ideogram_prompt.py"
             "${CMAKE_CURRENT_SOURCE_DIR}/tools/ollama_client.py"
