@@ -456,6 +456,7 @@ def build_caption(map_data, style=None, base=None):
     # areas are in creation order and include things that are not buildings at
     # all, which is how a warehouse came to be called "the Moored Ship".
     def _name_for(bx, by, bw, bh):
+        """The name of the area inside this footprint, and what it is like."""
         for a in (map_data.get("areas") or []):
             label = str(a.get("label", "")).strip()
             if not label:
@@ -463,8 +464,8 @@ def build_caption(map_data, style=None, base=None):
             ax = int(a.get("x", 0)) + int(a.get("w", 1)) / 2.0
             ay = int(a.get("y", 0)) + int(a.get("h", 1)) / 2.0
             if bx <= ax <= bx + bw and by <= ay <= by + bh:
-                return f"the {label}"
-        return "a building"
+                return f"the {label}", str(a.get("description", "")).strip()
+        return "a building", ""
 
     organic = str(meta.get("layout", "")).lower() in ("cavern", "forest", "swamp")
     hulls = [(int(st.get("x", 0)), int(st.get("y", 0)), int(st.get("w", 1)),
@@ -486,7 +487,7 @@ def build_caption(map_data, style=None, base=None):
             building_rects.append((bx, by, bw, bh))
             size_word = ("large" if bw * bh > cols * rows * 0.12 else
                          "small" if bw * bh < cols * rows * 0.05 else "mid-sized")
-            named = _name_for(bx, by, bw, bh)
+            named, inside = _name_for(bx, by, bw, bh)
             # A count attached to the wall it belongs to holds far better than
             # one stated once for the whole map.
             doors_here = sum(1 for yy in range(by, by + bh) for xx in range(bx, bx + bw)
@@ -501,7 +502,9 @@ def build_caption(map_data, style=None, base=None):
                 "desc": (f"One single {size_word} building, {named}, standing alone inside "
                          f"this rectangle and nowhere else: thick unbroken outer walls right "
                          f"on the edges of the rectangle, its roof removed so the furnished "
-                         f"floor inside is fully visible from above. {door_note}, and the "
+                         f"floor inside is fully visible from above."
+                         + (f" {inside.rstrip('.')}." if inside else "")
+                         + f" {door_note}, and the "
                          f"rest of its outer wall is continuous masonry with no second "
                          f"door, no archway and no gap anywhere in it. The ground "
                          f"immediately outside it on every side is open and free of any "

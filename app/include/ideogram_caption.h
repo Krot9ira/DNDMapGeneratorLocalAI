@@ -350,12 +350,16 @@ public:
                 // order - the areas include things that are not buildings, which
                 // is how a warehouse came to be called "the Moored Ship".
                 std::string label = "a building";
+                std::string inside;
                 for (const Area& ar : map.areas) {
                     if (ar.label.empty()) continue;
                     double ax = ar.x + ar.w / 2.0, ay = ar.y + ar.h / 2.0;
                     if (ax >= b.rect.x && ax <= b.rect.x + b.rect.w &&
                         ay >= b.rect.y && ay <= b.rect.y + b.rect.h) {
                         label = "the " + ar.label;
+                        // The room element is skipped inside a footprint, so
+                        // without this its description would be thrown away.
+                        inside = Trim(ar.description);
                         break;
                     }
                 }
@@ -366,7 +370,9 @@ public:
                              ", standing alone inside this rectangle and nowhere else: thick "
                              "unbroken outer walls right on the edges of the rectangle, its "
                              "roof removed so the furnished floor inside is fully visible "
-                             "from above. " + doorNote + ", and the rest of its outer wall "
+                             "from above." + (inside.empty() ? std::string()
+                                                             : " " + inside) + " " +
+                             doorNote + ", and the rest of its outer wall "
                              "is continuous masonry with no second door, no archway and no "
                              "gap anywhere in it. The ground immediately outside it on every "
                              "side is open and free of any wall. " + kExactS}});

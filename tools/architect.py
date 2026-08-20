@@ -1527,6 +1527,9 @@ def normalize_spec(spec):
         entry = {
             "id": str(r.get("id") or label).lower().replace(" ", "_")[:32] or f"area_{i}",
             "label": label[:40],
+            # What this room is, in the planner's own words. It goes to the
+            # renderer with the room's rectangle, so it is worth keeping.
+            "description": str(r.get("description") or r.get("desc") or "")[:400],
             "size": str(r.get("size", "m"))[:1].lower(),
             "props": r.get("props") or r.get("features") or [],
             "terrain": str(r.get("terrain", "none")).lower(),
@@ -1668,6 +1671,7 @@ def build(spec, seed=None):
         rx, ry, rw, rh = room["rect"]
         label = room["spec"].get("label", "")
         map_data["areas"].append({"id": room["spec"].get("id", ""), "label": label,
+                                  "description": room["spec"].get("description", ""),
                                   "x": rx, "y": ry, "w": rw, "h": rh})
         if label:
             map_data["labels"].append({"text": label, "x": rx + rw // 2,
@@ -1683,6 +1687,29 @@ def validate_map(map_data, repair=True):
     editor. Returns (map_data, list_of_problems)."""
     problems = []
     data = dict(map_data or {})
+
+    # A placeholder name is worse than no name: it is sent to the artist as if
+    # it meant something. Worth saying out loud rather than quietly rendering.
+    import re as _re
+    placeholder = _re.compile(r"^(area|room|zone|space|section|building)\s*\d*$|"
+                              r"^(main|second|third|fourth|fifth|another)\s+(area|room|zone)$",
+                              _re.I)
+    seen_labels = {}
+    for a in (data.get("areas") or []):
+        label = str(a.get("label", "")).strip()
+        if not label:
+            problems.append("an area has no name, so the renderer is told nothing about it")
+        elif placeholder.match(label):
+            problems.append(f"area '{label}' still has a placeholder name - "
+                            f"name it for what happens there")
+        seen_labels[label.lower()] = seen_labels.get(label.lower(), 0) + 1
+        if not str(a.get("description", "")).strip():
+            problems.append(f"area '{label or '?'}' has no description, so only its name "
+                            f"reaches the renderer")
+    for label, n in seen_labels.items():
+        if n > 1 and label:
+            problems.append(f"{n} areas are all called '{label}' - "
+                            f"the renderer cannot tell them apart")
 
     meta = data.get("meta")
     if not isinstance(meta, dict):

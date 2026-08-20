@@ -136,11 +136,31 @@ Never say a map was produced without checking that the file exists.
 | `grid` | no | `{"cols": N, "rows": N}`, 10–150 each. Or `size`: `small`/`medium`/`large`/`huge`/`giant` |
 | `scene_summary` | yes | Two or three vivid sentences: surfaces, wall condition, what happened here |
 | `render_details` | yes | Dense comma list of materials, finishes, colours, wear, damage, light |
-| `rooms` | yes | 3–6 areas, each with `label`, `size` (`s`/`m`/`l`) and 5–9 `props` |
+| `rooms` | yes | 3–6 areas, each with `label`, `description`, `size` (`s`/`m`/`l`) and 5–9 `props` |
 | `terrain` | no | `{"kind": "water\|pit\|rubble\|vegetation", "amount": "low\|medium\|high", "shape": "pools\|river"}` |
 | `prop_density` | no | Defaults to `high` |
 | `border` | no | Width of the blank bleed margin in cells, 0–8. Defaults to 2 |
 | `seed` | no | Pass to `generate(seed=...)` for a reproducible layout |
+
+### Naming the rooms
+
+Each room's `label` and `description` are sent to the renderer with that room's rectangle,
+so they decide what gets painted there. Both are worth writing properly.
+
+```python
+{"label": "Smithy",
+ "description": "Soot-blackened stone floor, anvil in the middle, quench barrel steaming "
+                "beside the forge.",
+ "size": "m",
+ "props": ["anvil", "forge", "barrel", "workbench", "crate"]}
+```
+
+- **Name it for what happens there.** "Smithy", "Flooded Vestry", "Cargo Hold". Never
+  "Area 1", "Room 2" or "Main Area" - a name that says nothing is worse than no name,
+  because it is handed to the artist as if it meant something. `validate` reports these.
+- **A different description for every room.** One sentence on the floor, its state, and
+  what stands in it. Two rooms with the same description are one room drawn twice.
+- **Vary the props.** They are what makes one area read differently from the next.
 
 ### The bleed margin
 

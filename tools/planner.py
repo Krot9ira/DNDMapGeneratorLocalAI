@@ -44,12 +44,13 @@ SPEC_SCHEMA = {
                 "type": "object",
                 "properties": {
                     "label": {"type": "string"},
+                    "description": {"type": "string"},
                     "size": {"type": "string", "enum": ["s", "m", "l"]},
                     "terrain": {"type": "string",
                                 "enum": ["none", "water", "pit", "rubble", "vegetation"]},
                     "props": {"type": "array", "items": {"type": "string"}},
                 },
-                "required": ["label", "size", "props"],
+                "required": ["label", "description", "size", "props"],
             },
         },
     },
@@ -77,9 +78,18 @@ Rules:
   street   = city block with buildings along a road
   arena    = one single dramatic chamber (boss fight, throne room)
   harbour  = waterfront with a quay, a gangway and a moored ship
-- `rooms` are the distinct areas of the scene, 3 to 6 of them. Give each a short human
-  label, a size (s/m/l) and 5 to 9 props that belong in it. Vary the props between areas
-  so each one has its own purpose and character.
+- `rooms` are the distinct areas of the scene, 3 to 6 of them. Each needs four things:
+  * `label` - what this place is called, in two or three words. Name it for what happens
+    there: "Smithy", "Flooded Vestry", "Cargo Hold", "Alchemist's Workroom". NEVER
+    "Area 1", "Room 2", "Main Area", "Second Area" or any other numbered placeholder -
+    a name that says nothing is worse than no name, because it is sent to the artist.
+  * `description` - one sentence on what this particular room looks like and what it is
+    for. Different for every room. This is drawn, so describe the floor, the state of it
+    and what stands in it: "Soot-blackened stone floor, anvil in the middle, quench barrel
+    steaming beside the forge."
+  * `size` - s, m or l.
+  * `props` - 5 to 9 objects that belong in it, varied between rooms so each has its own
+    purpose. Two rooms with the same props are one room drawn twice.
 - Props are physical objects only: furniture, containers, scenery, tools, light sources.
   NEVER list people, creatures, animals or monsters - the game master places those as
   tokens afterwards.
@@ -166,6 +176,9 @@ class MapPlanner:
             f"- {sid}: {s.get('name', sid)} - {s.get('description', '')}"
             for sid, s in sorted(styles.items()))
 
+        known = sorted(A.KNOWN_PROPS)
+        mine = sorted(A.custom_props())
+
         parts = [f'Scene requested by the game master:\n"{scene_description}"\n']
         if style_id:
             style = styles.get(style_id, {})
@@ -173,6 +186,14 @@ class MapPlanner:
         else:
             parts.append("Choose the most fitting `style` from this library:\n" + catalogue)
         parts.append(f"Use size `{size}` unless the scene clearly needs another.")
+        parts.append("Props the renderer has a concrete description for - prefer these "
+                     "names: " + ", ".join(known))
+        if mine:
+            parts.append("Objects this game master defined themselves. Use them whenever the "
+                         "scene calls for one - they are drawn exactly as described: "
+                         + ", ".join(mine))
+        parts.append("Anything else you name still works; it is simply left to the artist's "
+                     "judgement rather than drawn to a fixed description.")
         if sketch_path:
             parts.append("A sketch of the intended layout is attached. Match its areas, "
                          "their rough arrangement and any water or obstacles you can see.")
