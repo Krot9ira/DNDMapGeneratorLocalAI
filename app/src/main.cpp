@@ -2545,14 +2545,27 @@ static void TabStyles() {
                       ImGuiChildFlags_Borders);
     ImGui::TextColored(AccentGold(), "Styles");
     ImGui::TextDisabled("One JSON file each, in styles/");
-    for (const auto& kv : g_app.styles.styles) {
-        if (ImGui::Selectable(kv.second.name.c_str(), editingId == kv.first && !editingBase)) {
-            editingId = kv.first;
-            editing = kv.second;
-            editingBase = false;
-            editingPhrases = false;
-        }
+
+    // Above the list, not below it: with twenty-eight styles these were pushed
+    // off the bottom of the panel and could not be reached at all.
+    if (ImGui::Button("New style", ImVec2(-1, 26))) {
+        editing = StyleDef{};
+        editing.id = "custom_" + std::to_string(g_app.styles.styles.size() + 1);
+        editing.name = "New style";
+        editing.category = "Custom";
+        editing.materials = "Describe the materials, surfaces and colours of this place.";
+        editing.ground = "worn stone paving";
+        editing.default_layout = "building";
+        editingId = editing.id;
+        editingBase = false;
+        editingPhrases = false;
+        g_app.job.Log("New style started. Give it a name and an id, then Save style.");
     }
+    ImGui::SetItemTooltip("Starts a blank style. Nothing is written until you press "
+                          "Save style, and the file is named after its id.");
+    if (ImGui::Button("Reload from disk", ImVec2(-1, 26))) g_app.styles.LoadAll();
+    ImGui::SetItemTooltip("Throw away unsaved edits and read the styles folder again.");
+
     ImGui::Separator();
     if (ImGui::Selectable("Shared caption contract", editingBase && !editingPhrases)) {
         editingBase = true;
@@ -2567,17 +2580,17 @@ static void TabStyles() {
     ImGui::SetItemTooltip("What the renderer is told about a door, a wall, a barrel, a fire - "
                           "every kind of thing the caption can name.");
     ImGui::Separator();
-    if (ImGui::Button("New style", ImVec2(-1, 26))) {
-        editing = StyleDef{};
-        editing.id = "custom_" + std::to_string(g_app.styles.styles.size() + 1);
-        editing.name = "New style";
-        editing.category = "Custom";
-        editing.materials = "Describe the materials, surfaces and colours of this place.";
-        editing.ground = "worn stone paving";
-        editingId = editing.id;
-        editingBase = false;
+
+    ImGui::BeginChild("##stylenames", ImVec2(0, 0));
+    for (const auto& kv : g_app.styles.styles) {
+        if (ImGui::Selectable(kv.second.name.c_str(), editingId == kv.first && !editingBase)) {
+            editingId = kv.first;
+            editing = kv.second;
+            editingBase = false;
+            editingPhrases = false;
+        }
     }
-    if (ImGui::Button("Reload from disk", ImVec2(-1, 26))) g_app.styles.LoadAll();
+    ImGui::EndChild();
     ImGui::EndChild();
 
     ImGui::SameLine();
@@ -2598,13 +2611,35 @@ static void TabStyles() {
         InputTextMultilineString("##bg", &g_app.styles.base.background_suffix, ImVec2(-1, 80));
         if (ImGui::Button("Save contract", ImVec2(200, 30))) g_app.styles.SaveBase();
     } else if (!editingId.empty()) {
+        bool isNew = g_app.styles.styles.find(editing.id) == g_app.styles.styles.end();
         ImGui::TextColored(AccentGold(), "Editing: %s", editing.id.c_str());
+        if (isNew) {
+            InputTextString("Style id", &editing.id);
+            ImGui::SetItemTooltip("Short, lowercase, no spaces - it names the file in "
+                                  "styles/ and is how the tools refer to this style.");
+        } else {
+            ImGui::BeginDisabled();
+            std::string frozen = editing.id;
+            InputTextString("Style id", &frozen);
+            ImGui::EndDisabled();
+            ImGui::SetItemTooltip("The id names the file on disk, so it cannot be changed "
+                                  "here. Copy the file if you want it under another name.");
+        }
         InputTextString("Display name", &editing.name);
         InputTextString("Category", &editing.category);
         InputTextString("Description", &editing.description);
         InputTextString("Palette", &editing.palette);
         InputTextString("Lighting", &editing.lighting);
-        InputTextString("Default layout", &editing.default_layout);
+        // kLayoutNames[0] is "(from style)", which makes no sense inside a style.
+        int layoutPick = 0;
+        for (int i = 1; i < IM_ARRAYSIZE(kLayoutNames); ++i)
+            if (editing.default_layout == kLayoutNames[i]) layoutPick = i - 1;
+        if (ImGui::Combo("Default layout", &layoutPick, kLayoutNames + 1,
+                         IM_ARRAYSIZE(kLayoutNames) - 1))
+            editing.default_layout = kLayoutNames[layoutPick + 1];
+        ImGui::SetItemTooltip("The shape this style builds when the Create tab is left on "
+                              "'(from style)'. A typed name that matches nothing would "
+                              "silently fall back to dungeon, so it is a list.");
         ImGui::Text("What this place is made of");
         InputTextMultilineString("##sp", &editing.materials, ImVec2(-1, 130));
         InputTextString("Ground surface", &editing.ground);
@@ -2627,7 +2662,24 @@ static void TabStyles() {
             }
         }
 
-        if (ImGui::Button("Save style", ImVec2(160, 30))) g_app.styles.SaveStyle(editing);
+        ImGui::BeginDisabled(editing.id.empty() || editing.name.empty());
+        if (ImGui::Button("Save style", ImVec2(160, 30))) {
+            std::string id;
+            for (char c : editing.id)
+                id += (c == ' ' ? '_' : (char)tolower((unsigned char)c));
+            editing.id = id;
+            if (g_app.styles.SaveStyle(editing)) {
+                editingId = editing.id;
+                g_app.job.Log("Saved styles/" + editing.id + ".json");
+            } else {
+                g_app.job.Log("Could not save the style: " + g_app.styles.lastError);
+            }
+        }
+        ImGui::EndDisabled();
+        if (editing.id.empty() || editing.name.empty()) {
+            ImGui::SameLine();
+            ImGui::TextDisabled("needs an id and a name");
+        }
         ImGui::SameLine();
         if (ImGui::Button("Delete style", ImVec2(160, 30))) {
             g_app.styles.DeleteStyle(editing.id);
