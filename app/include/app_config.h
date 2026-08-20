@@ -52,6 +52,7 @@ public:
             }
             cfg.default_style = j.value("default_style", cfg.default_style);
             cfg.default_size = j.value("default_size", cfg.default_size);
+            cfg.border_cells = j.value("border_cells", cfg.border_cells);
             cfg.output_dir = j.value("output_dir", cfg.output_dir);
             return true;
         } catch (const std::exception& e) {
@@ -88,6 +89,7 @@ public:
 
             j["default_style"] = cfg.default_style;
             j["default_size"] = cfg.default_size;
+            j["border_cells"] = cfg.border_cells;
             j["output_dir"] = cfg.output_dir;
 
             std::ofstream f(path);

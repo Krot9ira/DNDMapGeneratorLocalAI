@@ -26,7 +26,9 @@ from math import gcd
 import architect as A
 
 # Cap so no single caption drowns the model in elements.
-MAX_ELEMENTS = 40
+MAX_ELEMENTS = 60
+# Walls are merged into the longest runs the grid allows, so this is generous.
+MAX_WALL_RUNS = 24
 
 _TERRAIN_WORDS = {
     A.WATER: "dark green water",
@@ -182,6 +184,17 @@ def build_caption(map_data, style=None, base=None):
         "letters, numbers, labels or grid lines anywhere")
     caption["high_level_description"] = head.rstrip(",") + ". " + forbidden + "."
 
+    # Counted openings. Without this the renderer decorates a long wall with a
+    # row of invented archways, which changes how the map plays.
+    door_count = sum(w * h for (x, y, w, h) in _merge_runs(grid, A.DOOR))
+    window_count = sum(w * h for (x, y, w, h) in _merge_runs(grid, A.WINDOW))
+    opening_note = (
+        f"Every wall in this map is solid from end to end. There are exactly {door_count} "
+        f"doors and {window_count} windows in the whole picture, each one listed below with "
+        f"its own rectangle, and no other door, doorway, archway, gate, gap or window exists "
+        f"anywhere in any wall.")
+    caption["high_level_description"] += " " + opening_note
+
     caption["style_description"] = {
         "aesthetics": style.get("aesthetics") or base.get("aesthetics", ""),
         "lighting": style.get("lighting") or base.get("lighting", ""),
@@ -192,7 +205,10 @@ def build_caption(map_data, style=None, base=None):
 
     # Elements are gathered by priority, because the cap must never drop the
     # things whose position actually matters.
-    critical, normal, filler = [], [], []
+    # Four tiers. `structure` is what the map is: walls, doors, windows, the
+    # ship. It outranks rooms and scenery because a battle map with the wrong
+    # walls is the wrong map, however well painted.
+    critical, walls, structure, normal, filler = [], [], [], [], []
 
     # 1. User-written annotations win over everything: they were placed by hand.
     for ann in map_data.get("annotations", []) or []:
@@ -251,7 +267,7 @@ def build_caption(map_data, style=None, base=None):
     for st in map_data.get("structures", []) or []:
         if st.get("kind") != "ship":
             continue
-        critical.append({
+        structure.append({
             "type": "obj",
             "bbox": _bbox(st["x"], st["y"], st["w"], st["h"], cols, rows),
             "desc": ("One large wooden sailing ship floating on the water, viewed from directly "
@@ -263,10 +279,12 @@ def build_caption(map_data, style=None, base=None):
         })
 
     # 4. Doors. Few in number and load-bearing for how the map plays, so each one
+    #    (see below - walls are emitted first, because openings only make sense
+    #    once the runs they sit in exist)
     #    gets its own box - without this the renderer put openings where it liked.
     door_word = style.get("door") or "a heavy closed timber door with iron banding and a ring handle"
     for (x, y, w, h) in _merge_runs(grid, A.DOOR):
-        critical.append({"type": "obj", "bbox": _bbox(x, y, w, h, cols, rows),
+        structure.append({"type": "obj", "bbox": _bbox(x, y, w, h, cols, rows),
                          "desc": f"{door_word}, set into the wall and completely filling the "
                                  f"opening as a solid closed door leaf, not an empty gap. "
                                  f"{_EXACT}"})
@@ -278,10 +296,30 @@ def build_caption(map_data, style=None, base=None):
         "a window set into the wall: a stone or timber frame holding small panes of "
         "glass, its sill and lintel clearly drawn")
     for (x, y, w, h) in _merge_runs(grid, A.WINDOW):
-        critical.append({"type": "obj", "bbox": _bbox(x, y, w, h, cols, rows),
+        structure.append({"type": "obj", "bbox": _bbox(x, y, w, h, cols, rows),
                          "desc": f"{window_word}, filling the whole opening in the wall "
                                  f"and set flush into it, with solid wall continuing on "
                                  f"both sides. {_EXACT}"})
+
+    # 4c. Walls. Until now the renderer was handed room rectangles and left to
+    #     invent every wall line itself, which is exactly where the layout came
+    #     apart. The architect knows each run, so each run is given.
+    wall_word = style.get("wall") or "solid stone wall with visible courses"
+    for (x, y, w, h) in _merge_runs(grid, A.WALL)[:MAX_WALL_RUNS]:
+        if w * h < 2:
+            continue                      # a single stub reads as noise
+        if w >= h:
+            shape = ("a horizontal wall running the full width of this rectangle from its "
+                     "left edge to its right edge")
+        else:
+            shape = ("a vertical wall running the full height of this rectangle from its "
+                     "top edge to its bottom edge")
+        walls.append({
+            "type": "obj",
+            "bbox": _bbox(x, y, w, h, cols, rows),
+            "desc": (f"A straight unbroken run of {wall_word}: {shape}, filling it completely "
+                     f"and keeping the same thickness along its entire length, with square "
+                     f"ends and no gap, opening or archway anywhere in it. {_EXACT}")})
 
     # 5. Terrain bodies large enough to matter, biggest first.
     for kind, phrase in _TERRAIN_WORDS.items():
@@ -300,9 +338,9 @@ def build_caption(map_data, style=None, base=None):
         normal.append({
             "type": "obj",
             "bbox": _bbox(area["x"], area["y"], area["w"], area["h"], cols, rows),
-            "desc": (f"The {label}: a roofless interior seen from above, its floor and "
-                     f"furniture fully visible, enclosed by thick stone walls that follow "
-                     f"this rectangle exactly"),
+            "desc": (f"The {label}: the roofless interior of a room seen from directly "
+                     f"above, its floor and furniture fully visible and filling this "
+                     f"rectangle, with no roof, no ceiling and nothing overhanging it"),
         })
 
     # 7. Load-bearing props get their own box; clutter is described without one
@@ -332,7 +370,7 @@ def build_caption(map_data, style=None, base=None):
                        "bbox": _bbox(f["x"], f["y"], 1, 1, cols, rows),
                        "desc": phrase + ", seen from directly above"})
 
-    elements = critical + normal + filler
+    elements = critical + walls + structure + normal + filler
     if len(elements) > MAX_ELEMENTS:
         elements = elements[:MAX_ELEMENTS]
 

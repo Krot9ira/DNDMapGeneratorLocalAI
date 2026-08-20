@@ -72,7 +72,24 @@ print(result["out_dir"])      # everything else lives here
 | `rooms` | yes | 3–6 areas, each with `label`, `size` (`s`/`m`/`l`) and 5–9 `props` |
 | `terrain` | no | `{"kind": "water\|pit\|rubble\|vegetation", "amount": "low\|medium\|high", "shape": "pools\|river"}` |
 | `prop_density` | no | Defaults to `high` |
+| `border` | no | Width of the blank bleed margin in cells, 0–8. Defaults to 2 |
 | `seed` | no | Pass to `generate(seed=...)` for a reproducible layout |
+
+### The bleed margin
+
+Every finished map carries an empty ring of cells outside the field you asked for. **It is
+added, not subtracted**: `{"cols": 25, "rows": 19}` gives you 25×19 cells to work with, and
+the stored grid is 29×23 with the playable area offset by 2.
+
+That matters when you read a `map.json` back or place anything by coordinate: **every
+coordinate in the file is already offset by the margin.** `architect.playable_rect(map)`
+returns `(x, y, w, h)` of the field, and `architect.border_of(map)` gives the width. Do not
+subtract it yourself when annotating — annotations use the same coordinate space as the rest
+of the file.
+
+The margin exists because image models are least reliable at the very edge of a frame. Given
+a blank rim, their guessing spoils empty space instead of the corner of a room. Pass
+`"border": 0` if you genuinely want the map bled to the edge.
 
 ### Layouts
 
@@ -89,6 +106,21 @@ print(result["out_dir"])      # everything else lives here
 | `arena` | one dramatic chamber |
 | `harbour` | quay, open water and a moored ship (the ship is generated for you) |
 | `custom` | you supply explicit `x/y/w/h` per room and they are validated and walled |
+
+---
+
+## What the renderer is told exactly
+
+Everything load-bearing is handed over as a bounding box, in this order of priority:
+
+1. Your annotations and effects.
+2. **Structure** — every wall run, every door, every window, the ship.
+3. Rooms and terrain bodies.
+4. Catalogue props with a described form.
+
+Loose clutter is described without coordinates on purpose: pinning fifty small objects makes
+the painting stiff and worse. If a specific object matters, give it as a custom prop with a
+`label`, or mark its rectangle with an annotation.
 
 ---
 

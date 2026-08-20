@@ -23,7 +23,9 @@ namespace dnd {
 
 class IdeogramCaption {
 public:
-    static constexpr int kMaxElements = 40;
+    static constexpr int kMaxElements = 60;
+    // Walls are merged into the longest runs the grid allows, so this is generous.
+    static constexpr int kMaxWallRuns = 24;
     // Split a rectangle into tiles when it covers a big share of the map. A
     // single box the size of half the frame is not a useful instruction: the
     // model satisfies it with one blob somewhere inside.
@@ -85,7 +87,18 @@ public:
         }
         // Ideogram takes no negative prompt, so the ban on text and creatures
         // has to be stated positively, inside the caption.
-        cap["high_level_description"] = CapWords(head, 44) + ". " + base.forbidden_suffix + ".";
+        // Counted openings. Without this the renderer decorates a long wall with
+        // a row of invented archways, which changes how the map plays.
+        int doorCells = 0, windowCells = 0;
+        for (const Rect& r : MergeRuns(g, Tile::Door, cols, rows)) doorCells += r.w * r.h;
+        for (const Rect& r : MergeRuns(g, Tile::Window, cols, rows)) windowCells += r.w * r.h;
+        cap["high_level_description"] =
+            CapWords(head, 44) + ". " + base.forbidden_suffix +
+            ". Every wall in this map is solid from end to end. There are exactly " +
+            std::to_string(doorCells) + " doors and " + std::to_string(windowCells) +
+            " windows in the whole picture, each one listed below with its own rectangle, "
+            "and no other door, doorway, archway, gate, gap or window exists anywhere in "
+            "any wall.";
 
         nlohmann::json sd;
         sd["aesthetics"] = (style && !style->aesthetics.empty()) ? style->aesthetics
@@ -101,7 +114,14 @@ public:
 
         // Elements are gathered by priority, because the cap must never drop
         // the things whose position actually matters.
+        // Four tiers. `structure` is what the map is: walls, doors, windows, the
+        // ship. It outranks rooms and scenery, because a battle map with the
+        // wrong walls is the wrong map however well it is painted.
         nlohmann::json critical = nlohmann::json::array();
+        // Walls come before the things set into them: the model reads the list
+        // in order, and an opening only makes sense once its run exists.
+        nlohmann::json walls = nlohmann::json::array();
+        nlohmann::json structure = nlohmann::json::array();
         nlohmann::json normal = nlohmann::json::array();
         nlohmann::json filler = nlohmann::json::array();
 
@@ -162,7 +182,7 @@ public:
         // 3. Structures.
         for (const auto& st : map.structures) {
             if (st.kind != "ship") continue;
-            critical.push_back({
+            structure.push_back({
                 {"type", "obj"},
                 {"bbox", Bbox(st.x, st.y, st.w, st.h, cols, rows)},
                 {"desc", SHIP_TEXT}});
@@ -172,7 +192,7 @@ public:
         //    gets its own box - without this the renderer put openings where it
         //    liked, or left a plain gap where a door belongs.
         for (const Rect& r : MergeRuns(g, Tile::Door, cols, rows)) {
-            critical.push_back({
+            structure.push_back({
                 {"type", "obj"},
                 {"bbox", Bbox(r.x, r.y, r.w, r.h, cols, rows)},
                 {"desc", std::string(DOOR_TEXT) + " " + kExact}});
@@ -181,13 +201,38 @@ public:
         // 4b. Windows. Like doors: few, load-bearing, and invented anywhere the
         //     renderer likes unless it is told exactly where they belong.
         for (const Rect& r : MergeRuns(g, Tile::Window, cols, rows)) {
-            critical.push_back({
+            structure.push_back({
                 {"type", "obj"},
                 {"bbox", Bbox(r.x, r.y, r.w, r.h, cols, rows)},
                 {"desc", std::string(WINDOW_TEXT) + " " + kExact}});
         }
 
         // 5. Terrain bodies worth naming.
+        // 4c. Walls. Until now the renderer was handed room rectangles and left
+        //     to invent every wall line itself, which is exactly where the
+        //     layout came apart. The architect knows each run, so each is given.
+        {
+            int emitted = 0;
+            for (const Rect& r : MergeRuns(g, Tile::Wall, cols, rows)) {
+                if (emitted >= kMaxWallRuns) break;
+                if (r.w * r.h < 2) continue;      // a single stub reads as noise
+                std::string shape =
+                    (r.w >= r.h)
+                        ? "a horizontal wall running the full width of this rectangle from "
+                          "its left edge to its right edge"
+                        : "a vertical wall running the full height of this rectangle from "
+                          "its top edge to its bottom edge";
+                walls.push_back({
+                    {"type", "obj"},
+                    {"bbox", Bbox(r.x, r.y, r.w, r.h, cols, rows)},
+                    {"desc", "A straight unbroken run of solid stone wall with visible "
+                             "courses: " + shape + ", filling it completely and keeping the "
+                             "same thickness along its entire length, with square ends and "
+                             "no gap, opening or archway anywhere in it. " + kExact}});
+                ++emitted;
+            }
+        }
+
         AddTerrain(normal, g, Tile::Water, "dark green water", cols, rows);
         AddTerrain(normal, g, Tile::Pit, "an open pit dropping into darkness", cols, rows);
         AddTerrain(normal, g, Tile::Vegetation, "dense undergrowth", cols, rows);
@@ -200,9 +245,10 @@ public:
             normal.push_back({
                 {"type", "obj"},
                 {"bbox", Bbox(a.x, a.y, a.w, a.h, cols, rows)},
-                {"desc", "The " + label + ": a roofless interior seen from above, its floor and "
-                         "furniture fully visible, enclosed by thick stone walls that follow "
-                         "this rectangle exactly"}});
+                {"desc", "The " + label + ": the roofless interior of a room seen from "
+                         "directly above, its floor and furniture fully visible and filling "
+                         "this rectangle, with no roof, no ceiling and nothing overhanging "
+                         "it"}});
         }
 
         // 7. Pinned props get a box; clutter is only described.
@@ -236,6 +282,8 @@ public:
 
         nlohmann::json elements = nlohmann::json::array();
         for (const auto& e : critical) elements.push_back(e);
+        for (const auto& e : walls) elements.push_back(e);
+        for (const auto& e : structure) elements.push_back(e);
         for (const auto& e : normal) elements.push_back(e);
         for (const auto& e : filler) elements.push_back(e);
         while ((int)elements.size() > kMaxElements) elements.erase(elements.end() - 1);

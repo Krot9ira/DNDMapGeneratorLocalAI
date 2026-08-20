@@ -297,6 +297,7 @@ static DesignSpec SpecFromUi() {
 
     spec.cols = g_app.cols;
     spec.rows = g_app.rows;
+    spec.border = std::clamp(g_app.config.border_cells, 0, 8);
 
     bool outdoor = spec.layout == "harbour" || spec.layout == "open" ||
                    spec.layout == "street" || spec.layout == "forest" ||
@@ -2309,6 +2310,16 @@ static void TabSettings() {
     ImGui::BeginDisabled(g_app.job.running.load());
     if (ImGui::Button("Test both connections", ImVec2(240, 32))) StartConnectionCheck();
     ImGui::EndDisabled();
+
+    ImGui::Separator();
+    ImGui::TextColored(AccentGold(), "Maps");
+    ImGui::SliderInt("Bleed margin", &g_app.config.border_cells, 0, 6, "%d cells");
+    ImGui::SetItemTooltip(
+        "An empty ring added around every new map. It is added outside the size you pick, "
+        "never taken out of it.\n"
+        "Image models are least reliable at the very edge of a picture, so the margin is "
+        "where their mistakes go instead of into one of your rooms.\n"
+        "Set it to 0 if you want the map bled right to the edge.");
 
     ImGui::Separator();
     ImGui::TextColored(AccentGold(), "Ideogram 4 models in ComfyUI");

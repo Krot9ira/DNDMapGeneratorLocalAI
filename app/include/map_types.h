@@ -298,6 +298,8 @@ struct AppConfig {
     std::string default_style = "city_harbour";
     std::string default_size = "medium";
     std::string output_dir = "output";
+    // Width of the blank bleed margin added around every new map, in cells.
+    int border_cells = 2;
 };
 
 }  // namespace dnd

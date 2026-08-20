@@ -210,6 +210,26 @@ def render_preview(map_data, out_path=None, cell=DEFAULT_CELL_PX, show_labels=Tr
     for y in range(grid.rows + 1):
         d.line([(0, y * cell), (w, y * cell)], fill=(0, 0, 0), width=1)
 
+    # The bleed margin is not part of the field, so the preview says so the same
+    # way the editor does: dimmed, hatched, and fenced off with a gold line.
+    border = A.border_of(map_data)
+    if border > 0:
+        ix0, iy0 = border * cell, border * cell
+        ix1, iy1 = (grid.cols - border) * cell, (grid.rows - border) * cell
+        shade = Image.new("RGBA", (w, h), (0, 0, 0, 0))
+        sd = ImageDraw.Draw(shade)
+        sd.rectangle([0, 0, w, iy0], fill=(12, 13, 17, 170))
+        sd.rectangle([0, iy1, w, h], fill=(12, 13, 17, 170))
+        sd.rectangle([0, iy0, ix0, iy1], fill=(12, 13, 17, 170))
+        sd.rectangle([ix1, iy0, w, iy1], fill=(12, 13, 17, 170))
+        step = max(9, cell * 3 // 4)
+        for off in range(0, w + h, step):
+            sd.line([(off, 0), (off - h, h)], fill=(150, 140, 115, 40), width=1)
+        img.paste(Image.alpha_composite(img.convert("RGBA"), shade).convert("RGB"), (0, 0))
+        d = ImageDraw.Draw(img)
+        d.rectangle([ix0, iy0, ix1 - 1, iy1 - 1], outline=(214, 186, 122),
+                    width=max(2, cell // 10))
+
     for f in map_data.get("features", []) or []:
         _draw_feature(d, f, cell, max(1, cell // 14))
 
