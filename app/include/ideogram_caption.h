@@ -156,7 +156,13 @@ public:
         "above it, no door frame standing proud, no steps and no visible handle.";
 
     static nlohmann::json Build(const MapData& map, const StyleDef* style,
-                                const BaseStyle& base) {
+                                const BaseStyle& base, const Phrasebook& ph = {}) {
+        // Every phrase below can be overridden in styles/_phrases.json; the
+        // literals are the fallback for a missing file or a deleted key.
+        auto say = [&ph](const char* section, const char* key, const char* fallback) {
+            return ph.Get(section, key, fallback);
+        };
+        const std::string kExactS = say("phrasing", "exact", kExact);
         TileGrid g = arch::ZonesToGrid(map);
         const int cols = g.cols, rows = g.rows;
 
@@ -230,7 +236,7 @@ public:
                 while (!d.empty() && d.back() == '.') d.pop_back();
                 text += ". " + d;
             }
-            text += ". " + ElaborationPhrase(a.elaboration) + ". " + kExact;
+            text += ". " + ElaborationPhrase(a.elaboration) + ". " + kExactS;
             critical.push_back({{"type", "obj"},
                                 {"bbox", Bbox(a.x, a.y, a.w, a.h, cols, rows)},
                                 {"desc", text}});
@@ -249,13 +255,13 @@ public:
                 }
                 text += ". " + ElaborationPhrase(eff.elaboration);
             } else {
-                text = EffectText(eff.kind);
+                text = say("effects", eff.kind.c_str(), EffectText(eff.kind).c_str());
                 if (text.empty()) continue;
                 text[0] = (char)toupper((unsigned char)text[0]);
             }
-            std::string how = eff.intensity == "low" ? "faint and thin"
-                            : (eff.intensity == "high" ? "thick and dominating the area"
-                                                       : "clearly visible");
+            std::string how = eff.intensity == "low" ? say("phrasing", "effect_low", "faint and thin")
+                            : (eff.intensity == "high" ? say("phrasing", "effect_high", "thick and dominating the area")
+                                       : say("phrasing", "effect_medium", "clearly visible"));
             std::string body = text + ". This is an atmospheric effect painted over the "
                                "scene, " + how + ", lying on top of the ground without "
                                "replacing it";
@@ -271,7 +277,7 @@ public:
                 critical.push_back({
                     {"type", "obj"},
                     {"bbox", Bbox(t.x, t.y, t.w, t.h, cols, rows)},
-                    {"desc", body + spread + ". It fills this whole rectangle. " + kExact}});
+                    {"desc", body + spread + ". It fills this whole rectangle. " + kExactS}});
             }
         }
 
@@ -281,7 +287,7 @@ public:
             structure.push_back({
                 {"type", "obj"},
                 {"bbox", Bbox(st.x, st.y, st.w, st.h, cols, rows)},
-                {"desc", SHIP_TEXT}});
+                {"desc", say("structure", "ship", SHIP_TEXT)}});
         }
 
         // 4. Doors. Few in number and load-bearing for how the map plays, so each
@@ -291,7 +297,7 @@ public:
             structure.push_back({
                 {"type", "obj"},
                 {"bbox", Bbox(r.x, r.y, r.w, r.h, cols, rows)},
-                {"desc", std::string(DOOR_TEXT) + " " + kExact}});
+                {"desc", say("structure", "door", DOOR_TEXT) + " " + kExactS}});
         }
 
         // 4b. Windows. Like doors: few, load-bearing, and invented anywhere the
@@ -300,7 +306,7 @@ public:
             structure.push_back({
                 {"type", "obj"},
                 {"bbox", Bbox(r.x, r.y, r.w, r.h, cols, rows)},
-                {"desc", std::string(WINDOW_TEXT) + " " + kExact}});
+                {"desc", say("structure", "window", WINDOW_TEXT) + " " + kExactS}});
         }
 
         // 5. Terrain bodies worth naming.
@@ -363,7 +369,7 @@ public:
                              "from above. " + doorNote + ", and the rest of its outer wall "
                              "is continuous masonry with no second door, no archway and no "
                              "gap anywhere in it. The ground immediately outside it on every "
-                             "side is open and free of any wall. " + kExact}});
+                             "side is open and free of any wall. " + kExactS}});
             }
         }
 
@@ -399,10 +405,10 @@ public:
                     walls.push_back({
                         {"type", "obj"},
                         {"bbox", Bbox(r.x, r.y, r.w, r.h, cols, rows)},
-                        {"desc", std::string("A mass of solid rough rock wall filling this "
+                        {"desc", std::string("A mass of " + say("structure", "wall_organic", "solid rough rock wall") + " filling this "
                                  "whole rectangle solidly, its face irregular and broken but "
                                  "with no passage, gap or opening through it anywhere. ") +
-                                 kExact}});
+                                 kExactS}});
                     ++emitted;
                     continue;
                 }
@@ -415,11 +421,11 @@ public:
                 walls.push_back({
                     {"type", "obj"},
                     {"bbox", Bbox(r.x, r.y, r.w, r.h, cols, rows)},
-                    {"desc", "A run of solid stone wall with visible courses: " + shape +
+                    {"desc", "A run of " + say("structure", "wall", "solid stone wall with visible courses") + ": " + shape +
                              ", filling it completely and keeping the same thickness along "
                              "its entire length, with square ends and solid masonry "
                              "everywhere except at the doors listed separately below. " +
-                             kExact}});
+                             kExactS}});
                 ++emitted;
             }
         }
@@ -449,14 +455,18 @@ public:
                     {"desc", "Open ground of " + openWord + " filling this whole rectangle, "
                              "unbroken from edge to edge: no building, no wall and no "
                              "partition stands anywhere inside it, only loose objects lying "
-                             "on the ground. " + kExact}});
+                             "on the ground. " + kExactS}});
                 ++given;
             }
         }
 
-        AddTerrain(normal, g, Tile::Water, "dark green water", cols, rows);
-        AddTerrain(normal, g, Tile::Pit, "an open pit dropping into darkness", cols, rows);
-        AddTerrain(normal, g, Tile::Vegetation, "dense undergrowth", cols, rows);
+        AddTerrain(normal, g, Tile::Water, say("terrain", "water", "dark green water"),
+                   cols, rows, kExactS);
+        AddTerrain(normal, g, Tile::Pit,
+                   say("terrain", "pit", "an open pit dropping into darkness"), cols, rows,
+                   kExactS);
+        AddTerrain(normal, g, Tile::Vegetation,
+                   say("terrain", "vegetation", "dense undergrowth"), cols, rows, kExactS);
 
         // 6. Rooms.
         for (const auto& a : map.areas) {
@@ -496,13 +506,13 @@ public:
                     while (!d.empty() && d.back() == '.') d.pop_back();
                     text += ". " + d;
                 }
-                text += ". " + ElaborationPhrase(f.elaboration) + ". " + kExact;
+                text += ". " + ElaborationPhrase(f.elaboration) + ". " + kExactS;
                 critical.push_back({{"type", "obj"},
                                     {"bbox", Bbox(f.x, f.y, 1, 1, cols, rows)},
                                     {"desc", text}});
                 continue;
             }
-            std::string phrase = PropPhrase(f.kind);
+            std::string phrase = say("props", f.kind.c_str(), PropPhrase(f.kind).c_str());
             if (phrase.empty()) continue;
             filler.push_back({{"type", "obj"},
                               {"bbox", Bbox(f.x, f.y, 1, 1, cols, rows)},
@@ -568,8 +578,8 @@ public:
 
     // Minified single line, exactly as the model expects.
     static std::string BuildJson(const MapData& map, const StyleDef* style,
-                                 const BaseStyle& base) {
-        return Build(map, style, base).dump(-1, ' ', false,
+                                 const BaseStyle& base, const Phrasebook& ph = {}) {
+        return Build(map, style, base, ph).dump(-1, ' ', false,
                                       nlohmann::json::error_handler_t::replace);
     }
 
@@ -676,7 +686,8 @@ private:
     }
 
     static void AddTerrain(nlohmann::json& elements, const TileGrid& g, Tile kind,
-                           const std::string& phrase, int cols, int rows) {
+                           const std::string& phrase, int cols, int rows,
+                           const std::string& exact) {
         std::vector<Rect> rects = MergeRuns(g, kind, cols, rows);
         int minArea = std::max(4, (int)(cols * rows * 0.02));
         for (size_t i = 0; i < rects.size() && i < 2; ++i) {
@@ -685,7 +696,7 @@ private:
                 {"type", "obj"},
                 {"bbox", Bbox(rects[i].x, rects[i].y, rects[i].w, rects[i].h, cols, rows)},
                 {"desc", "A body of " + phrase + " filling this region, its edge meeting "
-                         "the surrounding ground in a clean line. " + kExact}});
+                         "the surrounding ground in a clean line. " + exact}});
         }
     }
 

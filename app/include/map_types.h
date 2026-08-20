@@ -1,5 +1,6 @@
 #pragma once
 #include <cstdint>
+#include <map>
 #include <string>
 #include <vector>
 #include <algorithm>
@@ -269,6 +270,26 @@ struct BaseStyle {
     std::string background_suffix;
     std::string border_note;
     std::vector<std::string> default_palette;
+};
+
+// What the renderer is told about each kind of thing. Lives in
+// styles/_phrases.json so it can be edited without touching code; the caption
+// builder carries the same text only as a fallback.
+struct Phrasebook {
+    // section -> key -> phrase, kept generic so the editor can walk it.
+    std::map<std::string, std::map<std::string, std::string>> sections;
+
+    const std::string& Get(const std::string& section, const std::string& key,
+                           const std::string& fallback) const {
+        auto s = sections.find(section);
+        if (s != sections.end()) {
+            auto k = s->second.find(key);
+            if (k != s->second.end() && !k->second.empty()) return k->second;
+        }
+        static std::string tmp;
+        tmp = fallback;
+        return tmp;
+    }
 };
 
 // -- service configuration -------------------------------------------

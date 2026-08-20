@@ -447,7 +447,7 @@ static bool RunRender(MapData map) {
         job.Log("Using the hand-written caption.");
     } else {
         caption = IdeogramCaption::BuildJson(map, g_app.styles.Find(map.meta.style),
-                                             g_app.styles.base);
+                                             g_app.styles.base, g_app.styles.phrases);
     }
     {
         std::ofstream f(dir + "/caption.json");
@@ -2155,7 +2155,8 @@ static void DrawCaptionPanel() {
 
     g_app.SyncMapFromGrid();
     nlohmann::json auto_cap = IdeogramCaption::Build(
-        g_app.map, g_app.styles.Find(g_app.map.meta.style), g_app.styles.base);
+        g_app.map, g_app.styles.Find(g_app.map.meta.style), g_app.styles.base,
+        g_app.styles.phrases);
     std::string autoText = auto_cap.dump(2);
 
     if (g_app.captionManual) {
@@ -2347,7 +2348,119 @@ static void TabRender() {
     ImGui::EndChild();
 }
 
+// What each section of the wording file is for, in the user's words.
+struct PhraseSection {
+    const char* key;
+    const char* title;
+    const char* hint;
+};
+
+static const PhraseSection kPhraseSections[] = {
+    {"structure", "Structure",
+     "Doors, windows, walls, open ground and the ship. These are the load-bearing "
+     "descriptions: each is sent with the exact rectangle it applies to."},
+    {"phrasing", "Wording",
+     "The sentences bolted onto other descriptions - how strictly a rectangle is meant, "
+     "how freely the AI may embellish something, how strong an effect is."},
+    {"terrain", "Terrain",
+     "Water, pits, rubble and undergrowth."},
+    {"effects", "Effects",
+     "The atmospheric layer: fire, fog, fireflies and the rest."},
+    {"props", "Objects",
+     "Every object the renderer is given a concrete description for. Anything not listed "
+     "here is still named, but left to the painter's judgement."},
+};
+
+// The wording every caption is built from. It lives in styles/_phrases.json, and
+// this is where it is edited - the phrases are the first thing anybody will want
+// to change and the last thing they should have to edit a file for.
+static void DrawPhraseEditor() {
+    static std::string filter;
+    static bool dirty = false;
+
+    ImGui::TextColored(AccentGold(), "What the renderer is told about each kind of thing");
+    ImGui::PushTextWrapPos(0.0f);
+    ImGui::TextDisabled(
+        "Every phrase below goes into the caption as a description of one object, joined to "
+        "the rectangle it sits in. Write them as descriptions, not as commands. A style file "
+        "can override door, window, wall and ground for itself.");
+    ImGui::PopTextWrapPos();
+
+    ImGui::SetNextItemWidth(320.0f);
+    InputTextString("Find", &filter);
+    ImGui::SameLine();
+    ImGui::BeginDisabled(!dirty);
+    if (ImGui::Button("Save wording")) {
+        if (g_app.styles.SavePhrases()) {
+            g_app.job.Log("Saved styles/_phrases.json");
+            dirty = false;
+        } else {
+            g_app.job.Log("Could not save the wording: " + g_app.styles.lastError);
+        }
+    }
+    ImGui::EndDisabled();
+    ImGui::SameLine();
+    if (ImGui::Button("Reload from file")) {
+        g_app.styles.LoadPhrases();
+        dirty = false;
+    }
+    ImGui::SetItemTooltip("Throw away unsaved changes and read the file again.");
+    if (dirty) {
+        ImGui::SameLine();
+        ImGui::TextColored(ImVec4(0.95f, 0.66f, 0.30f, 1.0f), "unsaved");
+    }
+
+    std::string needle = filter;
+    for (char& c : needle) c = (char)tolower((unsigned char)c);
+
+    ImGui::BeginChild("##phrases", ImVec2(0, 0), ImGuiChildFlags_Borders);
+    for (const PhraseSection& sec : kPhraseSections) {
+        auto it = g_app.styles.phrases.sections.find(sec.key);
+        if (it == g_app.styles.phrases.sections.end() || it->second.empty()) continue;
+
+        // Count what survives the filter before drawing a header for nothing.
+        int shown = 0;
+        for (const auto& kv : it->second) {
+            if (needle.empty()) { ++shown; continue; }
+            std::string hay = kv.first + " " + kv.second;
+            for (char& c : hay) c = (char)tolower((unsigned char)c);
+            if (hay.find(needle) != std::string::npos) ++shown;
+        }
+        if (!shown) continue;
+
+        if (!ImGui::CollapsingHeader(sec.title, needle.empty() && std::string(sec.key) ==
+                                                        "structure"
+                                                    ? ImGuiTreeNodeFlags_DefaultOpen
+                                                    : (needle.empty() ? 0
+                                                                      : ImGuiTreeNodeFlags_DefaultOpen)))
+            continue;
+        ImGui::PushTextWrapPos(0.0f);
+        ImGui::TextDisabled("%s", sec.hint);
+        ImGui::PopTextWrapPos();
+
+        for (auto& kv : it->second) {
+            if (!needle.empty()) {
+                std::string hay = kv.first + " " + kv.second;
+                for (char& c : hay) c = (char)tolower((unsigned char)c);
+                if (hay.find(needle) == std::string::npos) continue;
+            }
+            ImGui::PushID(kv.first.c_str());
+            float h = kv.second.size() > 160 ? 76.0f : (kv.second.size() > 70 ? 54.0f : 30.0f);
+            ImGui::TextColored(AccentGold(), "%s", kv.first.c_str());
+            if (InputTextMultilineString("##v", &kv.second, ImVec2(-1, h))) dirty = true;
+            ImGui::PopID();
+        }
+        ImGui::Spacing();
+    }
+    if (g_app.styles.phrases.sections.empty()) {
+        ImGui::TextDisabled("styles/_phrases.json is missing, so the built-in wording is in "
+                            "use. Reinstall the styles folder to edit it here.");
+    }
+    ImGui::EndChild();
+}
+
 static void TabStyles() {
+    static bool editingPhrases = false;
     static std::string editingId;
     static StyleDef editing;
     static bool editingBase = false;
@@ -2361,12 +2474,22 @@ static void TabStyles() {
             editingId = kv.first;
             editing = kv.second;
             editingBase = false;
+            editingPhrases = false;
         }
     }
     ImGui::Separator();
-    if (ImGui::Selectable("Shared caption contract", editingBase)) editingBase = true;
+    if (ImGui::Selectable("Shared caption contract", editingBase && !editingPhrases)) {
+        editingBase = true;
+        editingPhrases = false;
+    }
     ImGui::SetItemTooltip("Merged into every caption. The 'forbidden' line is the only thing "
                           "keeping text and creatures out - Ideogram takes no negative prompt.");
+    if (ImGui::Selectable("Object wording", editingPhrases)) {
+        editingBase = true;
+        editingPhrases = true;
+    }
+    ImGui::SetItemTooltip("What the renderer is told about a door, a wall, a barrel, a fire - "
+                          "every kind of thing the caption can name.");
     ImGui::Separator();
     if (ImGui::Button("New style", ImVec2(-1, 26))) {
         editing = StyleDef{};
@@ -2383,7 +2506,9 @@ static void TabStyles() {
 
     ImGui::SameLine();
     ImGui::BeginChild("##styleedit", ImVec2(0, 0), ImGuiChildFlags_Borders);
-    if (editingBase) {
+    if (editingPhrases) {
+        DrawPhraseEditor();
+    } else if (editingBase) {
         ImGui::TextColored(AccentGold(), "Shared caption contract");
         ImGui::Text("Never rendered (this is what bans text and creatures)");
         InputTextMultilineString("##bf", &g_app.styles.base.forbidden_suffix, ImVec2(-1, 90));

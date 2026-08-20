@@ -27,12 +27,14 @@ public:
     std::map<std::string, StyleDef> styles;
     std::map<std::string, MapData> presets;
     BaseStyle base;
+    Phrasebook phrases;
     std::string lastError;
 
     void LoadAll() {
         styles.clear();
         presets.clear();
         LoadBase();
+        LoadPhrases();
 
         if (fs::exists(stylesDir)) {
             for (const auto& entry : fs::directory_iterator(stylesDir)) {
@@ -95,6 +97,54 @@ public:
             }
         } catch (const std::exception& e) {
             lastError = std::string("_base.json: ") + e.what();
+        }
+    }
+
+    // The wording file is optional: anything missing falls back to the text
+    // compiled into the caption builder.
+    void LoadPhrases() {
+        phrases.sections.clear();
+        fs::path p = fs::path(stylesDir) / "_phrases.json";
+        if (!fs::exists(p)) return;
+        try {
+            std::ifstream f(p);
+            nlohmann::json j;
+            f >> j;
+            for (auto& [section, values] : j.items()) {
+                if (!values.is_object()) continue;
+                for (auto& [key, value] : values.items())
+                    if (value.is_string())
+                        phrases.sections[section][key] = value.get<std::string>();
+            }
+        } catch (const std::exception& e) {
+            lastError = std::string("_phrases.json: ") + e.what();
+        }
+    }
+
+    bool SavePhrases() {
+        try {
+            fs::create_directories(stylesDir);
+            fs::path p = fs::path(stylesDir) / "_phrases.json";
+            nlohmann::json j;
+            // Keep the descriptive header the file ships with.
+            if (fs::exists(p)) {
+                std::ifstream in(p);
+                in >> j;
+            }
+            j["id"] = "_phrases";
+            j["name"] = "Object wording";
+            for (const auto& [section, values] : phrases.sections) {
+                nlohmann::json out = nlohmann::json::object();
+                for (const auto& [key, value] : values) out[key] = value;
+                j[section] = out;
+            }
+            std::ofstream f(p);
+            if (!f.is_open()) return false;
+            f << j.dump(2);
+            return true;
+        } catch (const std::exception& e) {
+            lastError = e.what();
+            return false;
         }
     }
 

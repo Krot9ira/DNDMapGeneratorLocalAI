@@ -79,11 +79,77 @@ _PROP_WORDS = {
 # Repeated on everything whose position is load-bearing.
 _EXACT = "It sits exactly inside this rectangle and nowhere else"
 
+# Built-in fallbacks. The live text comes from styles/_phrases.json.
+_DOOR_TEXT = (
+    "A closed door filling this opening in the wall, seen from directly overhead so only the "
+    "flat top face of the door leaf is visible: a plain rectangular timber panel with dark "
+    "iron bands across it, lying flush inside the wall opening and squared up with the wall, "
+    "exactly as wide as the wall is thick. It is drawn flat, straight on and level with "
+    "everything around it, with no perspective, no tilt, no arch or vault above it, no door "
+    "frame standing proud, no steps and no visible handle")
+_WINDOW_TEXT = (
+    "a window set into the wall: a stone or timber frame holding small panes of glass, its "
+    "sill and lintel clearly drawn")
+_WALL_TEXT = "solid stone wall with visible courses"
+_WALL_ORGANIC_TEXT = "solid rough rock wall"
+_SHIP_TEXT = (
+    "One large wooden sailing ship floating on the water, viewed from directly above so only "
+    "its weather deck is visible: a pointed bow at the right, a raised quarterdeck at the "
+    "left, a continuous timber bulwark rail running round the hull, weathered oak deck "
+    "planking running fore and aft, a square cargo hatch amidships, the round base of a "
+    "single mast with coiled rigging, and mooring ropes running to the dock. No sails and no "
+    "lower decks.")
+
 _ELABORATION = {
     "exact": "Render this exactly as described and add nothing to it",
     "some": "Render this as described, filling in fitting detail",
     "free": "Take this as a starting point and elaborate it richly with fitting detail",
 }
+
+
+# The wording for every kind of object lives in styles/_phrases.json so it can
+# be edited without touching code. The constants above are the fallback for when
+# that file is missing or a key has been deleted from it.
+_PHRASES_CACHE = None
+
+
+def load_phrases():
+    """Editable caption wording, merged over the built-in defaults."""
+    global _PHRASES_CACHE
+    if _PHRASES_CACHE is not None:
+        return _PHRASES_CACHE
+    data = {}
+    try:
+        from paths import ROOT as _ROOT
+        path = _ROOT / "styles" / "_phrases.json"
+        if path.exists():
+            data = json.loads(path.read_text(encoding="utf-8"))
+    except Exception:
+        data = {}
+    merged = {
+        "structure": {
+            "door": _DOOR_TEXT, "window": _WINDOW_TEXT, "wall": _WALL_TEXT,
+            "wall_organic": _WALL_ORGANIC_TEXT, "open_ground": "open paved ground",
+            "ship": _SHIP_TEXT,
+        },
+        "phrasing": {
+            "exact": _EXACT,
+            "elaboration_exact": _ELABORATION["exact"],
+            "elaboration_some": _ELABORATION["some"],
+            "elaboration_free": _ELABORATION["free"],
+            "effect_low": "faint and thin", "effect_medium": "clearly visible",
+            "effect_high": "thick and dominating the area",
+        },
+        "terrain": dict(_TERRAIN_WORDS),
+        "effects": dict(A.EFFECTS),
+        "props": dict(_PROP_WORDS),
+    }
+    for section, values in merged.items():
+        for key, value in (data.get(section) or {}).items():
+            if isinstance(value, str) and value.strip():
+                values[key] = value
+    _PHRASES_CACHE = merged
+    return merged
 
 
 def _aspect_ratio(cols, rows):
@@ -222,6 +288,12 @@ def _largest_rects(mask, cols, rows, count, min_area):
     return out
 
 
+def _elab(saying, value):
+    """The 'how freely may you embellish this' phrase for one object."""
+    key = str(value or "some").lower()
+    return saying.get("elaboration_" + key, saying["elaboration_some"])
+
+
 def build_caption(map_data, style=None, base=None):
     """Return the structured caption as a dict."""
     grid = A.zones_to_grid(map_data)
@@ -229,6 +301,11 @@ def build_caption(map_data, style=None, base=None):
     meta = map_data.get("meta", {}) or {}
     style = style or {}
     base = base or {}
+
+    phrases = load_phrases()
+    wording = phrases["structure"]
+    saying = phrases["phrasing"]
+    exact = saying["exact"]
 
     caption = {"aspect_ratio": _aspect_ratio(cols, rows)}
 
@@ -292,29 +369,27 @@ def build_caption(map_data, style=None, base=None):
         detail = str(ann.get("description", "")).strip()
         if detail:
             text += ". " + detail.rstrip(".")
-        text += ". " + _ELABORATION.get(str(ann.get("elaboration", "some")).lower(),
-                                        _ELABORATION["some"])
+        text += ". " + _elab(saying, ann.get("elaboration"))
         critical.append({"type": "obj",
                          "bbox": _bbox(int(ann.get("x", 0)), int(ann.get("y", 0)),
                                        max(1, int(ann.get("w", 1))),
                                        max(1, int(ann.get("h", 1))), cols, rows),
-                         "desc": text + ". " + _EXACT})
+                         "desc": text + ". " + exact})
 
     # 2. Effects sit on top of everything, so they are described as overlays and
     #    must never be mistaken for a change of ground material.
-    strength = {"low": "faint and thin", "medium": "clearly visible",
-                "high": "thick and dominating the area"}
+    strength = {"low": saying["effect_low"], "medium": saying["effect_medium"],
+                "high": saying["effect_high"]}
     for eff in map_data.get("effects", []) or []:
         kind = str(eff.get("kind", "")).lower()
         label = str(eff.get("label", "")).strip()
-        body = A.EFFECTS.get(kind, "")
+        body = phrases["effects"].get(kind, "")
         if label:
             text = label
             detail = str(eff.get("description", "")).strip()
             if detail:
                 text += ". " + detail.rstrip(".")
-            text += ". " + _ELABORATION.get(str(eff.get("elaboration", "some")).lower(),
-                                            _ELABORATION["some"])
+            text += ". " + _elab(saying, eff.get("elaboration"))
         elif body:
             text = body[0].upper() + body[1:]
         else:
@@ -334,7 +409,7 @@ def build_caption(map_data, style=None, base=None):
             critical.append({
                 "type": "obj",
                 "bbox": _bbox(tx, ty, tw, th, cols, rows),
-                "desc": f"{body_text}{spread}. It fills this whole rectangle. {_EXACT}"})
+                "desc": f"{body_text}{spread}. It fills this whole rectangle. {exact}"})
 
     # 3. Structures.
     for st in map_data.get("structures", []) or []:
@@ -343,12 +418,7 @@ def build_caption(map_data, style=None, base=None):
         structure.append({
             "type": "obj",
             "bbox": _bbox(st["x"], st["y"], st["w"], st["h"], cols, rows),
-            "desc": ("One large wooden sailing ship floating on the water, viewed from directly "
-                     "above so only its weather deck is visible: a pointed bow at the right, a "
-                     "raised quarterdeck at the left, a continuous timber bulwark rail running "
-                     "round the hull, weathered oak deck planking running fore and aft, a square "
-                     "cargo hatch amidships, the round base of a single mast with coiled rigging, "
-                     "and mooring ropes running to the dock. No sails and no lower decks."),
+            "desc": wording["ship"],
         })
 
     # 4. Doors. Few in number and load-bearing for how the map plays, so each one
@@ -368,19 +438,17 @@ def build_caption(map_data, style=None, base=None):
         "proud, no steps and no visible handle")
     for (x, y, w, h) in _merge_runs(grid, A.DOOR):
         structure.append({"type": "obj", "bbox": _bbox(x, y, w, h, cols, rows),
-                         "desc": f"{door_word}. {_EXACT}"})
+                         "desc": f"{door_word}. {exact}"})
 
     # 4b. Windows. Like doors, few and load-bearing: they say where the wall is
     #     broken by an opening, and the renderer will invent them anywhere if it
     #     is not told exactly where they belong.
-    window_word = style.get("window") or (
-        "a window set into the wall: a stone or timber frame holding small panes of "
-        "glass, its sill and lintel clearly drawn")
+    window_word = style.get("window") or wording["window"]
     for (x, y, w, h) in _merge_runs(grid, A.WINDOW):
         structure.append({"type": "obj", "bbox": _bbox(x, y, w, h, cols, rows),
                          "desc": f"{window_word}, filling the whole opening in the wall "
                                  f"and set flush into it, with solid wall continuing on "
-                                 f"both sides. {_EXACT}"})
+                                 f"both sides. {exact}"})
 
     # 4b-2. Buildings first: the wall loop below skips anything already inside
     #       one of them.
@@ -437,7 +505,7 @@ def build_caption(map_data, style=None, base=None):
                          f"rest of its outer wall is continuous masonry with no second "
                          f"door, no archway and no gap anywhere in it. The ground "
                          f"immediately outside it on every side is open and free of any "
-                         f"wall. {_EXACT}")})
+                         f"wall. {exact}")})
 
     # 4c. Walls. Until now the renderer was handed room rectangles and left to
     #     invent every wall line itself, which is exactly where the layout came
@@ -453,8 +521,7 @@ def build_caption(map_data, style=None, base=None):
         for xx in range(grid.cols):
             k = grid.get(xx, yy)
             solid.set(xx, yy, A.WALL if k in (A.WALL, A.DOOR, A.WINDOW) else k)
-    wall_word = style.get("wall") or (
-        "solid rough rock wall" if organic else "solid stone wall with visible courses")
+    wall_word = style.get("wall") or (wording["wall_organic"] if organic else wording["wall"])
     wall_runs = _merge_runs(solid, A.WALL)
     for (x, y, w, h) in wall_runs[:MAX_WALL_RUNS]:
         # Only genuinely elongated runs. Everything else is a stub or, in a cave,
@@ -473,7 +540,7 @@ def build_caption(map_data, style=None, base=None):
                 "bbox": _bbox(x, y, w, h, cols, rows),
                 "desc": (f"A mass of {wall_word} filling this whole rectangle solidly, its "
                          f"face irregular and broken but with no passage, gap or opening "
-                         f"through it anywhere. {_EXACT}")})
+                         f"through it anywhere. {exact}")})
             continue
         if w >= h:
             shape = ("a horizontal wall running the full width of this rectangle from its "
@@ -487,11 +554,11 @@ def build_caption(map_data, style=None, base=None):
             "desc": (f"A run of {wall_word}: {shape}, filling it completely and keeping the "
                      f"same thickness along its entire length, with square ends and solid "
                      f"masonry everywhere except at the doors listed separately below. "
-                     f"{_EXACT}")})
+                     f"{exact}")})
 
     # 4d. The open ground. Without it the renderer treats every empty square as
     #     somewhere a building could go, and fills the map with invented rooms.
-    open_word = style.get("ground") or "open paved ground"
+    open_word = style.get("ground") or wording["open_ground"]
     outside = [[grid.get(x, y) == A.FLOOR for x in range(cols)] for y in range(rows)]
     for (bx, by, bw, bh) in building_rects:
         for y in range(by, by + bh):
@@ -506,16 +573,16 @@ def build_caption(map_data, style=None, base=None):
             "desc": (f"Open ground of {open_word} filling this whole rectangle, unbroken "
                      f"from edge to edge: no building, no wall and no partition stands "
                      f"anywhere inside it, only loose objects lying on the ground. "
-                     f"{_EXACT}")})
+                     f"{exact}")})
 
     # 5. Terrain bodies large enough to matter, biggest first.
-    for kind, phrase in _TERRAIN_WORDS.items():
+    for kind, phrase in phrases["terrain"].items():
         for (x, y, w, h) in _merge_runs(grid, kind)[:2]:
             if w * h < max(4, cols * rows * 0.02):
                 continue
             normal.append({"type": "obj", "bbox": _bbox(x, y, w, h, cols, rows),
                            "desc": f"A body of {phrase} filling this region, its edge meeting "
-                                   f"the surrounding ground in a clean line. {_EXACT}"})
+                                   f"the surrounding ground in a clean line. {exact}"})
 
     # 6. Rooms.
     for area in map_data.get("areas", []) or []:
@@ -550,13 +617,12 @@ def build_caption(map_data, style=None, base=None):
             detail = str(f.get("description", "")).strip()
             if detail:
                 text += ". " + detail.rstrip(".")
-            text += ". " + _ELABORATION.get(str(f.get("elaboration", "some")).lower(),
-                                            _ELABORATION["some"])
+            text += ". " + _elab(saying, f.get("elaboration"))
             critical.append({"type": "obj",
                              "bbox": _bbox(f["x"], f["y"], 1, 1, cols, rows),
-                             "desc": text + ". " + _EXACT})
+                             "desc": text + ". " + exact})
             continue
-        phrase = _PROP_WORDS.get(kind)
+        phrase = phrases["props"].get(kind)
         if not phrase:
             continue
         filler.append({"type": "obj",
