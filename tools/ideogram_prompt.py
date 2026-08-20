@@ -318,7 +318,9 @@ def build_caption(map_data, style=None, base=None):
         head += ", " + summary[0].lower() + summary[1:]
     words = head.split()
     if len(words) > 44:
-        head = " ".join(words[:44])
+        clipped = " ".join(words[:44])
+        stop = max(clipped.rfind(". "), clipped.rfind("; "), clipped.rfind(", "))
+        head = clipped[:stop] if stop > len(clipped) // 2 else clipped
     # Ideogram takes no negative prompt, so the ban on text and creatures has to
     # be stated positively, inside the caption.
     forbidden = base.get("forbidden_suffix") or (
@@ -336,6 +338,11 @@ def build_caption(map_data, style=None, base=None):
         f"its own rectangle, and no other door, doorway, archway, gate, gap or window exists "
         f"anywhere in any wall.")
     caption["high_level_description"] += " " + opening_note
+    # Nothing in the contract forbade perspective, so a scene that happened to
+    # mention a ceiling came back drawn from the corner of the room.
+    viewpoint = base.get("viewpoint_note")
+    if viewpoint:
+        caption["high_level_description"] += " " + viewpoint.rstrip(".") + "."
     caption["high_level_description"] += (
         " The buildings are of different sizes and stand in an irregular arrangement; the "
         "layout is not symmetrical, not mirrored and not a repeating pattern.")
@@ -593,16 +600,30 @@ def build_caption(map_data, style=None, base=None):
         if not label or label.lower() in ("moored ship", "quay"):
             continue
         cx0, cy0 = area["x"] + area["w"] / 2.0, area["y"] + area["h"] / 2.0
-        if any(bx <= cx0 <= bx + bw and by <= cy0 <= by + bh
-               for (bx, by, bw, bh) in building_rects):
-            continue                      # its building element already names it
+        host = [(bx, by, bw, bh) for (bx, by, bw, bh) in building_rects
+                if bx <= cx0 <= bx + bw and by <= cy0 <= by + bh]
+        if host:
+            others = sum(1 for a2 in (map_data.get("areas", []) or [])
+                         if a2 is not area and (a2.get("label") or "").strip()
+                         and host[0][0] <= a2["x"] + a2["w"] / 2.0 <= host[0][0] + host[0][2]
+                         and host[0][1] <= a2["y"] + a2["h"] / 2.0 <= host[0][1] + host[0][3])
+            if others:
+                continue                  # its building element already names it
+            single = True
+        else:
+            single = False
         detail = str(area.get("description", "")).strip()
+        one_room = ("" if not single else
+                    ". This building holds this one room and nothing else: it is a single "
+                    "undivided space filling the whole rectangle, with no interior wall, no "
+                    "partition, no screen and no smaller room anywhere inside it")
         normal.append({
             "type": "obj",
             "bbox": _bbox(area["x"], area["y"], area["w"], area["h"], cols, rows),
             "desc": (f"The {label}: the roofless interior of a room seen from directly "
                      f"above, its floor and furniture fully visible and filling this "
                      f"rectangle, with no roof, no ceiling and nothing overhanging it"
+                     + one_room
                      + (". " + detail.rstrip(".") if detail else "")),
         })
 

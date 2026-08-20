@@ -213,6 +213,65 @@ the painting stiff and worse. If a specific object matters, give it as a custom 
 
 ---
 
+---
+
+## How the renderer reads what you give it
+
+Hard-won, all of it from renders that came back wrong. These are the rules the caption
+builder now follows on your behalf, and the ones you still have to follow yourself.
+
+### Every rectangle you hand over is something to draw
+
+There is no such thing as a rectangle meaning "nothing here". Ask for a bounding box round
+an empty floor and you get a room built on its outline - that is where an inner wall came
+from in a hall that was supposed to be one open space.
+
+- **Do** put a rectangle on a thing that exists in one place: a fountain, a staircase, a
+  gate, a specific door.
+- **Do not** put one round an absence, a mood, or a region you simply want left alone. Say
+  that in the room's own `description`, where there is no outline to trace.
+
+### Four rectangles round four walls make a fifth wall
+
+Annotations hugging the left, right, top and bottom of a room read as a frame, and a frame
+gets joined up into a wall. Furniture that stands against a wall belongs in the room's
+`description`, worded as touching the wall along its whole length.
+
+### Silence gets filled, always
+
+Whatever you leave undescribed, the renderer invents something for. Take the perimeter
+annotations away without replacing them and the same band comes back chopped into cubicles.
+Open ground is described for you now, as real blocks, for exactly this reason.
+
+### One room has to be stated, not implied
+
+A large building with a single area used to be handed over as a footprint alone, and the
+renderer subdivided it - a grand hall came back as a hotel corridor. When a building holds
+exactly one area the caption now also says, with that area's rectangle, that it is one
+undivided space. You get this automatically; it is worth knowing why it is there.
+
+### Negations are weak, positive statements are strong
+
+"No arch, no gap" is close to useless: the text encoder handles negation badly. State what
+the thing is instead - "one continuous face of plain masonry from corner to corner" - and it
+holds. Counts attached to the thing itself ("one doorway breaks this building's wall") hold
+far better than a count stated once for the whole map.
+
+### Word a thing by what it looks like from above
+
+"A door with a ring handle" is a front view, and asking for one gets you a door drawn as if
+you were standing in front of it, lying flat on the map. Describe the top face: what you
+would see looking straight down. The same trap catches ceilings - mention a ceiling, a
+chandelier or cornice moulding and the whole map tips into perspective, because a ceiling
+can only be shown from the side. The shared contract now forbids all of that outright.
+
+### The caption has a budget, and spending it costs adherence
+
+Past roughly forty elements everything degrades at once: the layout comes back mirrored,
+interiors are subdivided past the plan, and the ban on people can fail. Twenty-odd strong
+elements beat forty-five weak ones. The builder caps it and spends the budget in priority
+order, so the things you pinned deliberately go first.
+
 ## Pinning exact detail
 
 Everything below carries its own bounding box into the caption and is marked as

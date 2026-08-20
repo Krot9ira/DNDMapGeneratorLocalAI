@@ -117,6 +117,24 @@ and low in contrast.
 
 ---
 
+### What the render tests established
+
+Every one of these came from a render that came back wrong, and each is now enforced in the
+caption builder rather than left to whoever writes the spec. The full list, with the
+reasoning, is in `AGENTS.md` under **How the renderer reads what you give it**.
+
+| Lesson | Where it lives now |
+|---|---|
+| A rectangle always means "draw this here"; there is no rectangle for "nothing" | documented; the builder no longer emits empty-region boxes |
+| Rectangles hugging all four walls join into an inner wall | documented for spec writers |
+| Undescribed space is filled with something invented | open ground is described as real blocks |
+| A single-area building must be told it is one undivided room | `ideogram_prompt.py`, and the C++ port |
+| Negations are weak; positive statements and local counts hold | wall and door wording |
+| Describe the top face, never the front; never mention ceilings | `viewpoint_note` in the shared contract |
+| Past ~40 elements adherence collapses across the board | `MAX_ELEMENTS = 24`, priority tiers |
+
+---
+
 ## Key files
 
 | File | What it does |

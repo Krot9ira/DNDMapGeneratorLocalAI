@@ -90,6 +90,7 @@ public:
             base.forbidden_suffix = j.value("forbidden_suffix", base.forbidden_suffix);
             base.background_suffix = j.value("background_suffix", base.background_suffix);
             base.border_note = j.value("border_note", base.border_note);
+            base.viewpoint_note = j.value("viewpoint_note", base.viewpoint_note);
             if (j.contains("default_palette") && j["default_palette"].is_array()) {
                 base.default_palette.clear();
                 for (const auto& c : j["default_palette"])
@@ -226,6 +227,7 @@ public:
             j["forbidden_suffix"] = base.forbidden_suffix;
             j["background_suffix"] = base.background_suffix;
             j["border_note"] = base.border_note;
+            j["viewpoint_note"] = base.viewpoint_note;
             j["default_palette"] = base.default_palette;
             std::ofstream f(fs::path(stylesDir) / "_base.json");
             if (!f.is_open()) return false;

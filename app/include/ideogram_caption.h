@@ -193,9 +193,17 @@ public:
             std::to_string(doorCells) + " doors and " + std::to_string(windowCells) +
             " windows in the whole picture, each one listed below with its own rectangle, "
             "and no other door, doorway, archway, gate, gap or window exists anywhere in "
-            "any wall. The buildings are of different sizes and stand in an irregular "
-            "arrangement; the layout is not symmetrical, not mirrored and not a repeating "
-            "pattern.";
+            "any wall.";
+        // Nothing in the contract forbade perspective, so a scene that happened
+        // to mention a ceiling came back drawn from the corner of the room.
+        if (!base.viewpoint_note.empty())
+            cap["high_level_description"] =
+                cap["high_level_description"].get<std::string>() + " " +
+                Trim(base.viewpoint_note) + ".";
+        cap["high_level_description"] =
+            cap["high_level_description"].get<std::string>() +
+            " The buildings are of different sizes and stand in an irregular arrangement; "
+            "the layout is not symmetrical, not mirrored and not a repeating pattern.";
 
         nlohmann::json sd;
         sd["aesthetics"] = (style && !style->aesthetics.empty()) ? style->aesthetics
@@ -479,21 +487,38 @@ public:
             std::string label = Trim(a.label);
             std::string lower = arch::Lower(label);
             if (label.empty() || lower == "moored ship" || lower == "quay") continue;
-            // A room inside a building is already named by that building.
             double rcx = a.x + a.w / 2.0, rcy = a.y + a.h / 2.0;
-            bool covered = false;
+            const Rect* host = nullptr;
             for (const Rect& b : buildings)
                 if (rcx >= b.x && rcx <= b.x + b.w && rcy >= b.y && rcy <= b.y + b.h)
-                    covered = true;
-            if (covered) continue;
+                    host = &b;
+            bool single = false;
+            if (host) {
+                int others = 0;
+                for (const Area& a2 : map.areas) {
+                    if (&a2 == &a || a2.label.empty()) continue;
+                    double ox = a2.x + a2.w / 2.0, oy = a2.y + a2.h / 2.0;
+                    if (ox >= host->x && ox <= host->x + host->w &&
+                        oy >= host->y && oy <= host->y + host->h) ++others;
+                }
+                if (others) continue;     // its building element already names it
+                single = true;
+            }
+            std::string oneRoom =
+                single ? ". This building holds this one room and nothing else: it is a "
+                         "single undivided space filling the whole rectangle, with no "
+                         "interior wall, no partition, no screen and no smaller room "
+                         "anywhere inside it"
+                       : "";
             normal.push_back({
                 {"type", "obj"},
                 {"bbox", Bbox(a.x, a.y, a.w, a.h, cols, rows)},
                 {"desc", "The " + label + ": the roofless interior of a room seen from "
                          "directly above, its floor and furniture fully visible and filling "
                          "this rectangle, with no roof, no ceiling and nothing overhanging "
-                         "it" + (a.description.empty() ? std::string()
-                                                       : ". " + Trim(a.description))}});
+                         "it" + oneRoom + (a.description.empty()
+                                               ? std::string()
+                                               : ". " + Trim(a.description))}});
         }
 
         // 7. Pinned props get a box; clutter is only described.

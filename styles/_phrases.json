@@ -45,7 +45,7 @@
   },
   "props": {
     "pillar": "a thick round stone pillar",
-    "column": "a fluted stone column",
+    "column": "a massive square stone column with a carved capital, seen from directly above as a solid squared block of pale stone with a shadow around its foot",
     "statue": "a weathered stone statue on a square plinth",
     "altar": "a carved stone altar block",
     "sarcophagus": "a heavy stone sarcophagus with a chipped lid",
@@ -77,6 +77,10 @@
     "dumpster": "a dented steel dumpster",
     "portal": "a standing stone archway",
     "gate": "a heavy iron-bound gate",
-    "arch": "a carved stone arch"
+    "arch": "a carved stone arch",
+    "counter": "a long counter of dark carved hardwood with a polished bare top, seen from directly above",
+    "pedestal": "a carved wooden pedestal with a single small treasure standing on it, seen from directly above",
+    "vase": "a tall glazed ceramic vase standing on the floor, seen from directly above as a circular glazed mouth",
+    "display_case": "a glazed display cabinet with a brass frame, its glass top showing the gold plate and cut gems laid on velvet inside, seen from above"
   }
 }

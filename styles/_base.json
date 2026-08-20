@@ -14,5 +14,6 @@
     "#2E2A26",
     "#6E7A6B"
   ],
-  "border_note": "A plain flat unpainted margin runs right around the outside of the image on all four sides, empty of scenery, buildings, water and props, exactly like the blank paper border of a printed battle map sheet; the map itself sits wholly inside that margin and its outer edge is a clean straight line"
+  "border_note": "A plain flat unpainted margin runs right around the outside of the image on all four sides, empty of scenery, buildings, water and props, exactly like the blank paper border of a printed battle map sheet; the map itself sits wholly inside that margin and its outer edge is a clean straight line",
+  "viewpoint_note": "The view is strictly orthographic and from directly overhead, square to the floor, as if photographed from a ladder straight above the middle of the map: every wall is seen as the flat top edge of that wall and never as its face, every object is seen as its top surface, nothing recedes, there is no horizon, no vanishing point, no perspective and no tilt. Ceilings, roofs, rafters, chandeliers and anything else hanging overhead are absent entirely because the roof has been taken off. The whole picture reads flat, like a printed battle map laid on a table"
 }

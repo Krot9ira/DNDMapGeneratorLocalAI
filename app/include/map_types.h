@@ -269,6 +269,7 @@ struct BaseStyle {
     std::string forbidden_suffix;
     std::string background_suffix;
     std::string border_note;
+    std::string viewpoint_note;   // orthographic, roof off, no perspective
     std::vector<std::string> default_palette;
 };
 
