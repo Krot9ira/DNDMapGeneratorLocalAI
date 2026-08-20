@@ -24,7 +24,33 @@ namespace dnd {
 class IdeogramCaption {
 public:
     static constexpr int kMaxElements = 40;
+    // Split a rectangle into tiles when it covers a big share of the map. A
+    // single box the size of half the frame is not a useful instruction: the
+    // model satisfies it with one blob somewhere inside.
+    static std::vector<Rect> TileRect(int x, int y, int w, int h, int cols, int rows) {
+        if (cols <= 0 || rows <= 0 || w * h <= 0.22 * cols * rows)
+            return {{x, y, w, h}};
+        int nx = (w >= cols * 0.6) ? 3 : 2;
+        int ny = (h >= rows * 0.6) ? 3 : 2;
+        while (nx * ny > 6) (nx >= ny ? nx : ny) -= 1;
+        std::vector<Rect> out;
+        for (int j = 0; j < ny; ++j) {
+            for (int i = 0; i < nx; ++i) {
+                int tx = x + w * i / nx, ty = y + h * j / ny;
+                int tw = x + w * (i + 1) / nx - tx, th = y + h * (j + 1) / ny - ty;
+                if (tw > 0 && th > 0) out.push_back({tx, ty, tw, th});
+            }
+        }
+        if (out.empty()) out.push_back({x, y, w, h});
+        return out;
+    }
+
     // Repeated on everything whose position is load-bearing.
+    static constexpr const char* WINDOW_TEXT =
+        "a window set into the wall: a stone or timber frame holding small panes of glass, "
+        "its sill and lintel clearly drawn, filling the whole opening in the wall and set "
+        "flush into it, with solid wall continuing on both sides.";
+
     static constexpr const char* kExact =
         "It sits exactly inside this rectangle and nowhere else";
     static constexpr const char* SHIP_TEXT =
@@ -114,11 +140,23 @@ public:
             std::string how = eff.intensity == "low" ? "faint and thin"
                             : (eff.intensity == "high" ? "thick and dominating the area"
                                                        : "clearly visible");
-            critical.push_back({
-                {"type", "obj"},
-                {"bbox", Bbox(eff.x, eff.y, eff.w, eff.h, cols, rows)},
-                {"desc", text + ". This is an atmospheric effect painted over the scene, " +
-                         how + ", lying on top of the ground without replacing it. " + kExact}});
+            std::string body = text + ". This is an atmospheric effect painted over the "
+                               "scene, " + how + ", lying on top of the ground without "
+                               "replacing it";
+            // One huge box makes the model paint the effect in a single corner
+            // and call it done. Tiling a large area forces real coverage,
+            // because every tile has to be filled on its own.
+            for (const Rect& t : TileRect(eff.x, eff.y, eff.w, eff.h, cols, rows)) {
+                std::string spread =
+                    (t.w == eff.w && t.h == eff.h)
+                        ? ""
+                        : ", and this patch of it is one part of a single continuous effect "
+                          "that covers the whole marked region";
+                critical.push_back({
+                    {"type", "obj"},
+                    {"bbox", Bbox(t.x, t.y, t.w, t.h, cols, rows)},
+                    {"desc", body + spread + ". It fills this whole rectangle. " + kExact}});
+            }
         }
 
         // 3. Structures.
@@ -138,6 +176,15 @@ public:
                 {"type", "obj"},
                 {"bbox", Bbox(r.x, r.y, r.w, r.h, cols, rows)},
                 {"desc", std::string(DOOR_TEXT) + " " + kExact}});
+        }
+
+        // 4b. Windows. Like doors: few, load-bearing, and invented anywhere the
+        //     renderer likes unless it is told exactly where they belong.
+        for (const Rect& r : MergeRuns(g, Tile::Window, cols, rows)) {
+            critical.push_back({
+                {"type", "obj"},
+                {"bbox", Bbox(r.x, r.y, r.w, r.h, cols, rows)},
+                {"desc", std::string(WINDOW_TEXT) + " " + kExact}});
         }
 
         // 5. Terrain bodies worth naming.
@@ -217,8 +264,23 @@ public:
             while (!mats.empty() && mats.back() == '.') mats.pop_back();
             ground += ". " + mats;
         }
+        std::string background = ground + " " + base.background_suffix;
+
+        // The blank ring around the playable field. Content boxes are already
+        // inset by it, but the model still has to be told the margin is meant
+        // to stay empty, or it fills the space with invented scenery.
+        int border = arch::BorderOf(map);
+        if (border > 0 && cols > 0 && rows > 0) {
+            int pctX = std::max(1, (int)std::lround(border * 100.0 / cols));
+            int pctY = std::max(1, (int)std::lround(border * 100.0 / rows));
+            background += ". " + base.border_note + ". The margin is " +
+                          std::to_string(pctX) + " percent of the image width down each side "
+                          "and " + std::to_string(pctY) +
+                          " percent of its height along the top and bottom";
+        }
+
         cap["compositional_deconstruction"] = {
-            {"background", ground + " " + base.background_suffix},
+            {"background", background},
             {"elements", elements}};
         return cap;
     }

@@ -70,6 +70,10 @@ struct MetaConfig {
     std::string terrain_kind = "none";
     std::string terrain_amount = "medium";
     std::string prop_density = "high";
+    // Width of the blank ring around the playable field, in cells. Stored so a
+    // map that is reopened knows which squares belong to the user and which are
+    // margin. Zero on older files, which is exactly right for them.
+    int border = 0;
     int64_t seed = 0;
 };
 
@@ -229,6 +233,8 @@ struct DesignSpec {
     std::vector<std::string> style_props;
     bool edge_walls = true;
     float water_fraction = 0.32f;
+    // Width of the blank ring added around the finished map, in cells.
+    int border = 2;
 };
 
 // -- styles -----------------------------------------------------------
@@ -251,11 +257,13 @@ struct StyleDef {
 // Fragments merged into every caption. `forbidden_suffix` is the only thing
 // keeping text and creatures out: Ideogram takes no negative prompt.
 struct BaseStyle {
+    std::string description;
     std::string aesthetics;
     std::string medium;
     std::string lighting;
     std::string forbidden_suffix;
     std::string background_suffix;
+    std::string border_note;
     std::vector<std::string> default_palette;
 };
 

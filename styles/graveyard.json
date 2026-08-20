@@ -1,0 +1,39 @@
+{
+  "id": "graveyard",
+  "name": "Graveyard & Mausoleum",
+  "category": "Sacred",
+  "description": "Leaning headstones, iron railings and a cracked mausoleum in wet grass.",
+  "palette": "lichen-grey stone, wet grass green, rusted iron, fog white",
+  "lighting": "flat overcast twilight, ground mist, cold and shadowless",
+  "default_layout": "open",
+  "props": [
+    "sarcophagus",
+    "coffin",
+    "statue",
+    "tree",
+    "bush",
+    "rubble",
+    "bones",
+    "brazier",
+    "gate",
+    "arch"
+  ],
+  "tags": [
+    "graveyard",
+    "cemetery",
+    "undead",
+    "mausoleum",
+    "tombs",
+    "necromancer"
+  ],
+  "aesthetics": "Hand-painted fantasy cartography, rough painterly brushwork with visible strokes, strong dark ink outlines around every object and wall, subtle black and brown linework, restrained desaturated colour, carefully shaded volumetric detail, inked line art over watercolour and gouache, premium hand-drawn D&D virtual tabletop map, dense environmental storytelling",
+  "hex_palette": [
+    "#8E9086",
+    "#4A5544",
+    "#6B5F4E",
+    "#2C3230",
+    "#C2C6BE"
+  ],
+  "ground": "wet tussocky grass between sunken grave plots, gravel paths worn through it",
+  "materials": "A fantasy graveyard seen from above. Rows of leaning weathered headstones and flat table tombs, none of them carrying any lettering, sunken grave plots in wet tussocky grass, gravel paths worn between them, a cracked stone mausoleum with its door ajar and its roof open to show a sarcophagus inside, rusted iron railings and a sagging gate, bare twisted trees, ground mist lying in the hollows, a freshly turned mound of dark earth with a spade left standing in it."
+}

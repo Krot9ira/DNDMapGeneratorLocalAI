@@ -1,0 +1,41 @@
+{
+  "id": "arcane_library",
+  "name": "Arcane Library & Study",
+  "category": "Interior",
+  "description": "Floor-to-ceiling shelves, reading desks and a circle chalked on the boards.",
+  "palette": "dark oak, aged vellum cream, ink black, arcane violet glow",
+  "lighting": "warm lamplight at the desks, cold violet light from the circle",
+  "default_layout": "building",
+  "props": [
+    "bookshelf",
+    "desk",
+    "table",
+    "chair",
+    "lamp",
+    "chest",
+    "cabinet",
+    "brazier",
+    "crystal",
+    "portal",
+    "statue"
+  ],
+  "tags": [
+    "library",
+    "wizard",
+    "tower",
+    "study",
+    "arcane",
+    "scholar",
+    "books"
+  ],
+  "aesthetics": "Hand-painted fantasy cartography, rough painterly brushwork with visible strokes, strong dark ink outlines around every object and wall, subtle black and brown linework, restrained desaturated colour, carefully shaded volumetric detail, inked line art over watercolour and gouache, premium hand-drawn D&D virtual tabletop map, dense environmental storytelling",
+  "hex_palette": [
+    "#6B4E32",
+    "#C9BC98",
+    "#2B2620",
+    "#5A3E7A",
+    "#8A7B63"
+  ],
+  "ground": "dark waxed floorboards, worn pale along the walking lines between the shelves",
+  "materials": "A wizard's library seen from above with the roof removed. Floor-to-ceiling shelves packed with bound volumes and rolled scrolls, a rolling ladder against one run of them, heavy reading desks strewn with open books, loose sheets and quills, brass lamps and candle stubs, an orrery of brass rings on a stand, a summoning circle chalked onto the dark floorboards glowing faint violet, cluttered specimen cabinets, a cold stone hearth, stacks of books used as furniture."
+}

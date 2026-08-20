@@ -20,6 +20,7 @@
 
 #include "app_state.h"
 #include "app_theme.h"
+#include "../resources/resource.h"
 #include "comfy_service.h"
 #include "ideogram_caption.h"
 #include "map_rasterizer.h"
@@ -60,12 +61,14 @@ static const char* kLayoutNames[] = {"(from style)", "dungeon", "building", "cav
 static const char* kTerrainNames[] = {"none", "water", "pit", "rubble", "vegetation"};
 static const char* kAmountNames[] = {"low", "medium", "high"};
 
-static const char* kPaintTiles[] = {"floor", "wall", "door", "water", "pit",
+static const char* kPaintTiles[] = {"floor", "wall", "door", "window", "water", "pit",
                                     "rubble", "vegetation", "bridge", "stairs", "void"};
 static const char* kTileHints[] = {
     "Walkable ground.",
     "Solid wall. Blocks movement and sight.",
     "Door. Only valid inside a wall - elsewhere it becomes a plain opening.",
+    "Window. A glazed or shuttered opening in a wall. Lets light and sight "
+    "through, but not a body.",
     "Water. Difficult or impassable, depending on your table.",
     "Pit or drop.",
     "Loose rubble. Difficult ground.",
@@ -342,6 +345,14 @@ static bool RunRender(MapData map) {
     Job& job = g_app.job;
     ComfyConfig cfg = g_app.config.comfy;
 
+    // The planner is the other heavy tenant of the graphics card. Ask it to let
+    // go before a render, or the two of them fight over the same memory.
+    if (g_app.ollamaOk) {
+        job.SetStatus("Freeing the planner model...");
+        if (OllamaService::Unload(g_app.config.ollama.base_url, g_app.config.ollama.model))
+            job.Log("Ollama released " + g_app.config.ollama.model + ".");
+    }
+
     std::string version, error;
     job.SetStatus("Contacting ComfyUI...");
     if (!ComfyService::CheckConnection(cfg.base_url, version, error)) {
@@ -355,8 +366,22 @@ static bool RunRender(MapData map) {
     MapSerializer::SaveToFile(dir + "/map.json", map);
     MapRasterizer::ExportPng(MapRasterizer::RenderPreview(map), dir + "/preview.png");
 
-    std::string caption = IdeogramCaption::BuildJson(map, g_app.styles.Find(map.meta.style),
-                                                     g_app.styles.base);
+    std::string caption;
+    if (g_app.captionManual && !g_app.captionText.empty()) {
+        // A hand-written caption is sent exactly as typed. Minified first if it
+        // parses, so ComfyUI gets the shape the builder would have sent.
+        caption = g_app.captionText;
+        try {
+            caption = nlohmann::json::parse(caption).dump(
+                -1, ' ', false, nlohmann::json::error_handler_t::replace);
+        } catch (const std::exception&) {
+            job.Log("Hand-written caption is not valid JSON - sending it exactly as typed.");
+        }
+        job.Log("Using the hand-written caption.");
+    } else {
+        caption = IdeogramCaption::BuildJson(map, g_app.styles.Find(map.meta.style),
+                                             g_app.styles.base);
+    }
     {
         std::ofstream f(dir + "/caption.json");
         if (f.is_open()) f << caption;
@@ -399,6 +424,22 @@ static bool RunRender(MapData map) {
         job.hasImage = true;
     }
     return true;
+}
+
+// Generating a plan throws the current one away. If the current one is the
+// user's own work, that has to be their decision, not a side effect of pressing
+// a green button.
+enum class Rebuild { None, Blueprint, Plan, PlanAndRender };
+static Rebuild g_pendingRebuild = Rebuild::None;
+
+static void RunRebuild(Rebuild what);
+
+static void RequestRebuild(Rebuild what) {
+    if (g_app.handEdited) {
+        g_pendingRebuild = what;
+        return;                 // the modal below takes it from here
+    }
+    RunRebuild(what);
 }
 
 static void StartQuickBlueprint() {
@@ -451,8 +492,18 @@ static void StartPlanAndRender(bool alsoRender) {
         styleLayout[kv.first] = kv.second.default_layout;
     }
 
+    std::string comfyUrl = g_app.config.comfy.base_url;
+    bool comfyUp = g_app.comfyOk;
+
     std::thread([=]() {
         Job& job = g_app.job;
+        // ComfyUI holds ~27 GB of weights once it has rendered. Ask it to let go
+        // before the planner needs the card, or the planner crawls.
+        if (comfyUp) {
+            job.SetStatus("Freeing the renderer models...");
+            if (ComfyService::FreeMemory(comfyUrl))
+                job.Log("ComfyUI released its models.");
+        }
         job.Log("Asking " + ocfg.model + " to design the scene...");
         PlanResult plan = OllamaService::PlanScene(ocfg, scene, styleId, size, ids, catalogue);
         if (!plan.ok) {
@@ -495,6 +546,78 @@ static void StartRenderCurrent() {
         bool ok = RunRender(map);
         FinishJob(ok, ok ? "Battle map ready." : "Render failed - see the log.");
     }).detach();
+}
+
+static void RunRebuild(Rebuild what) {
+    switch (what) {
+    case Rebuild::Blueprint:     StartQuickBlueprint(); break;
+    case Rebuild::Plan:          StartPlanAndRender(false); break;
+    case Rebuild::PlanAndRender: StartPlanAndRender(true); break;
+    default: break;
+    }
+}
+
+// Saves the current plan where the rest of the app expects to find it.
+static bool SaveCurrentPlan(std::string* outPath) {
+    g_app.SyncMapFromGrid();
+    std::string dir = OutputDir(g_app.map.meta.name);
+    std::string path = dir + "/map.json";
+    if (!MapSerializer::SaveToFile(path, g_app.map)) return false;
+    MapRasterizer::ExportPng(MapRasterizer::RenderPreview(g_app.map), dir + "/preview.png");
+    g_app.dirty = false;
+    g_app.handEdited = false;
+    g_app.currentFile = path;
+    if (outPath) *outPath = path;
+    return true;
+}
+
+static void DrawRebuildGuard() {
+    if (g_pendingRebuild != Rebuild::None && !ImGui::IsPopupOpen("Replace your plan?"))
+        ImGui::OpenPopup("Replace your plan?");
+
+    ImVec2 centre = ImGui::GetMainViewport()->GetCenter();
+    ImGui::SetNextWindowPos(centre, ImGuiCond_Appearing, ImVec2(0.5f, 0.5f));
+    ImGui::SetNextWindowSize(ImVec2(520, 0), ImGuiCond_Appearing);
+    if (!ImGui::BeginPopupModal("Replace your plan?", nullptr,
+                                ImGuiWindowFlags_AlwaysAutoResize))
+        return;
+
+    ImGui::PushTextWrapPos(0.0f);
+    ImGui::TextUnformatted(
+        "You have changed this plan by hand. Building a new one replaces all of it - "
+        "the walls you painted, the props you placed, your custom areas and effects.");
+    ImGui::PopTextWrapPos();
+    ImGui::Spacing();
+
+    if (ImGui::Button("Save it first, then build", ImVec2(-1, 32))) {
+        std::string path;
+        if (SaveCurrentPlan(&path)) {
+            g_app.job.Log("Saved " + path + " before rebuilding.");
+            Rebuild what = g_pendingRebuild;
+            g_pendingRebuild = Rebuild::None;
+            ImGui::CloseCurrentPopup();
+            RunRebuild(what);
+        } else {
+            g_app.job.Log("Could not save the plan - nothing was replaced.");
+            g_pendingRebuild = Rebuild::None;
+            ImGui::CloseCurrentPopup();
+        }
+    }
+    ImGui::SetItemTooltip("Writes map.json and preview.png into the output folder, then "
+                          "starts building the new plan.");
+
+    if (ImGui::Button("Replace it without saving", ImVec2(-1, 28))) {
+        Rebuild what = g_pendingRebuild;
+        g_pendingRebuild = Rebuild::None;
+        ImGui::CloseCurrentPopup();
+        RunRebuild(what);
+    }
+    if (ImGui::Button("Keep what I have", ImVec2(-1, 28)) ||
+        ImGui::IsKeyPressed(ImGuiKey_Escape)) {
+        g_pendingRebuild = Rebuild::None;
+        ImGui::CloseCurrentPopup();
+    }
+    ImGui::EndPopup();
 }
 
 static void StartConnectionCheck() {
@@ -543,7 +666,9 @@ static void DrainJobResults() {
         g_app.map = job.map;
         g_app.SyncGridFromMap();
         g_app.SyncMapFromGrid();
+        // A generated map is not the user's handiwork - it is ours.
         g_app.dirty = true;
+        g_app.handEdited = false;
         job.hasMap = false;
     }
     if (job.hasImage) {
@@ -615,7 +740,7 @@ static void DrawMapCanvas(bool interactive, ImVec2 size) {
 
     ImDrawList* dl = ImGui::GetWindowDrawList();
     dl->AddRectFilled(origin, ImVec2(origin.x + size.x, origin.y + size.y),
-                      IM_COL32(18, 19, 23, 255));
+                      IM_COL32(23, 19, 15, 255));
 
     ImGui::InvisibleButton("##canvas", size,
                            ImGuiButtonFlags_MouseButtonLeft | ImGuiButtonFlags_MouseButtonRight |
@@ -677,6 +802,31 @@ static void DrawMapCanvas(bool interactive, ImVec2 size) {
                 dl->AddCircleFilled(c, r * 0.28f, IM_COL32(240, 220, 160, 255), 10);
             }
         }
+    }
+
+    // The blank margin. It is not the user's field, so it is drawn as what it
+    // is: dead space outside the map, hatched and dimmed.
+    const int border = g_app.map.meta.border;
+    if (border > 0) {
+        ImVec2 in0(off.x + border * cell, off.y + border * cell);
+        ImVec2 in1(off.x + (grid.cols - border) * cell, off.y + (grid.rows - border) * cell);
+        ImVec2 out0(off.x, off.y), out1(off.x + grid.cols * cell, off.y + grid.rows * cell);
+        ImU32 shade = IM_COL32(12, 13, 17, 165);
+        dl->AddRectFilled(out0, ImVec2(out1.x, in0.y), shade);
+        dl->AddRectFilled(ImVec2(out0.x, in1.y), out1, shade);
+        dl->AddRectFilled(ImVec2(out0.x, in0.y), ImVec2(in0.x, in1.y), shade);
+        dl->AddRectFilled(ImVec2(in1.x, in0.y), ImVec2(out1.x, in1.y), shade);
+        // Diagonal hatching, so it reads as "not part of the map" at a glance.
+        float step = std::max(9.0f, cell * 0.7f);
+        ImU32 hatch = IM_COL32(150, 140, 115, 34);
+        float span = (out1.x - out0.x) + (out1.y - out0.y);
+        dl->PushClipRect(out0, out1, true);
+        for (float d = 0.0f; d < span; d += step)
+            dl->AddLine(ImVec2(out0.x + d, out0.y),
+                        ImVec2(out0.x + d - (out1.y - out0.y), out1.y), hatch, 1.0f);
+        dl->PopClipRect();
+        dl->AddRect(in0, in1, IM_COL32(214, 186, 122, 190), 0, 0,
+                    std::max(1.5f, cell * 0.07f));
     }
 
     if (g_app.showCellGuides && cell >= 6.0f) {
@@ -752,7 +902,10 @@ static void DrawMapCanvas(bool interactive, ImVec2 size) {
     if (interactive && cell > 0.0f) {
         int cx = (int)std::floor((io.MousePos.x - off.x) / cell);
         int cy = (int)std::floor((io.MousePos.y - off.y) / cell);
-        bool inGrid = grid.Inside(cx, cy);
+        // Editing stops at the margin: it belongs to the renderer, not the map.
+        bool inGrid = grid.Inside(cx, cy) && cx >= border && cy >= border &&
+                      cx < grid.cols - border && cy < grid.rows - border;
+        bool inMargin = grid.Inside(cx, cy) && !inGrid;
 
         if (hovered && inGrid) {
             ImVec2 a(off.x + cx * cell, off.y + cy * cell);
@@ -818,6 +971,15 @@ static void DrawMapCanvas(bool interactive, ImVec2 size) {
             ImGui::SetTooltip("%s\n[%d, %d] - right-click for options", text.c_str(), cx, cy);
         }
 
+        if (hovered && inMargin) {
+            ImGui::SetTooltip(
+                "Bleed margin - not part of your map\n"
+                "Empty ground added outside your %d x %d field, never taken out of it.\n"
+                "Image models are least reliable at the very edge of a picture, so\n"
+                "whatever goes wrong there happens here instead of in one of your rooms.",
+                grid.cols - 2 * border, grid.rows - 2 * border);
+        }
+
         if (ImGui::BeginPopup("##mapctx")) {
             bool anything = false;
             if (menuFeature >= 0 && menuFeature < (int)g_app.features.size()) {
@@ -829,15 +991,15 @@ static void DrawMapCanvas(bool interactive, ImVec2 size) {
                 } else {
                     // A custom object: everything about it is editable here.
                     ImGui::SetNextItemWidth(240.0f);
-                    if (InputTextString("Name##ctxp", &f.label)) g_app.dirty = true;
+                    if (InputTextString("Name##ctxp", &f.label)) g_app.MarkEdited();
                     if (InputTextMultilineString("##ctxpd", &f.description, ImVec2(300, 58)))
-                        g_app.dirty = true;
+                        g_app.MarkEdited();
                     int el = (int)f.elaboration;
                     ImGui::SetNextItemWidth(240.0f);
                     if (ImGui::Combo("Embellish##ctxp", &el,
                                      "No - exactly as written\0A little\0Freely\0")) {
                         f.elaboration = (Elaboration)el;
-                        g_app.dirty = true;
+                        g_app.MarkEdited();
                     }
                 }
                 if (ImGui::MenuItem("Delete this object")) {
@@ -853,22 +1015,22 @@ static void DrawMapCanvas(bool interactive, ImVec2 size) {
                 ImGui::SeparatorText(e.label.empty() ? EffectLabel(e.kind) : e.label.c_str());
                 if (!e.label.empty()) {
                     ImGui::SetNextItemWidth(240.0f);
-                    if (InputTextString("Name##ctxe", &e.label)) g_app.dirty = true;
+                    if (InputTextString("Name##ctxe", &e.label)) g_app.MarkEdited();
                     if (InputTextMultilineString("##ctxed", &e.description, ImVec2(300, 58)))
-                        g_app.dirty = true;
+                        g_app.MarkEdited();
                     int el = (int)e.elaboration;
                     ImGui::SetNextItemWidth(240.0f);
                     if (ImGui::Combo("Embellish##ctxe", &el,
                                      "No - exactly as written\0A little\0Freely\0")) {
                         e.elaboration = (Elaboration)el;
-                        g_app.dirty = true;
+                        g_app.MarkEdited();
                     }
                 }
                 int strength = e.intensity == "low" ? 0 : (e.intensity == "high" ? 2 : 1);
                 ImGui::SetNextItemWidth(240.0f);
                 if (ImGui::Combo("Strength##ctxe", &strength, "Faint\0Clear\0Heavy\0")) {
                     e.intensity = strength == 0 ? "low" : (strength == 2 ? "high" : "medium");
-                    g_app.dirty = true;
+                    g_app.MarkEdited();
                 }
                 if (ImGui::MenuItem("Delete this effect")) {
                     g_app.PushUndo();
@@ -882,15 +1044,15 @@ static void DrawMapCanvas(bool interactive, ImVec2 size) {
                 Annotation& a = g_app.annotations[menuArea];
                 ImGui::SeparatorText(a.label.empty() ? "Custom area" : a.label.c_str());
                 ImGui::SetNextItemWidth(240.0f);
-                if (InputTextString("Name##ctxa", &a.label)) g_app.dirty = true;
+                if (InputTextString("Name##ctxa", &a.label)) g_app.MarkEdited();
                 if (InputTextMultilineString("##ctxad", &a.description, ImVec2(300, 58)))
-                    g_app.dirty = true;
+                    g_app.MarkEdited();
                 int el = (int)a.elaboration;
                 ImGui::SetNextItemWidth(240.0f);
                 if (ImGui::Combo("Embellish##ctxa", &el,
                                  "No - exactly as written\0A little\0Freely\0")) {
                     a.elaboration = (Elaboration)el;
-                    g_app.dirty = true;
+                    g_app.MarkEdited();
                 }
                 if (ImGui::MenuItem("Delete this area")) {
                     g_app.PushUndo();
@@ -922,7 +1084,7 @@ static void DrawMapCanvas(bool interactive, ImVec2 size) {
                 int r = g_app.brushSize - 1;
                 for (int dy = -r; dy <= r; ++dy)
                     for (int dx = -r; dx <= r; ++dx) grid.Set(cx + dx, cy + dy, g_app.paintTile);
-                g_app.dirty = true;
+                g_app.MarkEdited();
             }
             if (leftReleased) strokeActive = false;
         } else if (g_app.tool == Tool::RectFill && inGrid) {
@@ -944,7 +1106,7 @@ static void DrawMapCanvas(bool interactive, ImVec2 size) {
                     g_app.PushUndo();
                     grid.FillRect(x0, y0, x1 - x0 + 1, y1 - y0 + 1, g_app.paintTile);
                     strokeActive = false;
-                    g_app.dirty = true;
+                    g_app.MarkEdited();
                 }
             }
         } else if (g_app.tool == Tool::PlaceProp && inGrid) {
@@ -968,7 +1130,7 @@ static void DrawMapCanvas(bool interactive, ImVec2 size) {
                 nf.x = cx;
                 nf.y = cy;
                 g_app.features.push_back(nf);
-                g_app.dirty = true;
+                g_app.MarkEdited();
             }
         } else if (g_app.tool == Tool::Annotate && inGrid) {
             if (leftClicked) { rectStartX = cx; rectStartY = cy; strokeActive = true; }
@@ -991,7 +1153,7 @@ static void DrawMapCanvas(bool interactive, ImVec2 size) {
                         a.w = x1 - x0 + 1;
                         a.h = y1 - y0 + 1;
                         g_app.annotations.push_back(a);
-                        g_app.dirty = true;
+                        g_app.MarkEdited();
                     }
                 }
             }
@@ -1028,7 +1190,7 @@ static void DrawMapCanvas(bool interactive, ImVec2 size) {
                         e.w = x1 - x0 + 1;
                         e.h = y1 - y0 + 1;
                         g_app.effects.push_back(e);
-                        g_app.dirty = true;
+                        g_app.MarkEdited();
                     }
                 }
             }
@@ -1039,7 +1201,7 @@ static void DrawMapCanvas(bool interactive, ImVec2 size) {
                     std::remove_if(g_app.features.begin(), g_app.features.end(),
                                    [&](const Feature& f) { return f.x == cx && f.y == cy; }),
                     g_app.features.end());
-                if (g_app.features.size() != before) g_app.dirty = true;
+                if (g_app.features.size() != before) g_app.MarkEdited();
             }
         }
     }
@@ -1125,23 +1287,23 @@ static void TabCreate() {
     ImGui::BeginChild("##createleft", ImVec2(PanelWidth(0.34f, 420.0f, 900.0f), 0),
                       ImGuiChildFlags_Borders);
 
-    ImGui::TextColored(ImVec4(0.92f, 0.72f, 0.25f, 1.0f), "1. Describe the scene");
+    ImGui::TextColored(AccentGold(), "1. Describe the scene");
     ImGui::TextWrapped("Write what the place looks like from above. Plain language is fine.");
     InputTextMultilineString("##scene", &g_app.sceneText, ImVec2(-1, 110));
 
     ImGui::Spacing();
-    ImGui::TextColored(ImVec4(0.92f, 0.72f, 0.25f, 1.0f), "2. Pick a look");
+    ImGui::TextColored(AccentGold(), "2. Pick a look");
     const StyleDef* style = g_app.styles.Find(g_app.selectedStyle);
     DrawStylePicker();
     if (style) {
-        ImGui::TextColored(ImVec4(0.92f, 0.72f, 0.25f, 1.0f), "%s", style->name.c_str());
+        ImGui::TextColored(AccentGold(), "%s", style->name.c_str());
         ImGui::PushTextWrapPos(0.0f);
         ImGui::TextDisabled("%s", style->description.c_str());
         ImGui::PopTextWrapPos();
     }
 
     ImGui::Spacing();
-    ImGui::TextColored(ImVec4(0.92f, 0.72f, 0.25f, 1.0f), "3. Size and shape");
+    ImGui::TextColored(AccentGold(), "3. Size and shape");
     ImGui::SliderInt("Width", &g_app.cols, arch::kMinCells, arch::kMaxCells, "%d cells");
     ImGui::SetItemTooltip("How many squares across. One square is 5 feet.");
     ImGui::SliderInt("Height", &g_app.rows, arch::kMinCells, arch::kMaxCells, "%d cells");
@@ -1186,9 +1348,10 @@ static void TabCreate() {
 
     bool busy = g_app.job.running.load();
     ImGui::BeginDisabled(busy);
-    ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.20f, 0.55f, 0.30f, 1.0f));
-    ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.25f, 0.70f, 0.38f, 1.0f));
-    if (ImGui::Button("MAKE MY BATTLE MAP", ImVec2(-1, 46))) StartPlanAndRender(true);
+    ImGui::PushStyleColor(ImGuiCol_Button, GoButton());
+    ImGui::PushStyleColor(ImGuiCol_ButtonHovered, GoButtonHovered());
+    if (ImGui::Button("MAKE MY BATTLE MAP", ImVec2(-1, 46)))
+        RequestRebuild(Rebuild::PlanAndRender);
     ImGui::PopStyleColor(2);
     ImGui::PushTextWrapPos(0.0f);
     ImGui::TextDisabled("Plans the scene with the local AI, then paints it in ComfyUI. "
@@ -1196,10 +1359,12 @@ static void TabCreate() {
     ImGui::PopTextWrapPos();
 
     ImGui::Spacing();
-    if (ImGui::Button("Blueprint only (instant, no AI)", ImVec2(-1, 30))) StartQuickBlueprint();
+    if (ImGui::Button("Blueprint only (instant, no AI)", ImVec2(-1, 30)))
+        RequestRebuild(Rebuild::Blueprint);
     ImGui::SetItemTooltip("Builds the floor plan straight away without the language model. "
                           "Good for iterating on a layout before spending time on a render.");
-    if (ImGui::Button("Plan with AI, do not render yet", ImVec2(-1, 30))) StartPlanAndRender(false);
+    if (ImGui::Button("Plan with AI, do not render yet", ImVec2(-1, 30)))
+        RequestRebuild(Rebuild::Plan);
     ImGui::SetItemTooltip("Runs only Stage 1, so you can review and edit the plan first.");
     ImGui::EndDisabled();
 
@@ -1216,12 +1381,12 @@ static void TabCreate() {
     ImGui::SameLine();
 
     ImGui::BeginChild("##createright", ImVec2(0, 0), ImGuiChildFlags_Borders);
-    ImGui::TextColored(ImVec4(0.92f, 0.72f, 0.25f, 1.0f), "Blueprint preview");
+    ImGui::TextColored(AccentGold(), "Blueprint preview");
     ImGui::TextDisabled("This is the plan, not the finished map. Edit it on the Editor tab.");
     DrawMapCanvas(false, ImVec2(0, ImGui::GetContentRegionAvail().y * 0.55f));
     ImGui::Separator();
     if (g_resultTex) {
-        ImGui::TextColored(ImVec4(0.92f, 0.72f, 0.25f, 1.0f), "Finished battle map");
+        ImGui::TextColored(AccentGold(), "Finished battle map");
         ImVec2 avail = ImGui::GetContentRegionAvail();
         float aspect = g_resultH ? (float)g_resultW / (float)g_resultH : 1.0f;
         float w = std::min(avail.x, avail.y * aspect);
@@ -1297,6 +1462,12 @@ static void DrawTileGlyph(ImDrawList* dl, ImVec2 c, float r, Tile t, ImU32 col) 
         dl->AddRect(ImVec2(c.x - r * 0.55f, c.y - r * 0.8f),
                     ImVec2(c.x + r * 0.55f, c.y + r * 0.8f), col, 0, 0, w);
         dl->AddCircleFilled(ImVec2(c.x + r * 0.3f, c.y), r * 0.13f, col);
+        break;
+    case Tile::Window:  // a four-pane casement
+        dl->AddRect(ImVec2(c.x - r * 0.75f, c.y - r * 0.62f),
+                    ImVec2(c.x + r * 0.75f, c.y + r * 0.62f), col, 0, 0, w);
+        dl->AddLine(ImVec2(c.x, c.y - r * 0.62f), ImVec2(c.x, c.y + r * 0.62f), col, w);
+        dl->AddLine(ImVec2(c.x - r * 0.75f, c.y), ImVec2(c.x + r * 0.75f, c.y), col, w);
         break;
     case Tile::Water:  // two wave crests
         for (int i = 0; i < 2; ++i) {
@@ -1553,7 +1724,7 @@ static void DrawPropPicker() {
 static void TabEditor() {
     ImGui::BeginChild("##edtools", ImVec2(PanelWidth(0.20f, 240.0f, 620.0f), 0),
                       ImGuiChildFlags_Borders);
-    ImGui::TextColored(ImVec4(0.92f, 0.72f, 0.25f, 1.0f), "Tools");
+    ImGui::TextColored(AccentGold(), "Tools");
 
     const char* toolNames[] = {"Look around", "Brush", "Rectangle", "Place prop",
                                "Erase prop", "Custom area", "Effect"};
@@ -1761,9 +1932,188 @@ static void TabEditor() {
     ImGui::Text("Left: use tool  |  Right-click: name and options  |  "
                 "Right or middle drag: pan  |  Wheel: zoom");
     ImGui::SameLine();
-    ImGui::TextDisabled("(%d x %d)", g_app.grid.cols, g_app.grid.rows);
+    int hb = g_app.map.meta.border;
+    if (hb > 0)
+        ImGui::TextDisabled("(%d x %d field  +%d bleed)", g_app.grid.cols - 2 * hb,
+                            g_app.grid.rows - 2 * hb, hb);
+    else
+        ImGui::TextDisabled("(%d x %d)", g_app.grid.cols, g_app.grid.rows);
     DrawMapCanvas(true, ImVec2(0, 0));
     ImGui::EndChild();
+}
+
+// One labelled paragraph of the caption.
+static void CaptionField(const char* label, const nlohmann::json& obj, const char* key) {
+    if (!obj.contains(key) || !obj[key].is_string()) return;
+    ImGui::SeparatorText(label);
+    ImGui::PushTextWrapPos(0.0f);
+    ImGui::TextUnformatted(obj[key].get<std::string>().c_str());
+    ImGui::PopTextWrapPos();
+}
+
+// The palette as swatches - hex codes tell nobody anything.
+static void DrawPaletteRow(const nlohmann::json& colours) {
+    ImGui::SeparatorText("Palette");
+    for (const auto& c : colours) {
+        if (!c.is_string()) continue;
+        unsigned int v = 0;
+        std::string hex = c.get<std::string>();
+        if (!hex.empty() && hex[0] == '#') hex.erase(0, 1);
+        if (hex.size() != 6) continue;
+        v = (unsigned int)strtoul(hex.c_str(), nullptr, 16);
+        ImGui::ColorButton(("##sw" + hex).c_str(),
+                           ImVec4(((v >> 16) & 0xFF) / 255.0f, ((v >> 8) & 0xFF) / 255.0f,
+                                  (v & 0xFF) / 255.0f, 1.0f),
+                           ImGuiColorEditFlags_NoTooltip | ImGuiColorEditFlags_NoDragDrop,
+                           ImVec2(30, 22));
+        ImGui::SameLine();
+        ImGui::TextDisabled("%s", c.get<std::string>().c_str());
+        ImGui::SameLine();
+    }
+    ImGui::NewLine();
+}
+
+// Parse once for the readable view; null means "not JSON yet".
+static const nlohmann::json& ParsedOrEmpty(const std::string& text) {
+    static std::string cached;
+    static nlohmann::json parsed;
+    if (text != cached) {
+        cached = text;
+        try {
+            parsed = nlohmann::json::parse(text);
+        } catch (const std::exception&) {
+            parsed = nlohmann::json();
+        }
+    }
+    return parsed;
+}
+
+// The caption is the whole instruction the painter receives, so it is worth
+// showing properly - and worth letting somebody rewrite by hand when they know
+// exactly what they want.
+static void DrawCaptionPanel() {
+    if (!ImGui::CollapsingHeader("Caption that will be sent",
+                                 ImGuiTreeNodeFlags_DefaultOpen))
+        return;
+
+    g_app.SyncMapFromGrid();
+    nlohmann::json auto_cap = IdeogramCaption::Build(
+        g_app.map, g_app.styles.Find(g_app.map.meta.style), g_app.styles.base);
+    std::string autoText = auto_cap.dump(2);
+
+    if (g_app.captionManual) {
+        ImGui::TextColored(ImVec4(0.95f, 0.66f, 0.30f, 1.0f),
+                           "Hand-written - the map no longer rewrites this");
+    } else {
+        ImGui::TextDisabled("Rebuilt from the plan every time you change it.");
+    }
+
+    if (g_app.captionManual) {
+        if (ImGui::Button("Back to automatic")) {
+            g_app.captionManual = false;
+            g_app.captionText.clear();
+        }
+        ImGui::SetItemTooltip("Throw the hand-written version away and go back to the "
+                              "caption built from the plan.");
+        ImGui::SameLine();
+        if (ImGui::Button("Reload from plan")) g_app.captionText = autoText;
+        ImGui::SetItemTooltip("Replace what you typed with a fresh caption built from the "
+                              "current plan.");
+    } else {
+        if (ImGui::Button("Edit by hand")) {
+            g_app.captionManual = true;
+            g_app.captionText = autoText;
+        }
+        ImGui::SetItemTooltip("Take the caption over and write it yourself. It is then sent "
+                              "exactly as you leave it.");
+    }
+    ImGui::SameLine();
+    if (ImGui::Button("Copy")) {
+        ImGui::SetClipboardText(g_app.captionManual ? g_app.captionText.c_str()
+                                                     : autoText.c_str());
+    }
+    ImGui::SetItemTooltip("Copy the whole caption to the clipboard.");
+
+    // Height follows the window, because reading JSON through a letterbox is
+    // what made this panel useless before.
+    float h = std::clamp(ImGui::GetContentRegionAvail().y - 190.0f, 200.0f, 900.0f);
+
+    if (ImGui::BeginTabBar("##captabs")) {
+        if (ImGui::BeginTabItem("Readable")) {
+            const nlohmann::json& j = g_app.captionManual ? ParsedOrEmpty(g_app.captionText)
+                                                          : auto_cap;
+            ImGui::BeginChild("##capread", ImVec2(0, h), ImGuiChildFlags_Borders);
+            if (j.is_null()) {
+                ImGui::TextColored(ImVec4(0.95f, 0.45f, 0.40f, 1.0f),
+                                   "Not valid JSON yet - see the Raw tab.");
+            } else {
+                CaptionField("Scene", j, "high_level_description");
+                if (j.contains("style_description") && j["style_description"].is_object()) {
+                    const auto& sd = j["style_description"];
+                    CaptionField("Look", sd, "aesthetics");
+                    CaptionField("Light", sd, "lighting");
+                    CaptionField("Medium", sd, "medium");
+                    if (sd.contains("color_palette") && sd["color_palette"].is_array())
+                        DrawPaletteRow(sd["color_palette"]);
+                }
+                if (j.contains("compositional_deconstruction")) {
+                    const auto& cd = j["compositional_deconstruction"];
+                    CaptionField("Ground", cd, "background");
+                    if (cd.contains("elements") && cd["elements"].is_array()) {
+                        ImGui::SeparatorText("Placed objects");
+                        int n = 0;
+                        for (const auto& e : cd["elements"]) {
+                            ++n;
+                            std::string box = "no box";
+                            if (e.contains("bbox") && e["bbox"].is_array() &&
+                                e["bbox"].size() == 4) {
+                                box = "y " + std::to_string((int)e["bbox"][0]) + "-" +
+                                      std::to_string((int)e["bbox"][2]) + "  x " +
+                                      std::to_string((int)e["bbox"][1]) + "-" +
+                                      std::to_string((int)e["bbox"][3]);
+                            }
+                            ImGui::TextColored(AccentGold(), "%2d.  %s",
+                                               n, box.c_str());
+                            ImGui::SameLine();
+                            ImGui::PushTextWrapPos(0.0f);
+                            ImGui::TextUnformatted(e.value("desc", std::string()).c_str());
+                            ImGui::PopTextWrapPos();
+                            ImGui::Spacing();
+                        }
+                        ImGui::TextDisabled("%d objects, %d of them positioned.", n,
+                                            (int)std::count_if(
+                                                cd["elements"].begin(), cd["elements"].end(),
+                                                [](const nlohmann::json& e) {
+                                                    return e.contains("bbox");
+                                                }));
+                    }
+                }
+            }
+            ImGui::EndChild();
+            ImGui::EndTabItem();
+        }
+        if (ImGui::BeginTabItem("Raw JSON")) {
+            if (g_app.captionManual) {
+                InputTextMultilineString("##capraw", &g_app.captionText, ImVec2(-1, h));
+                bool valid = !ParsedOrEmpty(g_app.captionText).is_null();
+                if (valid)
+                    ImGui::TextColored(ImVec4(0.45f, 0.80f, 0.45f, 1.0f),
+                                       "Valid JSON, %d characters.",
+                                       (int)g_app.captionText.size());
+                else
+                    ImGui::TextColored(ImVec4(0.95f, 0.45f, 0.40f, 1.0f),
+                                       "Not valid JSON. It will still be sent as typed, but "
+                                       "the model expects a JSON object.");
+            } else {
+                ImGui::BeginChild("##capraw2", ImVec2(0, h), ImGuiChildFlags_Borders);
+                ImGui::TextUnformatted(autoText.c_str());
+                ImGui::EndChild();
+                ImGui::TextDisabled("Press \"Edit by hand\" above to change this directly.");
+            }
+            ImGui::EndTabItem();
+        }
+        ImGui::EndTabBar();
+    }
 }
 
 static void TabRender() {
@@ -1771,15 +2121,19 @@ static void TabRender() {
                       ImGuiChildFlags_Borders);
 
     ComfyConfig& c = g_app.config.comfy;
-    ImGui::TextColored(ImVec4(0.92f, 0.72f, 0.25f, 1.0f), "Renderer: Ideogram 4");
+    ImGui::TextColored(AccentGold(), "Renderer: Ideogram 4");
     ImGui::PushTextWrapPos(0.0f);
     ImGui::TextDisabled("The layout is sent as bounding boxes inside a JSON caption, so the "
                         "plan is followed exactly and no blueprint image is needed.");
     ImGui::PopTextWrapPos();
 
+    static const char* kPresetItems[] = {"Quality - 48 steps", "Default - 20 steps",
+                                         "Turbo - 12 steps"};
     int preset = c.preset == "Quality" ? 0 : (c.preset == "Turbo" ? 2 : 1);
-    if (ImGui::Combo("Quality", &preset, "Quality - 48 steps Default - 20 steps Turbo - 12 steps "))
+    if (ImGui::Combo("Quality", &preset, kPresetItems, IM_ARRAYSIZE(kPresetItems)))
         c.preset = preset == 0 ? "Quality" : (preset == 2 ? "Turbo" : "Default");
+    ImGui::SetItemTooltip("How many painting steps. Quality is slow and best; Turbo is for "
+                          "trying an idea out.");
     ImGui::SliderFloat("Guidance", &c.cfg, 1.0f, 12.0f, "%.1f");
     ImGui::SetItemTooltip("How literally the caption is followed. Higher sticks to the "
                           "description, lower lets the model improvise.");
@@ -1797,7 +2151,7 @@ static void TabRender() {
     ImGui::Spacing();
     bool busy = g_app.job.running.load();
     ImGui::BeginDisabled(busy || g_app.grid.cols <= 0);
-    ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.20f, 0.55f, 0.30f, 1.0f));
+    ImGui::PushStyleColor(ImGuiCol_Button, GoButton());
     if (ImGui::Button("RENDER THIS MAP", ImVec2(-1, 40))) StartRenderCurrent();
     ImGui::PopStyleColor();
     ImGui::EndDisabled();
@@ -1806,16 +2160,7 @@ static void TabRender() {
     ImGui::Text("Status: %s", g_app.job.Status().c_str());
 
     ImGui::Separator();
-    if (ImGui::CollapsingHeader("Caption that will be sent")) {
-        g_app.SyncMapFromGrid();
-        std::string caption = IdeogramCaption::Build(g_app.map,
-                                                     g_app.styles.Find(g_app.map.meta.style),
-                                                     g_app.styles.base).dump(2);
-        ImGui::BeginChild("##caption", ImVec2(0, 220), ImGuiChildFlags_Borders);
-        ImGui::TextUnformatted(caption.c_str());
-        ImGui::EndChild();
-        ImGui::TextDisabled("Edit this indirectly: the scene text, the style, and the layout.");
-    }
+    DrawCaptionPanel();
 
     DrawJobLog(140);
     ImGui::EndChild();
@@ -1839,7 +2184,7 @@ static void TabRender() {
     } else {
         ImGui::TextDisabled("No render yet.");
         ImGui::Separator();
-        ImGui::TextColored(ImVec4(0.92f, 0.72f, 0.25f, 1.0f), "Plan that will be rendered");
+        ImGui::TextColored(AccentGold(), "Plan that will be rendered");
         DrawMapCanvas(false, ImVec2(0, 0));
     }
     ImGui::EndChild();
@@ -1852,7 +2197,7 @@ static void TabStyles() {
 
     ImGui::BeginChild("##stylelist", ImVec2(PanelWidth(0.22f, 250.0f, 560.0f), 0),
                       ImGuiChildFlags_Borders);
-    ImGui::TextColored(ImVec4(0.92f, 0.72f, 0.25f, 1.0f), "Styles");
+    ImGui::TextColored(AccentGold(), "Styles");
     ImGui::TextDisabled("One JSON file each, in styles/");
     for (const auto& kv : g_app.styles.styles) {
         if (ImGui::Selectable(kv.second.name.c_str(), editingId == kv.first && !editingBase)) {
@@ -1882,7 +2227,7 @@ static void TabStyles() {
     ImGui::SameLine();
     ImGui::BeginChild("##styleedit", ImVec2(0, 0), ImGuiChildFlags_Borders);
     if (editingBase) {
-        ImGui::TextColored(ImVec4(0.92f, 0.72f, 0.25f, 1.0f), "Shared caption contract");
+        ImGui::TextColored(AccentGold(), "Shared caption contract");
         ImGui::Text("Never rendered (this is what bans text and creatures)");
         InputTextMultilineString("##bf", &g_app.styles.base.forbidden_suffix, ImVec2(-1, 90));
         ImGui::Text("Default aesthetics");
@@ -1895,7 +2240,7 @@ static void TabStyles() {
         InputTextMultilineString("##bg", &g_app.styles.base.background_suffix, ImVec2(-1, 80));
         if (ImGui::Button("Save contract", ImVec2(200, 30))) g_app.styles.SaveBase();
     } else if (!editingId.empty()) {
-        ImGui::TextColored(ImVec4(0.92f, 0.72f, 0.25f, 1.0f), "Editing: %s", editing.id.c_str());
+        ImGui::TextColored(AccentGold(), "Editing: %s", editing.id.c_str());
         InputTextString("Display name", &editing.name);
         InputTextString("Category", &editing.category);
         InputTextString("Description", &editing.description);
@@ -1938,7 +2283,7 @@ static void TabStyles() {
 
 static void TabSettings() {
     ImGui::BeginChild("##settings", ImVec2(0, 0), ImGuiChildFlags_Borders);
-    ImGui::TextColored(ImVec4(0.92f, 0.72f, 0.25f, 1.0f), "Local services");
+    ImGui::TextColored(AccentGold(), "Local services");
 
     InputTextString("Ollama address", &g_app.config.ollama.base_url);
     if (!g_app.ollamaModels.empty()) {
@@ -1966,7 +2311,7 @@ static void TabSettings() {
     ImGui::EndDisabled();
 
     ImGui::Separator();
-    ImGui::TextColored(ImVec4(0.92f, 0.72f, 0.25f, 1.0f), "Ideogram 4 models in ComfyUI");
+    ImGui::TextColored(AccentGold(), "Ideogram 4 models in ComfyUI");
     InputTextString("Diffusion model", &g_app.config.comfy.unet);
     InputTextString("Unconditional model", &g_app.config.comfy.unet_uncond);
     ImGui::SetItemTooltip("Required. It supplies the negative half of classifier-free "
@@ -2090,13 +2435,17 @@ static void DrawOpenDialog() {
         g_app.map = loaded;
         g_app.SyncGridFromMap();
         g_app.currentFile = path;
+        g_app.dirty = false;
+        g_app.handEdited = false;
 
         // Restore everything the plan was made with, so the Create tab shows the
         // settings behind the map you just opened rather than stale ones.
         if (!loaded.meta.style.empty()) g_app.selectedStyle = loaded.meta.style;
         if (!loaded.meta.scene_summary.empty()) g_app.sceneText = loaded.meta.scene_summary;
-        g_app.cols = loaded.grid.cols;
-        g_app.rows = loaded.grid.rows;
+        // The stored grid includes the bleed margin; the sliders show the field.
+        int lb = arch::BorderOf(loaded);
+        g_app.cols = std::max(arch::kMinCells, loaded.grid.cols - 2 * lb);
+        g_app.rows = std::max(arch::kMinCells, loaded.grid.rows - 2 * lb);
         g_app.layoutIndex = 0;
         for (int i = 1; i < IM_ARRAYSIZE(kLayoutNames); ++i)
             if (loaded.meta.layout == kLayoutNames[i]) g_app.layoutIndex = i;
@@ -2207,13 +2556,22 @@ static void MainMenu() {
     if (ImGui::BeginMenu("File")) {
         if (ImGui::MenuItem("New empty map")) {
             g_app.PushUndo();
-            g_app.grid = TileGrid(25, 19, Tile::Void);
-            g_app.grid.FillRect(1, 1, 23, 17, Tile::Floor);
+            const int b = arch::kBorderCells;
+            int w = std::max(arch::kMinCells, g_app.cols);
+            int h = std::max(arch::kMinCells, g_app.rows);
+            g_app.grid = TileGrid(w + 2 * b, h + 2 * b, Tile::Void);
+            g_app.grid.FillRect(b + 1, b + 1, w - 2, h - 2, Tile::Floor);
             arch::DeriveWalls(g_app.grid);
             g_app.features.clear();
+            g_app.annotations.clear();
+            g_app.effects.clear();
             g_app.map.areas.clear();
+            g_app.map.meta.border = b;
             g_app.map.meta.name = "battlemap";
+            g_app.MarkEdited();
         }
+        ImGui::SetItemTooltip("A blank field at the size set on the Create tab, walled and "
+                              "ready to paint.");
         if (ImGui::MenuItem("Open map.json...")) g_app.showOpenDialog = true;
         ImGui::SetItemTooltip("Load a plan built by an agent, the command line, or an earlier "
                               "session, and edit it here.");
@@ -2222,6 +2580,7 @@ static void MainMenu() {
             std::string dir = OutputDir(g_app.map.meta.name);
             if (MapSerializer::SaveToFile(dir + "/map.json", g_app.map)) {
                 g_app.dirty = false;
+                g_app.handEdited = false;
                 g_app.job.Log("Saved " + dir + "/map.json");
             }
         }
@@ -2371,8 +2730,15 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int nCmdShow) {
         }
     }
 
-    WNDCLASSEXW wc = {sizeof(wc), CS_CLASSDC, WndProc, 0L, 0L, hInstance, nullptr, nullptr,
-                      nullptr, nullptr, L"DndBattleMapGenClass", nullptr};
+    // The same icon in three places: title bar, alt-tab, and the executable
+    // itself (that last one comes from the resource file, not from here).
+    HICON appIcon = (HICON)LoadImageW(hInstance, MAKEINTRESOURCEW(IDI_APPICON), IMAGE_ICON,
+                                      0, 0, LR_DEFAULTSIZE | LR_SHARED);
+    HICON appIconSmall = (HICON)LoadImageW(hInstance, MAKEINTRESOURCEW(IDI_APPICON),
+                                           IMAGE_ICON, GetSystemMetrics(SM_CXSMICON),
+                                           GetSystemMetrics(SM_CYSMICON), LR_SHARED);
+    WNDCLASSEXW wc = {sizeof(wc), CS_CLASSDC, WndProc, 0L, 0L, hInstance, appIcon, nullptr,
+                      nullptr, nullptr, L"DndBattleMapGenClass", appIconSmall};
     RegisterClassExW(&wc);
     HWND hwnd = CreateWindowW(wc.lpszClassName, L"D&D AI Battle Map Generator",
                               WS_OVERLAPPEDWINDOW, 80, 60, 1560, 960, nullptr, nullptr,
@@ -2475,13 +2841,21 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int nCmdShow) {
         }
         ImGui::EndChild();
         DrawOpenDialog();
+        DrawRebuildGuard();
 
         ImGui::Separator();
         ImGui::Text("Ollama: %s", g_app.ollamaOk ? "ready" : "offline");
         ImGui::SameLine();
         ImGui::Text("| ComfyUI: %s", g_app.comfyOk ? "ready" : "offline");
         ImGui::SameLine();
-        ImGui::Text("| Map: %d x %d", g_app.grid.cols, g_app.grid.rows);
+        int sb = g_app.map.meta.border;
+        ImGui::Text("| Map: %d x %d", g_app.grid.cols - 2 * sb, g_app.grid.rows - 2 * sb);
+        if (sb > 0)
+            ImGui::SetItemTooltip("Your field is %d x %d cells. A %d-cell bleed margin is "
+                                  "added around it for the renderer, so the image is "
+                                  "%d x %d.",
+                                  g_app.grid.cols - 2 * sb, g_app.grid.rows - 2 * sb, sb,
+                                  g_app.grid.cols, g_app.grid.rows);
         ImGui::SameLine();
         ImGui::Text("| %s", g_app.job.Status().c_str());
 

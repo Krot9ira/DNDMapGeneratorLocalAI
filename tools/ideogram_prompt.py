@@ -123,6 +123,38 @@ def _merge_runs(grid, kind):
     return rects
 
 
+def _tile_rect(x, y, w, h, cols, rows, limit=0.22, max_tiles=6):
+    """Split a rectangle into tiles when it covers a big share of the map.
+
+    A single bounding box the size of half the frame is not a useful
+    instruction - the model satisfies it with one blob somewhere inside. Several
+    adjacent boxes carrying the same description force the whole area to be
+    covered.
+    """
+    if cols <= 0 or rows <= 0:
+        return [(x, y, w, h)]
+    if (w * h) <= limit * cols * rows:
+        return [(x, y, w, h)]
+    nx = 3 if w >= cols * 0.6 else 2
+    ny = 3 if h >= rows * 0.6 else 2
+    while nx * ny > max_tiles:
+        if nx >= ny:
+            nx -= 1
+        else:
+            ny -= 1
+    nx, ny = max(1, nx), max(1, ny)
+    out = []
+    for j in range(ny):
+        for i in range(nx):
+            tx = x + w * i // nx
+            ty = y + h * j // ny
+            tw = (x + w * (i + 1) // nx) - tx
+            th = (y + h * (j + 1) // ny) - ty
+            if tw > 0 and th > 0:
+                out.append((tx, ty, tw, th))
+    return out or [(x, y, w, h)]
+
+
 def build_caption(map_data, style=None, base=None):
     """Return the structured caption as a dict."""
     grid = A.zones_to_grid(map_data)
@@ -199,13 +231,21 @@ def build_caption(map_data, style=None, base=None):
         else:
             continue
         how = strength.get(str(eff.get("intensity", "medium")).lower(), strength["medium"])
-        critical.append({
-            "type": "obj",
-            "bbox": _bbox(int(eff.get("x", 0)), int(eff.get("y", 0)),
-                          max(1, int(eff.get("w", 1))), max(1, int(eff.get("h", 1))),
-                          cols, rows),
-            "desc": (f"{text}. This is an atmospheric effect painted over the scene, {how}, "
-                     f"lying on top of the ground without replacing it. {_EXACT}")})
+        ex, ey = int(eff.get("x", 0)), int(eff.get("y", 0))
+        ew, eh = max(1, int(eff.get("w", 1))), max(1, int(eff.get("h", 1)))
+        body_text = (f"{text}. This is an atmospheric effect painted over the scene, {how}, "
+                     f"lying on top of the ground without replacing it")
+        # One huge box makes the model paint the effect in a single corner and
+        # call it done. Splitting a large area into tiles forces the coverage it
+        # was asked for, because every tile has to be filled on its own.
+        for (tx, ty, tw, th) in _tile_rect(ex, ey, ew, eh, cols, rows):
+            spread = ("" if (tw, th) == (ew, eh) else
+                      ", and this patch of it is one part of a single continuous effect "
+                      "that covers the whole marked region")
+            critical.append({
+                "type": "obj",
+                "bbox": _bbox(tx, ty, tw, th, cols, rows),
+                "desc": f"{body_text}{spread}. It fills this whole rectangle. {_EXACT}"})
 
     # 3. Structures.
     for st in map_data.get("structures", []) or []:
@@ -230,6 +270,18 @@ def build_caption(map_data, style=None, base=None):
                          "desc": f"{door_word}, set into the wall and completely filling the "
                                  f"opening as a solid closed door leaf, not an empty gap. "
                                  f"{_EXACT}"})
+
+    # 4b. Windows. Like doors, few and load-bearing: they say where the wall is
+    #     broken by an opening, and the renderer will invent them anywhere if it
+    #     is not told exactly where they belong.
+    window_word = style.get("window") or (
+        "a window set into the wall: a stone or timber frame holding small panes of "
+        "glass, its sill and lintel clearly drawn")
+    for (x, y, w, h) in _merge_runs(grid, A.WINDOW):
+        critical.append({"type": "obj", "bbox": _bbox(x, y, w, h, cols, rows),
+                         "desc": f"{window_word}, filling the whole opening in the wall "
+                                 f"and set flush into it, with solid wall continuing on "
+                                 f"both sides. {_EXACT}"})
 
     # 5. Terrain bodies large enough to matter, biggest first.
     for kind, phrase in _TERRAIN_WORDS.items():
@@ -301,10 +353,26 @@ def build_caption(map_data, style=None, base=None):
     if materials:
         ground = f"{ground}. {materials.rstrip('.')}"
     suffix = base.get("background_suffix") or (
-        "covering the whole frame, painted edge to edge with visible brushwork; the map fills "
-        "the entire image with no border and no blank areas")
+        "painted with visible brushwork, every part of the ground fully painted with no "
+        "blank patches inside the map area")
+    background = f"{ground} {suffix}"
+
+    # The blank ring around the playable field. Content boxes are already inset
+    # by it, but the model still has to be told the margin is meant to be empty,
+    # or it fills the space with invented scenery.
+    border = A.border_of(map_data)
+    if border > 0:
+        note = base.get("border_note") or (
+            "A plain flat unpainted margin runs right around the outside of the image on "
+            "all four sides, empty of scenery, buildings, water and props, exactly like the "
+            "blank paper border of a printed battle map sheet")
+        pct_x = max(1, round(border / cols * 100))
+        pct_y = max(1, round(border / rows * 100))
+        background += (f". {note}. The margin is {pct_x} percent of the image width down each "
+                       f"side and {pct_y} percent of its height along the top and bottom")
+
     caption["compositional_deconstruction"] = {
-        "background": f"{ground} {suffix}",
+        "background": background,
         "elements": elements,
     }
     return caption

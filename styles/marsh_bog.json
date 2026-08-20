@@ -1,0 +1,39 @@
+{
+  "id": "marsh_bog",
+  "name": "Marsh & Peat Bog",
+  "category": "Wilderness",
+  "description": "Black standing water, reed islands and sagging plank walkways.",
+  "palette": "peat black, reed brown, sickly moss green, mist grey",
+  "lighting": "dim green-grey daylight through mist, water reflecting a pale sky",
+  "default_layout": "swamp",
+  "props": [
+    "tree",
+    "stump",
+    "bush",
+    "boulder",
+    "mushroom",
+    "bones",
+    "crate",
+    "campfire",
+    "pool"
+  ],
+  "tags": [
+    "swamp",
+    "marsh",
+    "bog",
+    "wetland",
+    "hag",
+    "fen",
+    "mire"
+  ],
+  "aesthetics": "Hand-painted fantasy cartography, rough painterly brushwork with visible strokes, strong dark ink outlines around every object and wall, subtle black and brown linework, restrained desaturated colour, carefully shaded volumetric detail, inked line art over watercolour and gouache, premium hand-drawn D&D virtual tabletop map, dense environmental storytelling",
+  "hex_palette": [
+    "#3A3A2E",
+    "#6E6242",
+    "#4A5C3E",
+    "#8E948A",
+    "#22261F"
+  ],
+  "ground": "black peat water broken by tussocks of sodden moss and matted reed",
+  "materials": "A fantasy peat bog seen from above. Sheets of black standing water reflecting a pale sky, broken by tussocks of sodden moss and dense beds of matted reed, sagging plank walkways on rotten posts threading between islands of firmer ground, drowned trees standing bare and grey with their roots in the water, a half-sunk flat-bottomed boat, clumps of pale fungus on the dead wood, mist lying low over the surface, bones and antlers caught in the reeds."
+}

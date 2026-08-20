@@ -1,0 +1,40 @@
+{
+  "id": "grand_temple",
+  "name": "Grand Temple",
+  "category": "Sacred",
+  "description": "Colonnaded nave, a high altar and light falling from clerestory windows.",
+  "palette": "pale marble, gold leaf, deep votive blue, censer smoke grey",
+  "lighting": "broad shafts of coloured light from high windows, candlelight at the altar",
+  "default_layout": "building",
+  "props": [
+    "altar",
+    "pillar",
+    "column",
+    "statue",
+    "bench",
+    "brazier",
+    "torch",
+    "fountain",
+    "banner",
+    "bookshelf"
+  ],
+  "tags": [
+    "temple",
+    "church",
+    "cathedral",
+    "sacred",
+    "holy",
+    "shrine",
+    "cleric"
+  ],
+  "aesthetics": "Hand-painted fantasy cartography, rough painterly brushwork with visible strokes, strong dark ink outlines around every object and wall, subtle black and brown linework, restrained desaturated colour, carefully shaded volumetric detail, inked line art over watercolour and gouache, premium hand-drawn D&D virtual tabletop map, dense environmental storytelling",
+  "hex_palette": [
+    "#D8CFBC",
+    "#A8946B",
+    "#3E4C6B",
+    "#6E6455",
+    "#2E2A26"
+  ],
+  "ground": "polished marble floor laid in pale slabs with a darker inlaid border",
+  "materials": "A grand fantasy temple seen from above with the roof removed. A long nave of polished marble flagstones flanked by two rows of fluted stone columns, rows of timber pews facing a raised sanctuary, a heavy carved stone altar on a stepped plinth, standing candelabra and bronze censers trailing smoke, coloured light from tall clerestory windows falling in broad shafts across the floor, a chapter room with shelves of ledgers, a stone basin of still water, gilded ornament worked into the capitals and the altar front."
+}

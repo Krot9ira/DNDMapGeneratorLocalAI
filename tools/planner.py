@@ -139,9 +139,24 @@ class MapPlanner:
         return None
 
     # -- planning -----------------------------------------------------
+    def free_renderer(self):
+        """Ask ComfyUI to drop its models before the planner needs the card.
+
+        ComfyUI holds around 27 GB of weights once it has rendered. Silent and
+        best-effort: if ComfyUI is not running there is nothing to free.
+        """
+        try:
+            from comfy import ComfyClient
+            cfg = json.loads((PROJECT / "config.json").read_text(encoding="utf-8"))
+            url = (cfg.get("comfy") or {}).get("base_url", "http://127.0.0.1:8188")
+            ComfyClient(url).free_memory()
+        except Exception:
+            pass
+
     def plan_spec(self, scene_description, style_id=None, size="medium",
                   sketch_path=None, temperature=0.75):
         """Ask the LLM for a design spec. Returns (spec, raw_text)."""
+        self.free_renderer()
         styles = self.load_styles()
         schema = json.loads(json.dumps(SPEC_SCHEMA))
         if styles:

@@ -6,13 +6,13 @@
   "medium": "Inked line art combined with watercolour and gouache painting over digital texture",
   "lighting": "Soft warm ambient light from directly above with gentle directional shadows beneath walls and furniture",
   "forbidden_suffix": "The scene is completely empty of people, creatures and animals, and carries no text, letters, numbers, labels or grid lines anywhere",
-  "background_suffix": "covering the whole frame, painted edge to edge with visible brushwork, grime in the joints and damp patches; the map fills the entire image with no border and no blank areas",
-  "roofless_note": "every building is drawn with its roof removed so the furnished interior is fully visible from directly above",
+  "background_suffix": "painted with visible brushwork, grime in the joints and damp patches, every part of the ground fully painted with no blank patches inside the map area",
   "default_palette": [
     "#C8B99A",
     "#8A7B63",
     "#4A4038",
     "#2E2A26",
     "#6E7A6B"
-  ]
+  ],
+  "border_note": "A plain flat unpainted margin runs right around the outside of the image on all four sides, empty of scenery, buildings, water and props, exactly like the blank paper border of a printed battle map sheet; the map itself sits wholly inside that margin and its outer edge is a clean straight line"
 }

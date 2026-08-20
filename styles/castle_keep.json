@@ -1,0 +1,41 @@
+{
+  "id": "castle_keep",
+  "name": "Castle Keep & Courtyard",
+  "category": "Fortress",
+  "description": "Great hall, guard rooms and a walled courtyard of heavy dressed stone.",
+  "palette": "cold dressed granite, banner crimson, iron black, packed courtyard sand",
+  "lighting": "hard daylight in the courtyard, torchlit gloom inside the keep",
+  "default_layout": "building",
+  "props": [
+    "throne",
+    "table",
+    "bench",
+    "banner",
+    "weapon_rack",
+    "brazier",
+    "torch",
+    "chest",
+    "barrel",
+    "statue",
+    "hearth",
+    "well"
+  ],
+  "tags": [
+    "castle",
+    "keep",
+    "fortress",
+    "noble",
+    "throne room",
+    "garrison"
+  ],
+  "aesthetics": "Hand-painted fantasy cartography, rough painterly brushwork with visible strokes, strong dark ink outlines around every object and wall, subtle black and brown linework, restrained desaturated colour, carefully shaded volumetric detail, inked line art over watercolour and gouache, premium hand-drawn D&D virtual tabletop map, dense environmental storytelling",
+  "hex_palette": [
+    "#9A968C",
+    "#5E5A52",
+    "#7A2B2B",
+    "#33302A",
+    "#C6BCA6"
+  ],
+  "ground": "dressed granite flagstones with tight mortar joints, sand-strewn in the courtyard",
+  "materials": "A fantasy castle keep seen from above. Massive dressed granite walls two squares thick with arrow slits, a roofless great hall with a long timber table, benches and a raised dais, hanging banners of plain undyed cloth with no lettering, iron braziers and wall torches, a guard room with weapon racks and a bunk, a spiral stair drawn as a stone drum with wedge-shaped treads, a walled courtyard of packed sand with a stone well, iron-bound doors, chains and a portcullis groove cut into the gate floor."
+}

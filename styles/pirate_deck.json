@@ -1,0 +1,40 @@
+{
+  "id": "pirate_deck",
+  "name": "Ship's Deck at Sea",
+  "category": "Nautical",
+  "description": "The whole fighting deck of a sailing ship, open water on every side.",
+  "palette": "salt-bleached oak, tarred rope black, canvas cream, deep ocean blue",
+  "lighting": "bright open sea daylight, hard shadows from the rigging across the planks",
+  "default_layout": "harbour",
+  "props": [
+    "mast",
+    "capstan",
+    "barrel",
+    "crate",
+    "rope_coil",
+    "net",
+    "chest",
+    "lamp",
+    "bollard",
+    "weapon_rack"
+  ],
+  "tags": [
+    "ship",
+    "pirate",
+    "sea",
+    "naval",
+    "boarding",
+    "deck",
+    "ocean"
+  ],
+  "aesthetics": "Hand-painted fantasy cartography, rough painterly brushwork with visible strokes, strong dark ink outlines around every object and wall, subtle black and brown linework, restrained desaturated colour, carefully shaded volumetric detail, inked line art over watercolour and gouache, premium hand-drawn D&D virtual tabletop map, dense environmental storytelling",
+  "hex_palette": [
+    "#B79B6E",
+    "#6B4E32",
+    "#1E3A4A",
+    "#D8D2C0",
+    "#2A2622"
+  ],
+  "ground": "salt-bleached oak deck planking running fore and aft, caulked with black pitch",
+  "materials": "A sailing ship's weather deck seen from directly above, open ocean on every side. Salt-bleached oak planking running fore and aft with black pitch in the seams, a raised quarterdeck aft reached by short stairs, a square cargo hatch amidships with its grating off, the round bases of two masts ringed by belaying pins and coiled rigging, a timber capstan with its bars shipped, lashed barrels and crates, a rack of boarding axes, netting rigged along the rail, deep blue water with white wake beyond the hull."
+}

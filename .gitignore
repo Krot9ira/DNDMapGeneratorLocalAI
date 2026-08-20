@@ -25,5 +25,8 @@ __pycache__/
 Thumbs.db
 desktop.ini
 
+# Window layout, written by the app on every run. Machine-local.
+imgui.ini
+
 # Local machine settings. Copy config.json and edit the copy.
 config.local.json

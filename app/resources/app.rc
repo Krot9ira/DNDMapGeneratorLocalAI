@@ -1,0 +1,5 @@
+// Windows resources. IDI_APPICON is the first icon in the file, which is what
+// Explorer and the taskbar pick up for the executable.
+#include "resource.h"
+
+IDI_APPICON ICON "icon.ico"

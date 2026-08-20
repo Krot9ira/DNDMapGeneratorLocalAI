@@ -41,6 +41,19 @@ class OllamaClient:
                 encoded.append(str(img))  # assume it is already base64
         return encoded
 
+    def unload(self):
+        """Drop the model from memory now instead of in five minutes.
+
+        Ollama keeps a model resident long after a request, which is the
+        difference between ComfyUI having the card to itself and the two of them
+        thrashing.
+        """
+        try:
+            self._post({"model": self.model, "prompt": "", "keep_alive": 0})
+            return True
+        except Exception:
+            return False
+
     def generate(self, prompt, system=None, format=None, temperature=0.6,
                  images=None, num_predict=2048, think=None):
         """Call /api/generate.

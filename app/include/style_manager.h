@@ -65,10 +65,14 @@ public:
         base.forbidden_suffix =
             "The scene is completely empty of people, creatures and animals, and carries no "
             "text, letters, numbers, labels or grid lines anywhere";
+        base.border_note =
+            "A plain flat unpainted margin runs right around the outside of the image on all "
+            "four sides, empty of scenery, buildings, water and props, exactly like the blank "
+            "paper border of a printed battle map sheet; the map itself sits wholly inside "
+            "that margin and its outer edge is a clean straight line";
         base.background_suffix =
-            "covering the whole frame, painted edge to edge with visible brushwork, grime in "
-            "the joints and damp patches; the map fills the entire image with no border and no "
-            "blank areas";
+            "painted with visible brushwork, grime in the joints and damp patches, every part "
+            "of the ground fully painted with no blank patches inside the map area";
         base.default_palette = {"#C8B99A", "#8A7B63", "#4A4038", "#2E2A26", "#6E7A6B"};
 
         fs::path p = fs::path(stylesDir) / "_base.json";
@@ -77,11 +81,13 @@ public:
             std::ifstream f(p);
             nlohmann::json j;
             f >> j;
+            base.description = j.value("description", base.description);
             base.aesthetics = j.value("aesthetics", base.aesthetics);
             base.medium = j.value("medium", base.medium);
             base.lighting = j.value("lighting", base.lighting);
             base.forbidden_suffix = j.value("forbidden_suffix", base.forbidden_suffix);
             base.background_suffix = j.value("background_suffix", base.background_suffix);
+            base.border_note = j.value("border_note", base.border_note);
             if (j.contains("default_palette") && j["default_palette"].is_array()) {
                 base.default_palette.clear();
                 for (const auto& c : j["default_palette"])
@@ -163,11 +169,13 @@ public:
             nlohmann::json j;
             j["id"] = "_base";
             j["name"] = "Shared caption contract";
+            j["description"] = base.description;
             j["aesthetics"] = base.aesthetics;
             j["medium"] = base.medium;
             j["lighting"] = base.lighting;
             j["forbidden_suffix"] = base.forbidden_suffix;
             j["background_suffix"] = base.background_suffix;
+            j["border_note"] = base.border_note;
             j["default_palette"] = base.default_palette;
             std::ofstream f(fs::path(stylesDir) / "_base.json");
             if (!f.is_open()) return false;

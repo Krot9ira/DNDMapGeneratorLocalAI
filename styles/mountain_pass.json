@@ -1,0 +1,39 @@
+{
+  "id": "mountain_pass",
+  "name": "Mountain Road & Bridge",
+  "category": "Wilderness",
+  "description": "A cliff road, a rope-and-plank bridge and a drop into the gorge below.",
+  "palette": "grey shale, dry grass ochre, rope brown, gorge shadow blue",
+  "lighting": "clear high-altitude daylight, sharp shadows falling into the gorge",
+  "default_layout": "open",
+  "props": [
+    "boulder",
+    "rubble",
+    "tree",
+    "stump",
+    "cart",
+    "wagon",
+    "campfire",
+    "crate",
+    "bones"
+  ],
+  "tags": [
+    "mountain",
+    "road",
+    "bridge",
+    "gorge",
+    "cliff",
+    "ambush",
+    "pass"
+  ],
+  "aesthetics": "Hand-painted fantasy cartography, rough painterly brushwork with visible strokes, strong dark ink outlines around every object and wall, subtle black and brown linework, restrained desaturated colour, carefully shaded volumetric detail, inked line art over watercolour and gouache, premium hand-drawn D&D virtual tabletop map, dense environmental storytelling",
+  "hex_palette": [
+    "#8A8578",
+    "#B7A06A",
+    "#5A4A38",
+    "#3A4652",
+    "#2A2622"
+  ],
+  "ground": "loose grey shale and dry grass on a road cut into the cliff face",
+  "materials": "A mountain road seen from above. A track of loose grey shale cut along a cliff face with a sheer drop on one side falling into blue shadow, a rope-and-plank bridge slung across the gorge with frayed handlines, boulders and rockfall spilled across the road, dry tussock grass and wind-bent scrub clinging to the edges, a broken-axled wagon tipped against the rock, a cold campfire ring, cairns marking the way, thin meltwater running in a cut channel."
+}

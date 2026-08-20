@@ -95,13 +95,43 @@ level are decided. Only the visible lines are absent.</p>
 <p>Everything the program does falls into one of two halves, and knowing which half went
 wrong is most of troubleshooting.</p>
 <ol>
-<li><b>The plan.</b> Your sentence becomes a floor plan: rooms, corridors, walls, doors,
-water, props. This is fast and happens on the CPU.</li>
-<li><b>The painting.</b> The plan is handed to the image model, which paints the finished
-map. This is the slow part and uses the graphics card.</li>
+<li><b>The plan.</b> Your sentence becomes a description of the place, and that description
+becomes a floor plan: rooms, corridors, walls, doors, water, props. Fast, and on the
+processor.</li>
+<li><b>The painting.</b> The plan is turned into a written instruction for the image model,
+which paints the finished map. Slow, and on the graphics card.</li>
 </ol>
 <p>The plan is a file you can look at, edit and keep. If the map came out wrong, look at the
 plan first: <b>what you see in the Editor is what gets painted</b>.</p>
+
+<h3>Who writes what</h3>
+<p>Three different things do three different jobs, and it is worth knowing which is which.</p>
+<table>
+<tr><th>Step</th><th>Who does it</th><th>What comes out</th></tr>
+<tr><td>1. Describe the place</td>
+    <td><b>Ollama</b>, an <b>AI agent</b>, or <b>you</b></td>
+    <td>A written description: what kind of place, which areas it has, what it is built of,
+        what is lying about</td></tr>
+<tr><td>2. Lay it out</td>
+    <td>The program itself</td>
+    <td>The exact floor plan - the picture you edit on the Editor tab</td></tr>
+<tr><td>3. Write the painter's instructions</td>
+    <td>The program itself</td>
+    <td>A structured caption: every wall, door and object with its coordinates, wrapped in
+        the wording from step 1</td></tr>
+<tr><td>4. Paint it</td>
+    <td>Ideogram 4 in ComfyUI</td>
+    <td>The finished map</td></tr>
+</table>
+<p>Note what the language model does <b>not</b> do. It never places anything and never
+computes a coordinate - that is step 2, and it is ordinary arithmetic, which is why the
+layouts are always valid. And it does not write the painter's instructions either: step 3
+builds those from the plan itself, so the shape of the map cannot drift.</p>
+<p>What the language model contributes is <b>words</b>. Your one line becomes several
+paragraphs of concrete detail - wet cobbles with tar stains rather than "stone", a
+harbourmaster's office and a cargo warehouse rather than "some rooms" - and that wording is
+what step 3 wraps around the coordinates. That is the whole of its job, and it is the
+difference between a thin map and a rich one.</p>
 
 <h2 id="c2">2. What has to be running before you start</h2>
 
@@ -112,14 +142,46 @@ Nothing is uploaded anywhere and no account is needed.</p>
 <tr><th>Service</th><th>What it does</th><th>Required</th><th>Address</th></tr>
 <tr><td><b>ComfyUI</b></td><td>paints the picture</td><td>yes</td>
     <td><code>http://127.0.0.1:8188</code></td></tr>
-<tr><td><b>Ollama</b></td><td>invents the plan from your sentence</td><td>no</td>
+<tr><td><b>Ollama</b></td><td>writes the description the map is built around</td><td>no</td>
     <td><code>http://127.0.0.1:11434</code></td></tr>
 </table>
 
+<h3>What Ollama is for, and how to do without it</h3>
+<p>Ollama writes step 1 above: it turns your one line into the detailed description the
+painter's instructions are built around. Nothing else in the program needs it.</p>
+<p>So there are three ways to get that description, and they are interchangeable:</p>
+<table>
+<tr><th>Who describes the place</th><th>How</th><th>Needs Ollama</th></tr>
+<tr><td>Ollama, locally</td><td>Create tab, or <code>pipeline.py plan</code></td>
+    <td>yes</td></tr>
+<tr><td>An AI agent</td><td>It writes the description itself and calls
+    <code>agent_api.generate({...})</code></td><td>no</td></tr>
+<tr><td>You</td><td>Write a fuller scene description yourself, or build the plan with
+    <b>Blueprint only</b> and shape it in the Editor</td><td>no</td></tr>
+</table>
+
 <div class="box ok">
-<b>Without Ollama everything still works.</b> The <b>Blueprint only</b> button builds a floor
-plan instantly, with no language model involved at all. You lose only the "type one sentence,
-get a plan" convenience — you can still shape everything by hand in the Editor and render it.
+<b>An AI agent replaces Ollama completely.</b> Any capable model - the assistant you are
+already talking to, or anything else that can run Python - can write the description itself
+and hand it straight to the program. It is faster than a local model, it leaves the whole
+graphics card free for painting, and it gives finer control over the scene. Everything an
+agent needs ships with the program: <code>AGENTS.md</code> next to the executable documents
+every field, and <code>tools/agent_api.py</code> is the entry point. See chapter 11.
+</div>
+
+<div class="box">
+<b>Without any of them the program still works.</b> <b>Blueprint only</b> builds a floor plan
+instantly with no language model at all, and the Editor lets you build a map square by square.
+What you lose is only the enrichment: the painter is then told what your own sentence said,
+plus the materials the chosen style always contributes.
+</div>
+
+<div class="box">
+<b>They take turns with the graphics card.</b> The planner and the painter are both far too
+big to sit in video memory together, so the program hands the card over automatically:
+before a render it asks Ollama to drop its model, and before planning it asks ComfyUI to drop
+its own. You do not have to do anything - it just means the first few seconds of each step
+are spent handing over.
 </div>
 
 <h3>Model files ComfyUI needs</h3>
@@ -206,6 +268,18 @@ feet shown underneath. Next to them are quick buttons:</p>
 </table>
 <p class="muted">One square is the standard five feet (1.5 m) of D&amp;D.</p>
 
+<h3>The bleed margin</h3>
+<p>Around whatever size you choose, the program adds an empty border two squares wide. In the
+Editor it is drawn hatched and dimmed, outside the gold line that marks your field, and you
+cannot paint in it.</p>
+<p><b>It is added, never taken away.</b> Ask for 25 x 19 and you get 25 x 19 squares to work
+with; the picture that comes out is 29 x 23 with a blank rim.</p>
+<p>The reason is simple: image models are least reliable at the very edge of a picture, where
+they run out of context and start inventing. Given a margin, whatever goes wrong goes wrong in
+empty space instead of eating the corner of a room. It also matches how a printed battle map
+looks, with its content inset from the paper edge, so the result reads as a finished sheet
+rather than something cropped.</p>
+
 <h3>Layout — the shape of the scene</h3>
 <p>Leave it on <i>(from style)</i> and the style decides. Override it when you want something
 specific:</p>
@@ -266,6 +340,8 @@ view. <b>Wheel</b> zooms.</p>
 <tr><td>floor</td><td>Ground you walk on</td></tr>
 <tr><td>wall</td><td>Solid wall, blocks movement and sight</td></tr>
 <tr><td>door</td><td>Door — belongs inside a wall</td></tr>
+<tr><td>window</td><td>Window — an opening in a wall. Light and sight pass, a body
+    does not</td></tr>
 <tr><td>water</td><td>Water</td></tr>
 <tr><td>pit</td><td>Pit or drop</td></tr>
 <tr><td>rubble</td><td>Loose rubble, difficult ground</td></tr>
@@ -320,6 +396,18 @@ Press it after large changes — this is exactly how generated maps get their wa
 result is consistent with them.
 </div>
 
+<h3>Your edits are not thrown away silently</h3>
+<p>Building a new plan replaces the current one completely. If you have changed anything by
+hand, the program stops and asks first, and offers to save what you have before it goes ahead:</p>
+<ul>
+<li><b>Save it first, then build</b> — writes <code>map.json</code> and
+<code>preview.png</code> into the output folder, then builds the new plan.</li>
+<li><b>Replace it without saving</b> — throw the edits away.</li>
+<li><b>Keep what I have</b> — cancel, change nothing.</li>
+</ul>
+<p class="muted">A plan you have not touched is replaced without asking — there is
+nothing of yours in it to lose.</p>
+
 <h3>Opening somebody else's plan</h3>
 <p><b>File → Open map.json…</b> shows every plan in the <code>output</code> folder as a grid
 of thumbnails, so you see the actual layout rather than only a folder name. This is how you
@@ -349,9 +437,23 @@ without being re-planned.</p>
         random one each time.</td></tr>
 </table>
 
-<p>Below the settings is the exact instruction text that will be sent, including the
-coordinates of every object. It is worth reading once, to see what the program actually asks
-for.</p>
+<h3>The caption</h3>
+<p>Below the settings is the exact instruction that will be sent to the painter, in two views:</p>
+<ul>
+<li><b>Readable</b> — the scene description, the look, the lighting, the palette
+as colour swatches, and every placed object listed with its coordinates. Worth reading once,
+to see what the program actually asks for.</li>
+<li><b>Raw JSON</b> — the same thing exactly as it goes over the wire.</li>
+</ul>
+<p>Press <b>Edit by hand</b> and the caption becomes yours: type whatever you like into the
+raw view and it is sent exactly as you leave it. The panel tells you whether what you have
+typed is still valid JSON. While a hand-written caption is in force the map no longer rewrites
+it, so editing the plan afterwards will not be reflected until you press <b>Reload from
+plan</b> — or <b>Back to automatic</b>, which throws your version away and
+returns to the caption built from the plan.</p>
+<p class="muted">This is the sharpest tool in the program. It is also the only one that can
+break the rules that keep text and creatures out of your maps, so read what you are
+replacing.</p>
 
 <h2 id="c7">7. The Styles tab — the look library</h2>
 

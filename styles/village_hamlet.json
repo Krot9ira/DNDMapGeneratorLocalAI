@@ -1,0 +1,40 @@
+{
+  "id": "village_hamlet",
+  "name": "Village & Hamlet",
+  "category": "Settlement",
+  "description": "Thatched cottages, dirt lanes and kitchen gardens on the edge of the wild.",
+  "palette": "thatch straw, limewashed daub, packed earth brown, kitchen-garden green",
+  "lighting": "warm late afternoon sun, long soft shadows, glow from open doorways",
+  "default_layout": "street",
+  "props": [
+    "well",
+    "cart",
+    "barrel",
+    "crate",
+    "table",
+    "bench",
+    "hearth",
+    "tree",
+    "bush",
+    "stump",
+    "campfire"
+  ],
+  "tags": [
+    "village",
+    "hamlet",
+    "rural",
+    "farm",
+    "settlement",
+    "town"
+  ],
+  "aesthetics": "Hand-painted fantasy cartography, rough painterly brushwork with visible strokes, strong dark ink outlines around every object and wall, subtle black and brown linework, restrained desaturated colour, carefully shaded volumetric detail, inked line art over watercolour and gouache, premium hand-drawn D&D virtual tabletop map, dense environmental storytelling",
+  "hex_palette": [
+    "#C9A961",
+    "#8A6E4B",
+    "#B7B09C",
+    "#4A5B3C",
+    "#3A342C"
+  ],
+  "ground": "packed earth lanes rutted by cartwheels, patches of trodden grass and scattered straw",
+  "materials": "A small fantasy village seen from above. Roofless cottages of limewashed daub and timber framing, their plank floors showing hearths, beds, tables and stools, thatched eaves drawn as a thick straw fringe around each opening, dirt lanes rutted by cart wheels running between them, a round stone well with a timber winch, fenced kitchen gardens in neat rows, stacked firewood, hay bales, a handcart tipped on its shafts, chicken coops and low drystone walls, fruit trees seen from directly above."
+}

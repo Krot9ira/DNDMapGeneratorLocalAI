@@ -1,0 +1,39 @@
+{
+  "id": "frozen_pass",
+  "name": "Frozen Pass",
+  "category": "Wilderness",
+  "description": "Snow-choked rocks, black ice and a wind-scoured trail between the crags.",
+  "palette": "snow white, glacier blue, wet black rock, pine dark green",
+  "lighting": "flat cold overcast light, blue shadows, blowing snow softening the edges",
+  "default_layout": "open",
+  "props": [
+    "boulder",
+    "tree",
+    "stump",
+    "campfire",
+    "rubble",
+    "crate",
+    "bones",
+    "cart",
+    "torch"
+  ],
+  "tags": [
+    "snow",
+    "ice",
+    "winter",
+    "frozen",
+    "mountain",
+    "tundra",
+    "arctic"
+  ],
+  "aesthetics": "Hand-painted fantasy cartography, rough painterly brushwork with visible strokes, strong dark ink outlines around every object and wall, subtle black and brown linework, restrained desaturated colour, carefully shaded volumetric detail, inked line art over watercolour and gouache, premium hand-drawn D&D virtual tabletop map, dense environmental storytelling",
+  "hex_palette": [
+    "#DCE4EA",
+    "#8FA6BC",
+    "#3E4A52",
+    "#2A3A2E",
+    "#6E7A80"
+  ],
+  "ground": "wind-scoured snow over black rock, sheets of clear blue ice in the hollows",
+  "materials": "A frozen mountain pass seen from above. Wind-scoured snow lying in drifts and streaks over wet black rock, sheets of clear blue ice filling the hollows with cracks running through them, boulders capped with snow pillows, stunted pines bent away from the wind, a trail of trodden footprints winding between the crags, a wrecked supply sled with its load spilled and frozen, frost-shattered scree, a cairn of stacked stones, spindrift blowing across everything."
+}

@@ -25,6 +25,7 @@ public:
                      {"terrain_kind", map.meta.terrain_kind},
                      {"terrain_amount", map.meta.terrain_amount},
                      {"prop_density", map.meta.prop_density},
+                     {"border", map.meta.border},
                      {"seed", map.meta.seed}};
         j["grid"] = {{"cols", map.grid.cols},
                      {"rows", map.grid.rows},
@@ -95,6 +96,7 @@ public:
                 out.meta.terrain_kind = m.value("terrain_kind", std::string("none"));
                 out.meta.terrain_amount = m.value("terrain_amount", std::string("medium"));
                 out.meta.prop_density = m.value("prop_density", std::string("high"));
+                out.meta.border = m.value("border", 0);
                 if (m.contains("seed") && m["seed"].is_number())
                     out.meta.seed = m["seed"].get<int64_t>();
             }

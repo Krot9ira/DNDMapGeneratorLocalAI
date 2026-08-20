@@ -905,6 +905,32 @@ inline TileGrid ZonesToGrid(const MapData& map) {
 
 // -- public entry point -----------------------------------------------
 
+// An empty ring added outside the playable field, in cells. It is not part of
+// the size the user picked - it is added on top of it. Image models are least
+// reliable at the very edge of a frame, so a margin means the mess happens in
+// blank space instead of eating the corner of a room; and a printed battle map
+// looks like this anyway, its content inset from the paper edge.
+constexpr int kBorderCells = 2;
+
+// How wide this map's blank ring is.
+inline int BorderOf(const MapData& map) { return std::max(0, map.meta.border); }
+
+// Grow a finished map by an empty ring on every side. Calling it twice does
+// nothing, so a map that already carries a border passes through unharmed.
+inline void AddBorder(MapData& map, int cells) {
+    int b = std::max(0, cells);
+    if (b == 0 || map.meta.border > 0) return;
+    map.grid.cols += 2 * b;
+    map.grid.rows += 2 * b;
+    for (auto& z : map.zones)       { z.x += b; z.y += b; }
+    for (auto& f : map.features)    { f.x += b; f.y += b; }
+    for (auto& a : map.areas)       { a.x += b; a.y += b; }
+    for (auto& s : map.structures)  { s.x += b; s.y += b; }
+    for (auto& a : map.annotations) { a.x += b; a.y += b; }
+    for (auto& e : map.effects)     { e.x += b; e.y += b; }
+    map.meta.border = b;
+}
+
 inline MapData Build(DesignSpec spec, uint32_t seed) {
     Rng rng(seed);
     if (spec.rooms.empty()) {
@@ -957,13 +983,17 @@ inline MapData Build(DesignSpec spec, uint32_t seed) {
     for (const auto& rp : rooms)
         map.areas.push_back({rp.first.id, rp.first.label, rp.second.x, rp.second.y,
                              rp.second.w, rp.second.h});
+    // The blank ring goes on last, so every generator above works in plain
+    // 0..cols coordinates and knows nothing about it.
+    AddBorder(map, Clampi(spec.border, 0, 8));
     return map;
 }
 
 inline void ValidateMap(MapData& map, std::vector<std::string>* problems = nullptr) {
     auto note = [&](const std::string& m) { if (problems) problems->push_back(m); };
-    map.grid.cols = Clampi(map.grid.cols, kMinCells, kMaxCells);
-    map.grid.rows = Clampi(map.grid.rows, kMinCells, kMaxCells);
+    map.grid.cols = Clampi(map.grid.cols, kMinCells, kMaxCells + 2 * 8);
+    map.grid.rows = Clampi(map.grid.rows, kMinCells, kMaxCells + 2 * 8);
+    map.meta.border = Clampi(map.meta.border, 0, 8);
     map.grid.cell_px = Clampi(map.grid.cell_px, 8, 128);
 
     std::vector<Zone> clean;

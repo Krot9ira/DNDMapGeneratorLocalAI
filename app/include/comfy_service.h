@@ -124,6 +124,14 @@ public:
         return g;
     }
 
+    // Hand the graphics card back. Both services want most of the card, so
+    // whichever one is about to work asks the other to let go first.
+    static bool FreeMemory(const std::string& baseUrl) {
+        nlohmann::json payload = {{"unload_models", true}, {"free_memory", true}};
+        HttpResponse resp = WinHttpClient::PostJson(baseUrl + "/free", payload.dump(), 30);
+        return resp.success && resp.statusCode >= 200 && resp.statusCode < 300;
+    }
+
     static std::string QueuePrompt(const std::string& baseUrl, const nlohmann::json& graph,
                                    std::string& outError) {
         nlohmann::json payload;

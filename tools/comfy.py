@@ -62,6 +62,21 @@ class ComfyClient:
         except ComfyError as exc:
             return False, str(exc)
 
+    def free_memory(self):
+        """Ask ComfyUI to drop its models and hand the card back.
+
+        Both services want most of the graphics card, so whichever one is about
+        to work asks the other to let go first. Failure is not interesting: it
+        only means the render or the plan will be slower.
+        """
+        try:
+            # The endpoint answers with an empty body, so no JSON parsing.
+            self._request("POST", "/free", raw=True,
+                          data={"unload_models": True, "free_memory": True}, timeout=30)
+            return True
+        except Exception:
+            return False
+
     def upload_image(self, path, overwrite=True):
         path = Path(path)
         boundary = uuid.uuid4().hex

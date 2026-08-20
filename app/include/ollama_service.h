@@ -46,6 +46,17 @@ public:
         }
     }
 
+    // Ollama keeps a model resident for minutes after a request. A zero
+    // keep_alive drops it now, which is the difference between ComfyUI having
+    // the card to itself and both of them thrashing.
+    static bool Unload(const std::string& baseUrl, const std::string& model) {
+        if (model.empty()) return false;
+        nlohmann::json payload = {{"model", model}, {"keep_alive", 0}, {"prompt", ""}};
+        HttpResponse resp =
+            WinHttpClient::PostJson(baseUrl + "/api/generate", payload.dump(), 30);
+        return resp.success && resp.statusCode >= 200 && resp.statusCode < 300;
+    }
+
     static const char* SystemPrompt() {
         return
             "You are a professional tabletop RPG cartographer designing a top-down D&D battle map.\n"

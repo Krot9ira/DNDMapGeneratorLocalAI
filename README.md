@@ -14,6 +14,8 @@ Everything runs on your own machine. No accounts, no API keys, no upload of anyt
 
 - **Never rendered:** text, living creatures, grid lines. Your VTT draws the grid, you place
   the tokens.
+- **A bleed margin** of empty ground is added around your field, so the model's worst
+  guessing happens off the map instead of in a room.
 - **Desktop app** for people, **command line and Python API** for AI agents — same engine.
 - **Full manual for absolute beginners:** [`docs/Manual.pdf`](docs/Manual.pdf).
 
@@ -56,6 +58,12 @@ The spec can come from three places, and they are interchangeable:
 | Local language model | Create tab, or `pipeline.py plan` | Ollama |
 | An AI agent | `agent_api.generate({...})` | nothing |
 | You | Editor tab, or a hand-written spec JSON | nothing |
+
+What the language model contributes is **words**, never coordinates. Your one line becomes
+paragraphs of concrete detail — wet cobbles with tar stains rather than "stone", a
+harbourmaster's office rather than "a room" — and the caption builder wraps that wording
+around geometry it computed itself. That split is why a broken layout is not representable,
+and why an agent can replace Ollama outright.
 
 **Stage 2 — the painter.** The finished layout is serialised as a structured JSON caption
 with a bounding box for every object and handed to **Ideogram 4** running locally in
@@ -210,11 +218,13 @@ instantly and locally, and you can render it later from the **Render** tab.
 layout, ground clutter, prop density. Two buttons: full run, or blueprint only.
 
 **Editor** — the plan as an editable grid. Paint materials, place props, describe your own
-objects, add effects. Everything here is what actually gets rendered.
+objects, add effects. Everything here is what actually gets rendered. Building a new plan on
+top of edits you made by hand asks first, and offers to save what you have.
 
-**Render** — quality preset, guidance, output resolution, seed, and the exact caption that
-will be sent to the model. Renders whatever is currently in the Editor, so you can
-re-render an edited plan without replanning it.
+**Render** — quality preset, guidance, output resolution, seed, and the caption that will be
+sent, shown both readably and as raw JSON. **Edit by hand** takes the caption over: whatever
+you type is sent verbatim. Renders whatever is currently in the Editor, so you can re-render an
+edited plan without replanning it.
 
 **Styles** — edit any style file in place: materials, palette, lighting, aesthetics. Also
 the shared caption contract that every style inherits.
@@ -246,8 +256,12 @@ Right mouse or middle mouse drags the view; the wheel zooms.
 
 ### Materials
 
-`floor`, `wall`, `door`, `water`, `pit`, `rubble`, `vegetation`, `bridge`, `stairs`, and
-`void` which erases back to nothing.
+`floor`, `wall`, `door`, `window`, `water`, `pit`, `rubble`, `vegetation`, `bridge`, `stairs`,
+and `void` which erases back to nothing.
+
+Doors and windows are load-bearing: each one is pinned in the caption with its own bounding
+box, because without that the renderer puts openings wherever it likes. A door only survives
+inside a wall run — paint one in open floor and it is honestly demoted to a plain opening.
 
 **Rebuild walls** re-derives every wall from the floor you have painted. Use it after big
 changes — it is how the generated maps get their walls in the first place.
@@ -292,11 +306,21 @@ Right-click *and drag* still pans, so the menu only opens on a click that stayed
 
 ## Styles
 
-Eleven of them, one JSON file each in `styles/`:
+Twenty-six of them, one JSON file each in `styles/`, covering the places a campaign actually
+visits:
 
-`city_harbour`, `classic_dungeon`, `coastal_ruins`, `cozy_tavern`, `cyberpunk_street`,
-`gothic_crypt`, `lush_forest`, `scifi_derelict`, `sunken_temple`, `underdark_cavern`,
-`volcanic_lair`.
+| | |
+|---|---|
+| **Settlement** | `village_hamlet`, `farmstead` |
+| **Urban** | `city_streets`, `city_harbour`, `cyberpunk_street` |
+| **Fortress** | `castle_keep` |
+| **Dungeon** | `classic_dungeon`, `gothic_crypt`, `sunken_temple`, `sewer_tunnels` |
+| **Underground** | `underdark_cavern`, `abandoned_mine`, `volcanic_lair` |
+| **Sacred** | `grand_temple`, `graveyard` |
+| **Interior** | `cozy_tavern`, `arcane_library` |
+| **Wilderness** | `lush_forest`, `marsh_bog`, `mountain_pass`, `frozen_pass`, `desert_ruins`, `coastal_ruins`, `bandit_camp` |
+| **Nautical** | `pirate_deck` |
+| **Sci-fi** | `scifi_derelict` |
 
 A style carries materials, palette, lighting, aesthetics, a default layout and a default prop
 set. `styles/_base.json` holds the fragments every style inherits — including the single
@@ -494,6 +518,17 @@ line, and the seed field in the Render tab. `-1` means random.
 **Resolution** comes from the aspect ratio of your grid and the target megapixels in
 Settings, snapped to a multiple of 16. A 150×150 grid is a big image and a long render — try
 the shape at *medium* first.
+
+**The bleed margin is added, not taken.** Ask for 25×19 and you get 25×19 squares to work
+with; the picture is 29×23 with a blank rim. It is hatched and locked in the editor. Image
+models are least reliable at the very edge of a frame, so the margin is where their mistakes
+go instead of into the corner of a room — and it makes the result read as a finished printed
+sheet rather than something cropped.
+
+**The two services take turns with the card.** Neither the planner nor the painter fits in
+consumer VRAM alongside the other, so before a render Ollama is asked to unload, and before
+planning ComfyUI is asked to free its models. Nothing to configure; it just costs a few
+seconds at each handover.
 
 **Nothing phones home.** No telemetry, no network access except to `127.0.0.1`.
 

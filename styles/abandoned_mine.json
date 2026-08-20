@@ -1,0 +1,39 @@
+{
+  "id": "abandoned_mine",
+  "name": "Abandoned Mine",
+  "category": "Underground",
+  "description": "Timber-propped shafts, ore carts on rails and a flooded lower gallery.",
+  "palette": "raw rock grey-brown, old timber, rust orange, lantern amber",
+  "lighting": "pitch dark beyond the lantern light, hard pools of warm glow",
+  "default_layout": "cavern",
+  "props": [
+    "cart",
+    "crate",
+    "barrel",
+    "torch",
+    "lamp",
+    "rubble",
+    "boulder",
+    "chest",
+    "workbench",
+    "stalagmite"
+  ],
+  "tags": [
+    "mine",
+    "mining",
+    "shaft",
+    "underground",
+    "dwarf",
+    "tunnels"
+  ],
+  "aesthetics": "Hand-painted fantasy cartography, rough painterly brushwork with visible strokes, strong dark ink outlines around every object and wall, subtle black and brown linework, restrained desaturated colour, carefully shaded volumetric detail, inked line art over watercolour and gouache, premium hand-drawn D&D virtual tabletop map, dense environmental storytelling",
+  "hex_palette": [
+    "#7A6A56",
+    "#4A3E30",
+    "#B5651D",
+    "#2A2622",
+    "#9AA0A6"
+  ],
+  "ground": "uneven rock floor of loose spoil and ore chippings, timber sleepers laid for rails",
+  "materials": "An abandoned fantasy mine seen from above. Rough-hewn rock galleries with heavy timber props and cross-beams shoring the walls, narrow-gauge rails laid on sleepers with a tipped ore cart spilling rock, picks and shovels leaning against the stone, oil lanterns hung on iron hooks, a windlass over a black vertical shaft, spoil heaps and loose scree, dark water flooding the lowest gallery, a partly collapsed side tunnel choked with fallen rock and splintered timber."
+}

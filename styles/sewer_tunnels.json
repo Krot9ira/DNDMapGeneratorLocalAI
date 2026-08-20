@@ -1,0 +1,36 @@
+{
+  "id": "sewer_tunnels",
+  "name": "Sewer Tunnels",
+  "category": "Dungeon",
+  "description": "Brick vaults, slime-slick ledges and a channel of foul water.",
+  "palette": "wet brick red-brown, algae green, black water, verdigris on old iron",
+  "lighting": "shafts of grey light from grates above, everything else in damp gloom",
+  "default_layout": "dungeon",
+  "props": [
+    "barrel",
+    "crate",
+    "rubble",
+    "bones",
+    "torch",
+    "chest",
+    "mushroom"
+  ],
+  "tags": [
+    "sewer",
+    "tunnels",
+    "underground",
+    "city",
+    "thieves",
+    "rats"
+  ],
+  "aesthetics": "Hand-painted fantasy cartography, rough painterly brushwork with visible strokes, strong dark ink outlines around every object and wall, subtle black and brown linework, restrained desaturated colour, carefully shaded volumetric detail, inked line art over watercolour and gouache, premium hand-drawn D&D virtual tabletop map, dense environmental storytelling",
+  "hex_palette": [
+    "#6E4B3A",
+    "#3E4A3A",
+    "#1E2422",
+    "#8A8674",
+    "#2A2622"
+  ],
+  "ground": "slime-slick brick walkways beside a channel of dark standing water",
+  "materials": "Fantasy city sewers seen from above. Barrel-vaulted brick tunnels with narrow slime-slick walkways either side of a channel of dark standing water, mortar bleeding white streaks down the brick, rusted iron grates and ladder rungs set into the walls, shafts of grey daylight falling from gratings overhead onto the water, drifts of silt and rubble, pale fungus growing in the damp corners, a collapsed section where brick has fallen into the channel, broken crates and bones caught against the stonework."
+}

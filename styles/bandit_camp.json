@@ -1,0 +1,40 @@
+{
+  "id": "bandit_camp",
+  "name": "Bandit Camp",
+  "category": "Wilderness",
+  "description": "Hide tents round a fire pit, a palisade of sharpened stakes and stolen goods.",
+  "palette": "smoke-stained hide, trampled earth, ember orange, forest green",
+  "lighting": "firelight from the central pit, deep blue night beyond the palisade",
+  "default_layout": "open",
+  "props": [
+    "campfire",
+    "crate",
+    "barrel",
+    "chest",
+    "cart",
+    "weapon_rack",
+    "table",
+    "bench",
+    "tree",
+    "stump",
+    "torch"
+  ],
+  "tags": [
+    "camp",
+    "bandit",
+    "outlaw",
+    "encampment",
+    "raiders",
+    "war camp"
+  ],
+  "aesthetics": "Hand-painted fantasy cartography, rough painterly brushwork with visible strokes, strong dark ink outlines around every object and wall, subtle black and brown linework, restrained desaturated colour, carefully shaded volumetric detail, inked line art over watercolour and gouache, premium hand-drawn D&D virtual tabletop map, dense environmental storytelling",
+  "hex_palette": [
+    "#7A6A50",
+    "#4A4030",
+    "#C4712B",
+    "#3A4A32",
+    "#252019"
+  ],
+  "ground": "trampled bare earth churned to mud round the fire, coarse grass at the edges",
+  "materials": "A bandit camp seen from above. Hide-and-canvas tents pitched in a rough ring round a central fire pit of blackened stones with a spit over it, the earth trampled bare and churned to mud between them, a palisade of sharpened stakes lashed with rope on the open side, stolen crates and barrels stacked under a lean-to, a weapon rack of spears and shields, bedrolls and blankets, a picket line with feed sacks, a rough plank table with cards and cups left on it."
+}

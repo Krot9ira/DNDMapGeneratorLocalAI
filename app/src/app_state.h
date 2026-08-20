@@ -128,6 +128,15 @@ struct AppState {
     // -- connection status ---------------------------------------------
     std::string ollamaStatus = "not checked";
     std::string comfyStatus = "not checked";
+    // Set only by hand edits in the editor, never by a generated map. It is
+    // what tells us that regenerating would throw somebody's work away.
+    bool handEdited = false;
+
+    // A caption the user has taken over by hand. While this is on, it is sent
+    // verbatim and the map no longer rewrites it.
+    bool captionManual = false;
+    std::string captionText;
+
     bool ollamaOk = false, comfyOk = false;
     std::vector<std::string> ollamaModels;
 
@@ -152,7 +161,15 @@ struct AppState {
         map.effects = effects;
     }
 
+    // Every editor mutation goes through PushUndo, so this is the one honest
+    // place to record that the map is now the user's work and not the AI's.
+    void MarkEdited() {
+        dirty = true;
+        handEdited = true;
+    }
+
     void PushUndo() {
+        handEdited = true;
         undoStack.push_back({grid, features, annotations, effects});
         if (undoStack.size() > 60) undoStack.pop_front();
         redoStack.clear();

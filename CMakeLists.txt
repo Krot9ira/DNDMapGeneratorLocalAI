@@ -23,6 +23,7 @@ set(SOURCES
     app/vendor/imgui/imgui_widgets.cpp
     app/vendor/imgui/backends/imgui_impl_win32.cpp
     app/vendor/imgui/backends/imgui_impl_dx11.cpp
+    app/resources/app.rc
 )
 
 add_executable(DndBattlemapGenerator WIN32 ${SOURCES})
@@ -89,7 +90,7 @@ add_custom_command(TARGET DndBattlemapGenerator POST_BUILD
     # development report stay in the repository.
     COMMAND ${CMAKE_COMMAND} -E make_directory "${DIST_DIR}/docs"
     COMMAND ${CMAKE_COMMAND} -E copy
-            "${CMAKE_CURRENT_SOURCE_DIR}/docs/Руководство.pdf" "${DIST_DIR}/docs/"
+            "${CMAKE_CURRENT_SOURCE_DIR}/docs/Manual.pdf" "${DIST_DIR}/docs/"
     COMMAND ${CMAKE_COMMAND} -E copy
             "${CMAKE_CURRENT_SOURCE_DIR}/AGENTS.md" "${DIST_DIR}/"
     COMMAND ${CMAKE_COMMAND} -E copy

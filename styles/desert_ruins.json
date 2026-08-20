@@ -1,0 +1,40 @@
+{
+  "id": "desert_ruins",
+  "name": "Desert Ruins",
+  "category": "Wilderness",
+  "description": "Half-buried sandstone columns and drifting dunes under a white sun.",
+  "palette": "bleached sandstone, dune gold, shadow violet, dry palm green",
+  "lighting": "harsh white overhead sun, hard-edged short shadows, heat glare",
+  "default_layout": "ruins",
+  "props": [
+    "pillar",
+    "column",
+    "statue",
+    "rubble",
+    "boulder",
+    "arch",
+    "well",
+    "campfire",
+    "bones",
+    "crate"
+  ],
+  "tags": [
+    "desert",
+    "sand",
+    "dunes",
+    "ruins",
+    "tomb",
+    "oasis",
+    "ancient"
+  ],
+  "aesthetics": "Hand-painted fantasy cartography, rough painterly brushwork with visible strokes, strong dark ink outlines around every object and wall, subtle black and brown linework, restrained desaturated colour, carefully shaded volumetric detail, inked line art over watercolour and gouache, premium hand-drawn D&D virtual tabletop map, dense environmental storytelling",
+  "hex_palette": [
+    "#D9C08A",
+    "#B08A52",
+    "#6E5A3E",
+    "#8E7B9A",
+    "#3A322A"
+  ],
+  "ground": "wind-rippled sand drifting over cracked sandstone paving",
+  "materials": "Sun-bleached desert ruins seen from above. Wind-rippled sand drifting in long tongues over cracked sandstone paving, toppled fluted columns half-buried in the dunes, a standing arch with its keystone gone, weathered statue fragments worn faceless, a dry stone well choked with sand, sun-cracked steps descending into darkness, dry palm fronds and brittle scrub, a cold camp of stones round a burnt-out fire, sun bleaching everything to bone and gold."
+}

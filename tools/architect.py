@@ -47,6 +47,13 @@ WALKABLE = {FLOOR, BRIDGE, STAIRS, DOOR, RUBBLE, VEGETATION}
 MIN_CELLS = 10
 MAX_CELLS = 150
 
+# An empty ring added outside the playable field, in cells. It is not part of
+# the size the user picked - it is added on top of it. Two reasons: image models
+# are least reliable at the very edge of a frame, so a margin means the mess
+# happens in blank space instead of eating the corner of a room; and a printed
+# battle map looks like this anyway, content inset from the paper edge.
+BORDER_CELLS = 2
+
 SIZE_PRESETS = {
     "small": (17, 13),
     "medium": (25, 19),
@@ -1222,6 +1229,8 @@ def normalize_spec(spec):
     out["terrain"] = terrain or {"kind": "none"}
 
     out["prop_density"] = str(spec.get("prop_density", "high")).lower()
+    # Callers may widen or disable the blank ring; they may not make it huge.
+    out["border"] = _clamp(int(spec.get("border", BORDER_CELLS) or 0), 0, 8)
     # Outdoor layouts continue past the frame; indoor ones are enclosed.
     out["edge_walls"] = bool(spec.get(
         "edge_walls",
@@ -1234,6 +1243,54 @@ def normalize_spec(spec):
     out["scene_summary"] = str(spec.get("scene_summary") or spec.get("summary") or "").strip()
     out["lighting"] = str(spec.get("lighting") or "").strip()
     return out
+
+
+def _shift_all(map_data, dx, dy):
+    """Move every coordinate-bearing item on the map by (dx, dy)."""
+    for key in ("zones", "features", "areas", "structures", "annotations",
+                "effects", "labels"):
+        for item in map_data.get(key, []) or []:
+            if "x" in item:
+                item["x"] = int(item["x"]) + dx
+            if "y" in item:
+                item["y"] = int(item["y"]) + dy
+
+
+def add_border(map_data, cells=BORDER_CELLS):
+    """Grow the map by an empty ring of `cells` on every side.
+
+    The playable field keeps exactly the size that was asked for; this is added
+    around it. Calling it twice is a no-op, so a map that already carries a
+    border can be passed through freely.
+    """
+    b = max(0, int(cells))
+    meta = map_data.setdefault("meta", {})
+    if b == 0 or int(meta.get("border", 0) or 0) > 0:
+        return map_data
+    grid_cfg = map_data.setdefault("grid", {})
+    play_cols = int(grid_cfg.get("cols", 0) or 0)
+    play_rows = int(grid_cfg.get("rows", 0) or 0)
+    if play_cols <= 0 or play_rows <= 0:
+        return map_data
+    grid_cfg["cols"] = play_cols + 2 * b
+    grid_cfg["rows"] = play_rows + 2 * b
+    _shift_all(map_data, b, b)
+    meta["border"] = b
+    return map_data
+
+
+def border_of(map_data):
+    """How wide the empty ring is on this map, in cells."""
+    return max(0, int(((map_data or {}).get("meta") or {}).get("border", 0) or 0))
+
+
+def playable_rect(map_data):
+    """(x, y, w, h) of the field the user actually owns."""
+    b = border_of(map_data)
+    grid_cfg = (map_data or {}).get("grid", {}) or {}
+    cols = int(grid_cfg.get("cols", 0) or 0)
+    rows = int(grid_cfg.get("rows", 0) or 0)
+    return (b, b, max(1, cols - 2 * b), max(1, rows - 2 * b))
 
 
 def build(spec, seed=None):
@@ -1299,6 +1356,9 @@ def build(spec, seed=None):
         if label:
             map_data["labels"].append({"text": label, "x": rx + rw // 2,
                                        "y": ry + rh // 2, "size": "md"})
+    # The blank ring goes on last, so every generator above keeps working in
+    # plain 0..cols coordinates and knows nothing about it.
+    add_border(map_data, int(spec.get("border", BORDER_CELLS)))
     return map_data
 
 
@@ -1323,8 +1383,11 @@ def validate_map(map_data, repair=True):
     data["meta"] = meta
 
     grid_cfg = data.get("grid") if isinstance(data.get("grid"), dict) else {}
-    cols = _clamp(int(grid_cfg.get("cols", 25) or 25), MIN_CELLS, MAX_CELLS)
-    rows = _clamp(int(grid_cfg.get("rows", 19) or 19), MIN_CELLS, MAX_CELLS)
+    # The stored grid includes the blank ring, so it may legitimately exceed the
+    # limit the user is allowed to pick.
+    hard_max = MAX_CELLS + 2 * 8
+    cols = _clamp(int(grid_cfg.get("cols", 25) or 25), MIN_CELLS, hard_max)
+    rows = _clamp(int(grid_cfg.get("rows", 19) or 19), MIN_CELLS, hard_max)
     if (grid_cfg.get("cols"), grid_cfg.get("rows")) != (cols, rows):
         problems.append("grid size clamped")
     data["grid"] = {
