@@ -26,9 +26,9 @@ from math import gcd
 import architect as A
 
 # Cap so no single caption drowns the model in elements.
-MAX_ELEMENTS = 60
+MAX_ELEMENTS = 24
 # Walls are merged into the longest runs the grid allows, so this is generous.
-MAX_WALL_RUNS = 12
+MAX_WALL_RUNS = 8
 
 _TERRAIN_WORDS = {
     A.WATER: "dark green water",
@@ -157,6 +157,71 @@ def _tile_rect(x, y, w, h, cols, rows, limit=0.22, max_tiles=6):
     return out or [(x, y, w, h)]
 
 
+def _components(grid, kinds):
+    """8-connected blobs of the given tile kinds, as bounding rectangles."""
+    seen = [[False] * grid.cols for _ in range(grid.rows)]
+    out = []
+    for sy in range(grid.rows):
+        for sx in range(grid.cols):
+            if seen[sy][sx] or grid.get(sx, sy) not in kinds:
+                continue
+            stack = [(sx, sy)]
+            seen[sy][sx] = True
+            x0 = x1 = sx
+            y0 = y1 = sy
+            n = 0
+            while stack:
+                x, y = stack.pop()
+                n += 1
+                x0, x1 = min(x0, x), max(x1, x)
+                y0, y1 = min(y0, y), max(y1, y)
+                for dy in (-1, 0, 1):
+                    for dx in (-1, 0, 1):
+                        nx, ny = x + dx, y + dy
+                        if (0 <= nx < grid.cols and 0 <= ny < grid.rows and not seen[ny][nx]
+                                and grid.get(nx, ny) in kinds):
+                            seen[ny][nx] = True
+                            stack.append((nx, ny))
+            out.append((x0, y0, x1 - x0 + 1, y1 - y0 + 1, n))
+    out.sort(key=lambda r: r[2] * r[3], reverse=True)
+    return out
+
+
+def _largest_rects(mask, cols, rows, count, min_area):
+    """Pull the biggest solid rectangles out of a boolean mask, largest first.
+
+    Greedy row-merging leaves long thin slivers, which is why most of the open
+    ground went undescribed. This finds real blocks instead.
+    """
+    grid = [row[:] for row in mask]
+    out = []
+    for _ in range(count):
+        heights = [0] * cols
+        best = (0, 0, 0, 0, 0)          # area, x, y, w, h
+        for y in range(rows):
+            for x in range(cols):
+                heights[x] = heights[x] + 1 if grid[y][x] else 0
+            stack = []
+            for x in range(cols + 1):
+                h = heights[x] if x < cols else 0
+                start = x
+                while stack and stack[-1][1] >= h:
+                    sx, sh = stack.pop()
+                    area = sh * (x - sx)
+                    if area > best[0]:
+                        best = (area, sx, y - sh + 1, x - sx, sh)
+                    start = sx
+                stack.append((start, h))
+        if best[0] < min_area:
+            break
+        _, bx, by, bw, bh = best
+        out.append((bx, by, bw, bh))
+        for y in range(by, by + bh):
+            for x in range(bx, bx + bw):
+                grid[y][x] = False
+    return out
+
+
 def build_caption(map_data, style=None, base=None):
     """Return the structured caption as a dict."""
     grid = A.zones_to_grid(map_data)
@@ -213,22 +278,10 @@ def build_caption(map_data, style=None, base=None):
     # walls is the wrong map, however well painted.
     critical, walls, structure, normal, filler = [], [], [], [], []
 
-    # 0. The blank margin. Said in the background too, but a sentence is weaker
-    #    than a box: with a full-map effect the renderer painted straight over
-    #    it. These four go first so nothing outranks them.
+    # The blank margin is asked for in the background text, and painted onto the
+    # finished image afterwards by render.trim_to_margin - a box saying "nothing
+    # is here" gives the renderer nothing to place, so it never worked.
     border = A.border_of(map_data)
-    if border > 0:
-        margin_text = ("Flat empty unpainted margin filling this whole strip, the blank "
-                       "paper border outside the map: no ground texture, no scenery, no "
-                       "building, no water, no prop, no smoke and no effect of any kind "
-                       "reaches into it")
-        for rect in ((0, 0, cols, border),
-                     (0, rows - border, cols, border),
-                     (0, border, border, rows - 2 * border),
-                     (cols - border, border, border, rows - 2 * border)):
-            critical.append({"type": "obj",
-                             "bbox": _bbox(rect[0], rect[1], rect[2], rect[3], cols, rows),
-                             "desc": margin_text + ". " + _EXACT})
 
     # 1. User-written annotations win over everything: they were placed by hand.
     for ann in map_data.get("annotations", []) or []:
@@ -321,12 +374,46 @@ def build_caption(map_data, style=None, base=None):
                                  f"and set flush into it, with solid wall continuing on "
                                  f"both sides. {_EXACT}"})
 
+    # 4b-2. Buildings first: the wall loop below skips anything already inside
+    #       one of them.
+    labels = [str(a.get("label", "")).strip()
+              for a in (map_data.get("areas") or []) if str(a.get("label", "")).strip()]
+    organic = str(meta.get("layout", "")).lower() in ("cavern", "forest", "swamp")
+    hulls = [(int(st.get("x", 0)), int(st.get("y", 0)), int(st.get("w", 1)),
+              int(st.get("h", 1)))
+             for st in (map_data.get("structures") or []) if st.get("kind") == "ship"]
+
+    def _in_hull(rx, ry, rw, rh):
+        cx, cy = rx + rw / 2.0, ry + rh / 2.0
+        return any(hx <= cx <= hx + hw and hy <= cy <= hy + hh
+                   for (hx, hy, hw, hh) in hulls)
+
+    building_rects = []
+    if not organic:
+        footprints = [r for r in _components(grid, (A.WALL, A.DOOR, A.WINDOW))
+                      if r[4] >= 6 and not _in_hull(r[0], r[1], r[2], r[3])]
+        for i, (bx, by, bw, bh, _n) in enumerate(footprints[:5]):
+            if bw < 3 or bh < 3:
+                continue
+            building_rects.append((bx, by, bw, bh))
+            size_word = ("large" if bw * bh > cols * rows * 0.12 else
+                         "small" if bw * bh < cols * rows * 0.05 else "mid-sized")
+            named = f"the {labels[i]}" if i < len(labels) else "a building"
+            walls.append({
+                "type": "obj",
+                "bbox": _bbox(bx, by, bw, bh, cols, rows),
+                "desc": (f"One single {size_word} building, {named}, standing alone inside "
+                         f"this rectangle and nowhere else: thick unbroken outer walls right "
+                         f"on the edges of the rectangle, its roof removed so the furnished "
+                         f"floor inside is fully visible from above. The ground immediately "
+                         f"outside it on every side is open and free of any wall. "
+                         f"{_EXACT}")})
+
     # 4c. Walls. Until now the renderer was handed room rectangles and left to
     #     invent every wall line itself, which is exactly where the layout came
     #     apart. The architect knows each run, so each run is given.
     # Caves and woodland have no straight walls to speak of; calling their rock
     # a "straight unbroken run" would be a lie the renderer would try to obey.
-    organic = str(meta.get("layout", "")).lower() in ("cavern", "forest", "swamp")
     # Merge each logical wall into one rectangle by treating its openings as
     # wall while the runs are found. Handing over the same wall as four separate
     # boxes reads as a repeating pattern, and the renderer answers a repeating
@@ -338,10 +425,17 @@ def build_caption(map_data, style=None, base=None):
             solid.set(xx, yy, A.WALL if k in (A.WALL, A.DOOR, A.WINDOW) else k)
     wall_word = style.get("wall") or (
         "solid rough rock wall" if organic else "solid stone wall with visible courses")
-    for (x, y, w, h) in _merge_runs(solid, A.WALL)[:MAX_WALL_RUNS]:
+    wall_runs = _merge_runs(solid, A.WALL)
+    for (x, y, w, h) in wall_runs[:MAX_WALL_RUNS]:
         # Only genuinely elongated runs. Everything else is a stub or, in a cave,
         # one lump of an irregular mass, and describing it as a wall adds noise.
         if max(w, h) < 3 or w * h < 2:
+            continue
+        # A wall that belongs to a building is already covered by that
+        # building's own element. Repeating it a dozen times over is what made
+        # the renderer read the map as a repeating pattern.
+        if any(bx - 1 <= x and by - 1 <= y and x + w <= bx + bw + 1 and y + h <= by + bh + 1
+               for (bx, by, bw, bh) in building_rects):
             continue
         if organic:
             walls.append({
@@ -368,9 +462,14 @@ def build_caption(map_data, style=None, base=None):
     # 4d. The open ground. Without it the renderer treats every empty square as
     #     somewhere a building could go, and fills the map with invented rooms.
     open_word = style.get("ground") or "open paved ground"
-    for (x, y, w, h) in _merge_runs(grid, A.FLOOR)[:3]:
-        if w * h < cols * rows * 0.05:
-            break
+    outside = [[grid.get(x, y) == A.FLOOR for x in range(cols)] for y in range(rows)]
+    for (bx, by, bw, bh) in building_rects:
+        for y in range(by, by + bh):
+            for x in range(bx, bx + bw):
+                if 0 <= y < rows and 0 <= x < cols:
+                    outside[y][x] = False
+    for (x, y, w, h) in _largest_rects(outside, cols, rows, 8,
+                                       max(6, int(cols * rows * 0.012))):
         walls.append({
             "type": "obj",
             "bbox": _bbox(x, y, w, h, cols, rows),
@@ -393,12 +492,18 @@ def build_caption(map_data, style=None, base=None):
         label = (area.get("label") or "").strip()
         if not label or label.lower() in ("moored ship", "quay"):
             continue
+        cx0, cy0 = area["x"] + area["w"] / 2.0, area["y"] + area["h"] / 2.0
+        if any(bx <= cx0 <= bx + bw and by <= cy0 <= by + bh
+               for (bx, by, bw, bh) in building_rects):
+            continue                      # its building element already names it
+        detail = str(area.get("description", "")).strip()
         normal.append({
             "type": "obj",
             "bbox": _bbox(area["x"], area["y"], area["w"], area["h"], cols, rows),
             "desc": (f"The {label}: the roofless interior of a room seen from directly "
                      f"above, its floor and furniture fully visible and filling this "
-                     f"rectangle, with no roof, no ceiling and nothing overhanging it"),
+                     f"rectangle, with no roof, no ceiling and nothing overhanging it"
+                     + (". " + detail.rstrip(".") if detail else "")),
         })
 
     # 7. Load-bearing props get their own box; clutter is described without one
@@ -465,6 +570,11 @@ def build_caption(map_data, style=None, base=None):
         pct_y = max(1, round(border / rows * 100))
         background += (f". {note}. The margin is {pct_x} percent of the image width down each "
                        f"side and {pct_y} percent of its height along the top and bottom")
+
+    # The ban opens the caption, but the caption is long and the last thing read
+    # carries weight too. Two human figures once appeared in a map whose opening
+    # sentence forbade them.
+    background += ". " + forbidden
 
     caption["compositional_deconstruction"] = {
         "background": background,

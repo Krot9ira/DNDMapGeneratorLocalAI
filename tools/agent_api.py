@@ -29,7 +29,7 @@ from comfy import ComfyClient
 from ideogram_prompt import build_caption_json
 from ollama_client import OllamaClient
 from planner import MapPlanner
-from render import render_preview, render_svg
+from render import render_preview, render_svg, trim_to_margin
 from workflow import build_ideogram4
 
 from paths import ROOT as PROJECT
@@ -153,6 +153,8 @@ def generate(spec=None, map_data=None, seed=None, out_dir=None, cols=None, rows=
     prompt_id = client.queue_prompt(graph)
     outputs = client.wait(prompt_id, timeout=timeout, on_progress=on_progress)
     images = client.get_images(outputs, out_dir)
+    for path in images:
+        trim_to_margin(path, map_data)
 
     result.update({"images": images, "caption": caption, "out_dir": str(out_dir),
                    "prompt_id": prompt_id, "size": (width, height)})

@@ -981,8 +981,8 @@ inline MapData Build(DesignSpec spec, uint32_t seed) {
     map.structures = structures;
     map.features = PlaceProps(g, rooms, spec, rng);
     for (const auto& rp : rooms)
-        map.areas.push_back({rp.first.id, rp.first.label, rp.second.x, rp.second.y,
-                             rp.second.w, rp.second.h});
+        map.areas.push_back({rp.first.id, rp.first.label, std::string(), rp.second.x,
+                             rp.second.y, rp.second.w, rp.second.h});
     // The blank ring goes on last, so every generator above works in plain
     // 0..cols coordinates and knows nothing about it.
     AddBorder(map, Clampi(spec.border, 0, 8));

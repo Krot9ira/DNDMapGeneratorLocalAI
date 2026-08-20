@@ -69,6 +69,7 @@ public:
         j["areas"] = nlohmann::json::array();
         for (const auto& a : map.areas)
             j["areas"].push_back({{"id", a.id}, {"label", a.label},
+                                  {"description", a.description},
                                   {"x", a.x}, {"y", a.y}, {"w", a.w}, {"h", a.h}});
 
         // Labels exist for the human preview only and are never rendered into
@@ -181,6 +182,7 @@ public:
                     Area a;
                     a.id = aj.value("id", std::string(""));
                     a.label = aj.value("label", std::string(""));
+                    a.description = aj.value("description", std::string(""));
                     a.x = aj.value("x", 0);
                     a.y = aj.value("y", 0);
                     a.w = aj.value("w", 1);

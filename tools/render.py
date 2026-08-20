@@ -187,6 +187,49 @@ def _draw_feature(d, feat, c, lw, color=(40, 40, 48)):
 
 # -- the preview ------------------------------------------------------
 
+def trim_to_margin(image_path, map_data, style=None):
+    """Paint the bleed margin onto a finished render.
+
+    The renderer is told the content is inset and usually obliges, but under a
+    large effect it paints out to the frame edge. The margin is a mechanical
+    thing, so it is guaranteed here rather than negotiated: the outer band is
+    filled flat, like the mount around a printed map.
+    """
+    border = A.border_of(map_data)
+    if border <= 0:
+        return False
+    grid_cfg = (map_data.get("grid") or {})
+    cols = int(grid_cfg.get("cols", 0) or 0)
+    rows = int(grid_cfg.get("rows", 0) or 0)
+    if cols <= 0 or rows <= 0:
+        return False
+
+    img = Image.open(image_path).convert("RGB")
+    w, h = img.size
+    mx = max(1, round(w * border / cols))
+    my = max(1, round(h * border / rows))
+
+    # The mount takes its colour from the map itself, so it never looks bolted
+    # on: the median of what the renderer already put in the margin ring.
+    ring = []
+    for x in range(0, w, max(1, w // 120)):
+        ring.append(img.getpixel((x, min(my // 2, h - 1))))
+        ring.append(img.getpixel((x, max(0, h - 1 - my // 2))))
+    for y in range(0, h, max(1, h // 120)):
+        ring.append(img.getpixel((min(mx // 2, w - 1), y)))
+        ring.append(img.getpixel((max(0, w - 1 - mx // 2), y)))
+    ring.sort(key=lambda c: c[0] + c[1] + c[2])
+    fill = ring[len(ring) // 2] if ring else (150, 145, 125)
+
+    d = ImageDraw.Draw(img)
+    d.rectangle([0, 0, w, my], fill=fill)
+    d.rectangle([0, h - my, w, h], fill=fill)
+    d.rectangle([0, 0, mx, h], fill=fill)
+    d.rectangle([w - mx, 0, w, h], fill=fill)
+    img.save(image_path)
+    return True
+
+
 def render_preview(map_data, out_path=None, cell=DEFAULT_CELL_PX, show_labels=True):
     """Colour-coded blueprint with area labels, for humans and agents to read."""
     grid = A.zones_to_grid(map_data)

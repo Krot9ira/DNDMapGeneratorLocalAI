@@ -148,9 +148,13 @@ struct Effect {
     int x = 0, y = 0, w = 1, h = 1;
 };
 
+// A named part of the map. Each becomes an element in the caption with its own
+// rectangle, so the name and the description are what the renderer is told
+// about that room - not decoration for the editor.
 struct Area {
     std::string id;
     std::string label;
+    std::string description;
     int x = 0, y = 0, w = 1, h = 1;
 };
 

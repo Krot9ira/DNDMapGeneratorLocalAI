@@ -17,6 +17,9 @@
 
 #define STB_IMAGE_IMPLEMENTATION
 #include <stb/stb_image.h>
+#include <stb/stb_image_write.h>
+
+#include <array>
 
 #include "app_state.h"
 #include "app_theme.h"
@@ -342,6 +345,69 @@ static void FinishJob(bool ok, const std::string& message) {
 
 // Stage 2. Ideogram takes the layout as bounding boxes inside a JSON caption,
 // so nothing is uploaded and no ControlNet is involved.
+// Fill the outer band of a finished render flat, like the mount around a
+// printed map. The colour is taken from what is already in the margin ring, so
+// it never looks bolted on.
+static void PaintBleedMargin(std::vector<uint8_t>& png, const MapData& map) {
+    int border = arch::BorderOf(map);
+    if (border <= 0 || map.grid.cols <= 0 || map.grid.rows <= 0 || png.empty()) return;
+
+    int w = 0, h = 0, comp = 0;
+    unsigned char* pixels = stbi_load_from_memory(png.data(), (int)png.size(), &w, &h, &comp, 3);
+    if (!pixels || w <= 0 || h <= 0) {
+        if (pixels) stbi_image_free(pixels);
+        return;
+    }
+
+    int mx = std::max(1, (int)std::lround((double)w * border / map.grid.cols));
+    int my = std::max(1, (int)std::lround((double)h * border / map.grid.rows));
+
+    auto at = [&](int x, int y) { return pixels + ((size_t)y * w + x) * 3; };
+    std::vector<std::array<int, 3>> ring;
+    for (int x = 0; x < w; x += std::max(1, w / 120)) {
+        unsigned char* a = at(x, std::min(my / 2, h - 1));
+        unsigned char* b = at(x, std::max(0, h - 1 - my / 2));
+        ring.push_back({a[0], a[1], a[2]});
+        ring.push_back({b[0], b[1], b[2]});
+    }
+    for (int y = 0; y < h; y += std::max(1, h / 120)) {
+        unsigned char* a = at(std::min(mx / 2, w - 1), y);
+        unsigned char* b = at(std::max(0, w - 1 - mx / 2), y);
+        ring.push_back({a[0], a[1], a[2]});
+        ring.push_back({b[0], b[1], b[2]});
+    }
+    std::sort(ring.begin(), ring.end(), [](const auto& a, const auto& b) {
+        return a[0] + a[1] + a[2] < b[0] + b[1] + b[2];
+    });
+    std::array<int, 3> fill = ring.empty() ? std::array<int, 3>{150, 145, 125}
+                                           : ring[ring.size() / 2];
+
+    auto band = [&](int x0, int y0, int x1, int y1) {
+        for (int y = std::max(0, y0); y < std::min(h, y1); ++y) {
+            for (int x = std::max(0, x0); x < std::min(w, x1); ++x) {
+                unsigned char* p = at(x, y);
+                p[0] = (unsigned char)fill[0];
+                p[1] = (unsigned char)fill[1];
+                p[2] = (unsigned char)fill[2];
+            }
+        }
+    };
+    band(0, 0, w, my);
+    band(0, h - my, w, h);
+    band(0, 0, mx, h);
+    band(w - mx, 0, w, h);
+
+    std::vector<uint8_t> out;
+    stbi_write_png_to_func(
+        [](void* ctx, void* data, int size) {
+            auto* v = (std::vector<uint8_t>*)ctx;
+            v->insert(v->end(), (uint8_t*)data, (uint8_t*)data + size);
+        },
+        &out, w, h, 3, pixels, w * 3);
+    stbi_image_free(pixels);
+    if (!out.empty()) png.swap(out);
+}
+
 static bool RunRender(MapData map) {
     Job& job = g_app.job;
     ComfyConfig cfg = g_app.config.comfy;
@@ -412,6 +478,11 @@ static bool RunRender(MapData map) {
         job.Log("Render failed: " + result.error);
         return false;
     }
+
+    // The renderer is told the content is inset and usually obliges, but under
+    // a large effect it paints out to the frame edge. The margin is mechanical,
+    // so it is guaranteed here rather than negotiated.
+    PaintBleedMargin(result.images[0], map);
 
     std::string savedPath = dir + "/battlemap.png";
     {
@@ -888,13 +959,23 @@ static void DrawMapCanvas(bool interactive, ImVec2 size) {
     }
 
     // Area labels are UI only - they never reach the rendered image.
-    for (const auto& a : g_app.map.areas) {
+    // Area name chips. They are draggable handles, not decoration, so their
+    // screen rectangles are kept for the hit-testing below.
+    static std::vector<ImVec4> areaChips;
+    areaChips.assign(g_app.map.areas.size(), ImVec4(0, 0, 0, 0));
+    for (size_t i = 0; i < g_app.map.areas.size(); ++i) {
+        const Area& a = g_app.map.areas[i];
         if (a.label.empty() || cell < 9.0f) continue;
         ImVec2 p(off.x + (a.x + a.w * 0.5f) * cell, off.y + (a.y + a.h * 0.5f) * cell);
         ImVec2 ts = ImGui::CalcTextSize(a.label.c_str());
-        dl->AddRectFilled(ImVec2(p.x - ts.x * 0.5f - 4, p.y - ts.y * 0.5f - 2),
-                          ImVec2(p.x + ts.x * 0.5f + 4, p.y + ts.y * 0.5f + 2),
-                          IM_COL32(20, 22, 28, 200), 3.0f);
+        ImVec2 c0(p.x - ts.x * 0.5f - 5, p.y - ts.y * 0.5f - 3);
+        ImVec2 c1(p.x + ts.x * 0.5f + 5, p.y + ts.y * 0.5f + 3);
+        areaChips[i] = ImVec4(c0.x, c0.y, c1.x, c1.y);
+        bool over = interactive && io.MousePos.x >= c0.x && io.MousePos.x <= c1.x &&
+                    io.MousePos.y >= c0.y && io.MousePos.y <= c1.y;
+        dl->AddRectFilled(c0, c1, over ? IM_COL32(58, 48, 30, 235)
+                                       : IM_COL32(20, 22, 28, 200), 3.0f);
+        if (over) dl->AddRect(c0, c1, IM_COL32(240, 220, 160, 220), 3.0f, 0, 1.5f);
         dl->AddText(ImVec2(p.x - ts.x * 0.5f, p.y - ts.y * 0.5f),
                     IM_COL32(240, 220, 160, 255), a.label.c_str());
     }
@@ -930,7 +1011,41 @@ static void DrawMapCanvas(bool interactive, ImVec2 size) {
             }
         }
 
+        // Which name chip is under the cursor.
+        int hitChip = -1;
+        for (int i = 0; i < (int)areaChips.size(); ++i) {
+            const ImVec4& r = areaChips[i];
+            if (r.z <= r.x) continue;
+            if (io.MousePos.x >= r.x && io.MousePos.x <= r.z &&
+                io.MousePos.y >= r.y && io.MousePos.y <= r.w) hitChip = i;
+        }
+        // Dragging a chip moves its area. It starts only on the chip, so it
+        // never fights the painting tools.
+        static int dragArea = -1;
+        static int dragDX = 0, dragDY = 0;
+        if (hovered && hitChip >= 0 && ImGui::IsMouseClicked(ImGuiMouseButton_Left)) {
+            g_app.PushUndo();
+            dragArea = hitChip;
+            dragDX = cx - g_app.map.areas[hitChip].x;
+            dragDY = cy - g_app.map.areas[hitChip].y;
+        }
+        if (dragArea >= 0) {
+            if (dragArea < (int)g_app.map.areas.size() &&
+                ImGui::IsMouseDown(ImGuiMouseButton_Left)) {
+                Area& a = g_app.map.areas[dragArea];
+                a.x = std::clamp(cx - dragDX, 0, std::max(0, grid.cols - a.w));
+                a.y = std::clamp(cy - dragDY, 0, std::max(0, grid.rows - a.h));
+                g_app.MarkEdited();
+                ImVec2 p0(off.x + a.x * cell, off.y + a.y * cell);
+                ImVec2 p1(off.x + (a.x + a.w) * cell, off.y + (a.y + a.h) * cell);
+                dl->AddRect(p0, p1, IM_COL32(240, 220, 160, 230), 0, 0,
+                            std::max(2.0f, cell * 0.06f));
+            }
+            if (!ImGui::IsMouseDown(ImGuiMouseButton_Left)) dragArea = -1;
+        }
+
         static int menuFeature = -1, menuEffect = -1, menuArea = -1;
+        static int menuNamed = -1;
         static int menuX = 0, menuY = 0;
         static ImVec2 rightPress(0, 0);
 
@@ -943,6 +1058,15 @@ static void DrawMapCanvas(bool interactive, ImVec2 size) {
                 menuFeature = hitFeature;
                 menuEffect = hitEffect;
                 menuArea = hitArea;
+                menuNamed = hitChip;
+                if (menuNamed < 0) {
+                    // Right-clicking anywhere inside an area works too.
+                    for (int i = 0; i < (int)g_app.map.areas.size(); ++i) {
+                        const Area& a = g_app.map.areas[i];
+                        if (cx >= a.x && cx < a.x + a.w && cy >= a.y && cy < a.y + a.h)
+                            menuNamed = i;
+                    }
+                }
                 menuX = cx;
                 menuY = cy;
                 ImGui::OpenPopup("##mapctx");
@@ -972,6 +1096,18 @@ static void DrawMapCanvas(bool interactive, ImVec2 size) {
             ImGui::SetTooltip("%s\n[%d, %d] - right-click for options", text.c_str(), cx, cy);
         }
 
+        if (hovered && hitChip >= 0 && hitChip < (int)g_app.map.areas.size() &&
+            !ImGui::IsPopupOpen("##mapctx")) {
+            const Area& a = g_app.map.areas[hitChip];
+            ImGui::SetTooltip(
+                "Area: %s%s%s\n"
+                "This names a part of the map for the renderer. It is sent with this\n"
+                "rectangle, so the painter knows which room is which - the words\n"
+                "themselves are never drawn into the picture.\n"
+                "Drag to move it. Right-click to rename, describe or delete it.",
+                a.label.c_str(), a.description.empty() ? "" : " - ",
+                a.description.c_str());
+        }
         if (hovered && inMargin) {
             ImGui::SetTooltip(
                 "Bleed margin - not part of your map\n"
@@ -1059,6 +1195,26 @@ static void DrawMapCanvas(bool interactive, ImVec2 size) {
                     g_app.PushUndo();
                     g_app.annotations.erase(g_app.annotations.begin() + menuArea);
                     menuArea = -1;
+                    ImGui::CloseCurrentPopup();
+                }
+            }
+            if (menuNamed >= 0 && menuNamed < (int)g_app.map.areas.size()) {
+                anything = true;
+                Area& a = g_app.map.areas[menuNamed];
+                ImGui::SeparatorText(a.label.empty() ? "Area" : a.label.c_str());
+                ImGui::TextDisabled("Names this part of the map for the renderer.");
+                ImGui::SetNextItemWidth(240.0f);
+                if (InputTextString("Name##ctxar", &a.label)) g_app.MarkEdited();
+                ImGui::SetItemTooltip("What this room is called. Sent to the renderer with "
+                                      "the room's rectangle; never drawn in the picture.");
+                if (InputTextMultilineString("##ctxard", &a.description, ImVec2(300, 58)))
+                    g_app.MarkEdited();
+                ImGui::SetItemTooltip("Anything else the painter should know about this "
+                                      "room. Optional.");
+                if (ImGui::MenuItem("Delete this area")) {
+                    g_app.PushUndo();
+                    g_app.map.areas.erase(g_app.map.areas.begin() + menuNamed);
+                    menuNamed = -1;
                     ImGui::CloseCurrentPopup();
                 }
             }

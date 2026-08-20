@@ -23,9 +23,91 @@ namespace dnd {
 
 class IdeogramCaption {
 public:
-    static constexpr int kMaxElements = 60;
+    static constexpr int kMaxElements = 24;
     // Walls are merged into the longest runs the grid allows, so this is generous.
-    static constexpr int kMaxWallRuns = 12;
+    static constexpr int kMaxWallRuns = 8;
+    // 8-connected blobs of the given tile kinds, as bounding rectangles with
+    // their cell counts, biggest first.
+    struct Blob { Rect rect; int cells; };
+    static std::vector<Blob> Components(const TileGrid& g,
+                                        const std::vector<Tile>& kinds) {
+        auto wanted = [&](Tile t) {
+            for (Tile k : kinds) if (k == t) return true;
+            return false;
+        };
+        std::vector<char> seen((size_t)g.cols * g.rows, 0);
+        std::vector<Blob> out;
+        for (int sy = 0; sy < g.rows; ++sy) {
+            for (int sx = 0; sx < g.cols; ++sx) {
+                if (seen[(size_t)sy * g.cols + sx] || !wanted(g.Get(sx, sy))) continue;
+                std::vector<std::pair<int, int>> stack{{sx, sy}};
+                seen[(size_t)sy * g.cols + sx] = 1;
+                int x0 = sx, x1 = sx, y0 = sy, y1 = sy, n = 0;
+                while (!stack.empty()) {
+                    auto [x, y] = stack.back();
+                    stack.pop_back();
+                    ++n;
+                    x0 = std::min(x0, x); x1 = std::max(x1, x);
+                    y0 = std::min(y0, y); y1 = std::max(y1, y);
+                    for (int dy = -1; dy <= 1; ++dy) {
+                        for (int dx = -1; dx <= 1; ++dx) {
+                            int nx = x + dx, ny = y + dy;
+                            if (nx < 0 || ny < 0 || nx >= g.cols || ny >= g.rows) continue;
+                            if (seen[(size_t)ny * g.cols + nx] || !wanted(g.Get(nx, ny)))
+                                continue;
+                            seen[(size_t)ny * g.cols + nx] = 1;
+                            stack.push_back({nx, ny});
+                        }
+                    }
+                }
+                out.push_back({{x0, y0, x1 - x0 + 1, y1 - y0 + 1}, n});
+            }
+        }
+        std::sort(out.begin(), out.end(), [](const Blob& a, const Blob& b) {
+            return a.rect.w * a.rect.h > b.rect.w * b.rect.h;
+        });
+        return out;
+    }
+
+    // Pull the biggest solid rectangles out of a boolean mask. Greedy row
+    // merging leaves long thin slivers, which is why most of the open ground
+    // went undescribed; this finds real blocks.
+    static std::vector<Rect> LargestRects(std::vector<char> mask, int cols, int rows,
+                                          int count, int minArea) {
+        std::vector<Rect> out;
+        for (int pass = 0; pass < count; ++pass) {
+            std::vector<int> heights((size_t)cols, 0);
+            int bestArea = 0;
+            Rect best{0, 0, 0, 0};
+            for (int y = 0; y < rows; ++y) {
+                for (int x = 0; x < cols; ++x)
+                    heights[x] = mask[(size_t)y * cols + x] ? heights[x] + 1 : 0;
+                std::vector<std::pair<int, int>> stack;   // start, height
+                for (int x = 0; x <= cols; ++x) {
+                    int h = (x < cols) ? heights[x] : 0;
+                    int start = x;
+                    while (!stack.empty() && stack.back().second >= h) {
+                        auto [sx, sh] = stack.back();
+                        stack.pop_back();
+                        int area = sh * (x - sx);
+                        if (area > bestArea) {
+                            bestArea = area;
+                            best = {sx, y - sh + 1, x - sx, sh};
+                        }
+                        start = sx;
+                    }
+                    stack.push_back({start, h});
+                }
+            }
+            if (bestArea < minArea) break;
+            out.push_back(best);
+            for (int y = best.y; y < best.y + best.h; ++y)
+                for (int x = best.x; x < best.x + best.w; ++x)
+                    mask[(size_t)y * cols + x] = 0;
+        }
+        return out;
+    }
+
     // Split a rectangle into tiles when it covers a big share of the map. A
     // single box the size of half the frame is not a useful instruction: the
     // model satisfies it with one blob somewhere inside.
@@ -127,26 +209,10 @@ public:
         nlohmann::json normal = nlohmann::json::array();
         nlohmann::json filler = nlohmann::json::array();
 
-        // 0. The blank margin. Said in the background too, but a sentence is
-        //    weaker than a box: with a full-map effect the renderer painted
-        //    straight over it. These four go first so nothing outranks them.
+        // The blank margin is asked for in the background text and painted onto
+        // the finished image afterwards. A box saying "nothing is here" gives
+        // the renderer nothing to place, so it never worked.
         const int border = arch::BorderOf(map);
-        if (border > 0) {
-            const std::string marginText =
-                "Flat empty unpainted margin filling this whole strip, the blank paper "
-                "border outside the map: no ground texture, no scenery, no building, no "
-                "water, no prop, no smoke and no effect of any kind reaches into it. ";
-            const Rect strips[4] = {{0, 0, cols, border},
-                                    {0, rows - border, cols, border},
-                                    {0, border, border, rows - 2 * border},
-                                    {cols - border, border, border, rows - 2 * border}};
-            for (const Rect& r : strips) {
-                if (r.w <= 0 || r.h <= 0) continue;
-                critical.push_back({{"type", "obj"},
-                                    {"bbox", Bbox(r.x, r.y, r.w, r.h, cols, rows)},
-                                    {"desc", marginText + kExact}});
-            }
-        }
 
         // 1. Hand-written annotations win: the user placed them deliberately.
         for (const auto& a : map.annotations) {
@@ -231,15 +297,51 @@ public:
         }
 
         // 5. Terrain bodies worth naming.
-        // 4c. Walls. Until now the renderer was handed room rectangles and left
-        //     to invent every wall line itself, which is exactly where the
-        //     layout came apart. The architect knows each run, so each is given.
+        // 4b-2. Buildings as whole objects. A dozen wall runs that all read
+        //       alike invite a symmetrical building of the renderer's own
+        //       invention; three named footprints of different sizes do not.
+        bool organic = map.meta.layout == "cavern" || map.meta.layout == "forest" ||
+                       map.meta.layout == "swamp";
+        std::vector<Rect> buildings;
+        if (!organic) {
+            std::vector<Rect> hulls;
+            for (const auto& st : map.structures)
+                if (st.kind == "ship") hulls.push_back({st.x, st.y, st.w, st.h});
+            size_t named = 0;
+            for (const Blob& b : Components(g, {Tile::Wall, Tile::Door, Tile::Window})) {
+                if (buildings.size() >= 5) break;
+                if (b.cells < 6 || b.rect.w < 3 || b.rect.h < 3) continue;
+                // A ship's hull is drawn out of wall tiles and has an element of
+                // its own already.
+                double cx = b.rect.x + b.rect.w / 2.0, cy = b.rect.y + b.rect.h / 2.0;
+                bool isHull = false;
+                for (const Rect& hr : hulls)
+                    if (cx >= hr.x && cx <= hr.x + hr.w && cy >= hr.y && cy <= hr.y + hr.h)
+                        isHull = true;
+                if (isHull) continue;
+                buildings.push_back(b.rect);
+                double share = (double)b.rect.w * b.rect.h / std::max(1, cols * rows);
+                std::string sizeWord = share > 0.12 ? "large"
+                                     : (share < 0.05 ? "small" : "mid-sized");
+                std::string label = "a building";
+                while (named < map.areas.size() && map.areas[named].label.empty()) ++named;
+                if (named < map.areas.size()) label = "the " + map.areas[named++].label;
+                walls.push_back({
+                    {"type", "obj"},
+                    {"bbox", Bbox(b.rect.x, b.rect.y, b.rect.w, b.rect.h, cols, rows)},
+                    {"desc", "One single " + sizeWord + " building, " + label +
+                             ", standing alone inside this rectangle and nowhere else: thick "
+                             "unbroken outer walls right on the edges of the rectangle, its "
+                             "roof removed so the furnished floor inside is fully visible "
+                             "from above. The ground immediately outside it on every side is "
+                             "open and free of any wall. " + kExact}});
+            }
+        }
+
+        // 4c. Walls that stand on their own. Anything already inside a building
+        //     is covered by that building's element; repeating it a dozen times
+        //     is what made the renderer read the map as a repeating pattern.
         {
-            // Caves and woodland have no straight walls to speak of; calling
-            // their rock a "straight unbroken run" would be a lie the renderer
-            // would then try to obey.
-            bool organic = map.meta.layout == "cavern" || map.meta.layout == "forest" ||
-                           map.meta.layout == "swamp";
             // Merge each logical wall into one rectangle by treating its
             // openings as wall while the runs are found. The same wall handed
             // over as four separate boxes reads as a repeating pattern, and the
@@ -259,6 +361,11 @@ public:
                 // Only genuinely elongated runs. The rest are stubs, or one lump
                 // of an irregular mass, and read as noise either way.
                 if (std::max(r.w, r.h) < 3 || r.w * r.h < 2) continue;
+                bool insideBuilding = false;
+                for (const Rect& b : buildings)
+                    if (r.x >= b.x - 1 && r.y >= b.y - 1 && r.x + r.w <= b.x + b.w + 1 &&
+                        r.y + r.h <= b.y + b.h + 1) insideBuilding = true;
+                if (insideBuilding) continue;
                 if (organic) {
                     walls.push_back({
                         {"type", "obj"},
@@ -294,9 +401,19 @@ public:
         {
             std::string openWord = (style && !style->ground.empty()) ? style->ground
                                                                      : "open paved ground";
+            std::vector<char> free_((size_t)cols * rows, 0);
+            for (int y = 0; y < rows; ++y)
+                for (int x = 0; x < cols; ++x)
+                    free_[(size_t)y * cols + x] = (g.Get(x, y) == Tile::Floor) ? 1 : 0;
+            for (const Rect& b : buildings)
+                for (int y = b.y; y < b.y + b.h; ++y)
+                    for (int x = b.x; x < b.x + b.w; ++x)
+                        if (x >= 0 && y >= 0 && x < cols && y < rows)
+                            free_[(size_t)y * cols + x] = 0;
             int given = 0;
-            for (const Rect& r : MergeRuns(g, Tile::Floor, cols, rows)) {
-                if (given >= 3 || r.w * r.h < cols * rows * 0.05) break;
+            for (const Rect& r : LargestRects(free_, cols, rows, 8,
+                                              std::max(6, (int)(cols * rows * 0.012)))) {
+                (void)given;
                 walls.push_back({
                     {"type", "obj"},
                     {"bbox", Bbox(r.x, r.y, r.w, r.h, cols, rows)},
@@ -317,13 +434,21 @@ public:
             std::string label = Trim(a.label);
             std::string lower = arch::Lower(label);
             if (label.empty() || lower == "moored ship" || lower == "quay") continue;
+            // A room inside a building is already named by that building.
+            double rcx = a.x + a.w / 2.0, rcy = a.y + a.h / 2.0;
+            bool covered = false;
+            for (const Rect& b : buildings)
+                if (rcx >= b.x && rcx <= b.x + b.w && rcy >= b.y && rcy <= b.y + b.h)
+                    covered = true;
+            if (covered) continue;
             normal.push_back({
                 {"type", "obj"},
                 {"bbox", Bbox(a.x, a.y, a.w, a.h, cols, rows)},
                 {"desc", "The " + label + ": the roofless interior of a room seen from "
                          "directly above, its floor and furniture fully visible and filling "
                          "this rectangle, with no roof, no ceiling and nothing overhanging "
-                         "it"}});
+                         "it" + (a.description.empty() ? std::string()
+                                                       : ". " + Trim(a.description))}});
         }
 
         // 7. Pinned props get a box; clutter is only described.
@@ -400,6 +525,11 @@ public:
                           "and " + std::to_string(pctY) +
                           " percent of its height along the top and bottom";
         }
+
+        // The ban opens the caption, but the caption is long and the last thing
+        // read carries weight too. Two human figures once appeared in a map
+        // whose opening sentence forbade them.
+        background += ". " + base.forbidden_suffix;
 
         cap["compositional_deconstruction"] = {
             {"background", background},
