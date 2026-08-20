@@ -28,7 +28,7 @@ import architect as A
 # Cap so no single caption drowns the model in elements.
 MAX_ELEMENTS = 60
 # Walls are merged into the longest runs the grid allows, so this is generous.
-MAX_WALL_RUNS = 24
+MAX_WALL_RUNS = 12
 
 _TERRAIN_WORDS = {
     A.WATER: "dark green water",
@@ -194,6 +194,9 @@ def build_caption(map_data, style=None, base=None):
         f"its own rectangle, and no other door, doorway, archway, gate, gap or window exists "
         f"anywhere in any wall.")
     caption["high_level_description"] += " " + opening_note
+    caption["high_level_description"] += (
+        " The buildings are of different sizes and stand in an irregular arrangement; the "
+        "layout is not symmetrical, not mirrored and not a repeating pattern.")
 
     caption["style_description"] = {
         "aesthetics": style.get("aesthetics") or base.get("aesthetics", ""),
@@ -307,9 +310,18 @@ def build_caption(map_data, style=None, base=None):
     # Caves and woodland have no straight walls to speak of; calling their rock
     # a "straight unbroken run" would be a lie the renderer would try to obey.
     organic = str(meta.get("layout", "")).lower() in ("cavern", "forest", "swamp")
+    # Merge each logical wall into one rectangle by treating its openings as
+    # wall while the runs are found. Handing over the same wall as four separate
+    # boxes reads as a repeating pattern, and the renderer answers a repeating
+    # pattern with a symmetrical building it invented itself.
+    solid = A.TileGrid(grid.cols, grid.rows, A.VOID)
+    for yy in range(grid.rows):
+        for xx in range(grid.cols):
+            k = grid.get(xx, yy)
+            solid.set(xx, yy, A.WALL if k in (A.WALL, A.DOOR, A.WINDOW) else k)
     wall_word = style.get("wall") or (
         "solid rough rock wall" if organic else "solid stone wall with visible courses")
-    for (x, y, w, h) in _merge_runs(grid, A.WALL)[:MAX_WALL_RUNS]:
+    for (x, y, w, h) in _merge_runs(solid, A.WALL)[:MAX_WALL_RUNS]:
         # Only genuinely elongated runs. Everything else is a stub or, in a cave,
         # one lump of an irregular mass, and describing it as a wall adds noise.
         if max(w, h) < 3 or w * h < 2:
@@ -331,9 +343,23 @@ def build_caption(map_data, style=None, base=None):
         walls.append({
             "type": "obj",
             "bbox": _bbox(x, y, w, h, cols, rows),
-            "desc": (f"A straight unbroken run of {wall_word}: {shape}, filling it completely "
-                     f"and keeping the same thickness along its entire length, with square "
-                     f"ends and no gap, opening or archway anywhere in it. {_EXACT}")})
+            "desc": (f"A run of {wall_word}: {shape}, filling it completely and keeping the "
+                     f"same thickness along its entire length, with square ends and solid "
+                     f"masonry everywhere except at the doors listed separately below. "
+                     f"{_EXACT}")})
+
+    # 4d. The open ground. Without it the renderer treats every empty square as
+    #     somewhere a building could go, and fills the map with invented rooms.
+    open_word = style.get("ground") or "open paved ground"
+    for (x, y, w, h) in _merge_runs(grid, A.FLOOR)[:3]:
+        if w * h < cols * rows * 0.05:
+            break
+        walls.append({
+            "type": "obj",
+            "bbox": _bbox(x, y, w, h, cols, rows),
+            "desc": (f"Open ground of {open_word} filling this whole rectangle, entirely "
+                     f"clear from edge to edge: no building, no wall, no partition and no "
+                     f"structure of any kind stands anywhere inside it. {_EXACT}")})
 
     # 5. Terrain bodies large enough to matter, biggest first.
     for kind, phrase in _TERRAIN_WORDS.items():

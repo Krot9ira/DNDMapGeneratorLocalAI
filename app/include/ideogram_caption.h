@@ -25,7 +25,7 @@ class IdeogramCaption {
 public:
     static constexpr int kMaxElements = 60;
     // Walls are merged into the longest runs the grid allows, so this is generous.
-    static constexpr int kMaxWallRuns = 24;
+    static constexpr int kMaxWallRuns = 12;
     // Split a rectangle into tiles when it covers a big share of the map. A
     // single box the size of half the frame is not a useful instruction: the
     // model satisfies it with one blob somewhere inside.
@@ -98,7 +98,9 @@ public:
             std::to_string(doorCells) + " doors and " + std::to_string(windowCells) +
             " windows in the whole picture, each one listed below with its own rectangle, "
             "and no other door, doorway, archway, gate, gap or window exists anywhere in "
-            "any wall.";
+            "any wall. The buildings are of different sizes and stand in an irregular "
+            "arrangement; the layout is not symmetrical, not mirrored and not a repeating "
+            "pattern.";
 
         nlohmann::json sd;
         sd["aesthetics"] = (style && !style->aesthetics.empty()) ? style->aesthetics
@@ -217,8 +219,21 @@ public:
             // would then try to obey.
             bool organic = map.meta.layout == "cavern" || map.meta.layout == "forest" ||
                            map.meta.layout == "swamp";
+            // Merge each logical wall into one rectangle by treating its
+            // openings as wall while the runs are found. The same wall handed
+            // over as four separate boxes reads as a repeating pattern, and the
+            // renderer answers a repeating pattern with a symmetrical building
+            // it invented itself.
+            TileGrid solid(cols, rows, Tile::Void);
+            for (int yy = 0; yy < rows; ++yy) {
+                for (int xx = 0; xx < cols; ++xx) {
+                    Tile k = g.Get(xx, yy);
+                    solid.Set(xx, yy, (k == Tile::Wall || k == Tile::Door ||
+                                       k == Tile::Window) ? Tile::Wall : k);
+                }
+            }
             int emitted = 0;
-            for (const Rect& r : MergeRuns(g, Tile::Wall, cols, rows)) {
+            for (const Rect& r : MergeRuns(solid, Tile::Wall, cols, rows)) {
                 if (emitted >= kMaxWallRuns) break;
                 // Only genuinely elongated runs. The rest are stubs, or one lump
                 // of an irregular mass, and read as noise either way.
@@ -243,11 +258,32 @@ public:
                 walls.push_back({
                     {"type", "obj"},
                     {"bbox", Bbox(r.x, r.y, r.w, r.h, cols, rows)},
-                    {"desc", "A straight unbroken run of solid stone wall with visible "
-                             "courses: " + shape + ", filling it completely and keeping the "
-                             "same thickness along its entire length, with square ends and "
-                             "no gap, opening or archway anywhere in it. " + kExact}});
+                    {"desc", "A run of solid stone wall with visible courses: " + shape +
+                             ", filling it completely and keeping the same thickness along "
+                             "its entire length, with square ends and solid masonry "
+                             "everywhere except at the doors listed separately below. " +
+                             kExact}});
                 ++emitted;
+            }
+        }
+
+        // 4d. The open ground. Without it the renderer treats every empty square
+        //     as somewhere a building could go, and fills the map with rooms it
+        //     invented.
+        {
+            std::string openWord = (style && !style->ground.empty()) ? style->ground
+                                                                     : "open paved ground";
+            int given = 0;
+            for (const Rect& r : MergeRuns(g, Tile::Floor, cols, rows)) {
+                if (given >= 3 || r.w * r.h < cols * rows * 0.05) break;
+                walls.push_back({
+                    {"type", "obj"},
+                    {"bbox", Bbox(r.x, r.y, r.w, r.h, cols, rows)},
+                    {"desc", "Open ground of " + openWord + " filling this whole rectangle, "
+                             "entirely clear from edge to edge: no building, no wall, no "
+                             "partition and no structure of any kind stands anywhere inside "
+                             "it. " + kExact}});
+                ++given;
             }
         }
 
