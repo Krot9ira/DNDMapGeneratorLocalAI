@@ -64,7 +64,7 @@ SIZE_PRESETS = {
 }
 
 LAYOUTS = ["dungeon", "building", "cavern", "open", "forest", "swamp", "ruins", "deck",
-           "street", "arena", "harbour", "custom"]
+           "street", "district", "arena", "harbour", "custom"]
 
 TERRAIN_KINDS = {"water", "pit", "rubble", "vegetation", "none"}
 
@@ -782,6 +782,97 @@ def _gen_street(grid, spec, rng):
     return rooms, []
 
 
+def _gen_district(grid, spec, rng):
+    """Buildings edge to edge, alleys between them, city to every margin."""
+    grid.fill_rect(0, 0, grid.cols, grid.rows, FLOOR)
+
+    # One lane of street round the outside, so the block never butts against
+    # the frame and every building can be walked round.
+    inner = (1, 1, grid.cols - 2, grid.rows - 2)
+    if inner[2] < 6 or inner[3] < 6:
+        rooms = [{"spec": (spec["rooms"] or [{"label": "Street", "size": "m", "props": []}])[0],
+                  "rect": (1, 1, max(2, grid.cols - 2), max(2, grid.rows - 2))}]
+        return rooms, []
+
+    wanted = _clamp(len(spec["rooms"]) or 3, 2, 9)
+    min_leaf = _clamp(min(grid.cols, grid.rows) // 4, 6, 14)
+    leaves = _bsp_split(inner, wanted, rng, min_leaf=min_leaf)
+
+    rooms = []
+    for leaf in leaves:
+        lx, ly, lw, lh = leaf
+        # The alley is the gap left between one block and the next.
+        bx, by = lx + 1, ly + 1
+        bw, bh = lw - 2, lh - 2
+        if bw < 4 or bh < 4:
+            continue                       # too thin to be a building; leave it as street
+
+        grid.fill_rect(bx, by, bw, bh, WALL)
+        grid.fill_rect(bx + 1, by + 1, bw - 2, bh - 2, FLOOR)
+
+        # Bigger houses get a partition, so an interior is not one bare box.
+        if bw >= 9 and bh >= 6 and rng.random() < 0.7:
+            px = bx + rng.randrange(3, bw - 3)
+            for y in range(by + 1, by + bh - 1):
+                grid.set(px, y, WALL)
+            grid.set(px, by + 1 + rng.randrange(0, max(1, bh - 2)), DOOR)
+        elif bh >= 9 and bw >= 6 and rng.random() < 0.7:
+            py = by + rng.randrange(3, bh - 3)
+            for x in range(bx + 1, bx + bw - 1):
+                grid.set(x, py, WALL)
+            grid.set(bx + 1 + rng.randrange(0, max(1, bw - 2)), py, DOOR)
+
+        # A street door, on whichever side has an alley against it.
+        sides = []
+        if by > 1:
+            sides.append(("n", bx + bw // 2, by))
+        if by + bh < grid.rows - 1:
+            sides.append(("s", bx + bw // 2, by + bh - 1))
+        if bx > 1:
+            sides.append(("w", bx, by + bh // 2))
+        if bx + bw < grid.cols - 1:
+            sides.append(("e", bx + bw - 1, by + bh // 2))
+        rng.shuffle(sides)
+        opened = False
+        for _, dx, dy in sides:
+            # Only a wall with open ground on the far side is a way out.
+            out = ((dx, dy - 1) if dy == by else
+                   (dx, dy + 1) if dy == by + bh - 1 else
+                   (dx - 1, dy) if dx == bx else (dx + 1, dy))
+            if grid.get(*out) == FLOOR:
+                grid.set(dx, dy, DOOR)
+                opened = True
+                break
+        if not opened:
+            # Nothing faced an alley, so cut one through the nearest wall run.
+            for yy in range(by, by + bh):
+                for xx in range(bx, bx + bw):
+                    if grid.get(xx, yy) != WALL:
+                        continue
+                    for ox, oy in ((xx + 1, yy), (xx - 1, yy), (xx, yy + 1), (xx, yy - 1)):
+                        if grid.get(ox, oy) == FLOOR and not (bx < ox < bx + bw - 1 and
+                                                              by < oy < by + bh - 1):
+                            grid.set(xx, yy, DOOR)
+                            opened = True
+                            break
+                    if opened:
+                        break
+                if opened:
+                    break
+
+        idx = len(rooms)
+        spec_room = (spec["rooms"][idx] if idx < len(spec["rooms"])
+                     else {"label": f"Building {idx + 1}", "size": "m", "props": []})
+        rooms.append({"spec": spec_room,
+                      "rect": (bx + 1, by + 1, max(2, bw - 2), max(2, bh - 2))})
+
+    if not rooms:
+        rooms.append({"spec": (spec["rooms"] or [{"label": "Street", "size": "m",
+                                                  "props": []}])[0],
+                      "rect": (1, 1, max(2, grid.cols - 2), max(2, grid.rows - 2))})
+    return rooms, []
+
+
 def _gen_arena(grid, spec, rng):
     """One dramatic chamber: a sand floor ringed by a colonnade and a gallery.
 
@@ -1097,6 +1188,7 @@ _GENERATORS = {
     "swamp": _gen_swamp,
     "ruins": _gen_ruins,
     "deck": _gen_deck,
+    "district": _gen_district,
     "custom": _gen_custom,
 }
 
@@ -1201,8 +1293,13 @@ def _ensure_connected(grid, rng):
             return
         target = min(main, key=lambda c: abs(c[0] - stranded[0]) + abs(c[1] - stranded[1]))
         for cell in _carve_corridor(grid, stranded, target, rng):
-            if grid.get(*cell) in (WATER, PIT, VOID):
+            here = grid.get(*cell)
+            if here in (WATER, PIT, VOID):
                 grid.set(cell[0], cell[1], BRIDGE)
+            elif here == WALL:
+                # _fix_doors runs afterwards and demotes this to a plain opening
+                # if it turns out not to be seated in a wall run.
+                grid.set(cell[0], cell[1], DOOR)
 
 
 def _prop_slots(grid, rect, want_wall):
@@ -1401,6 +1498,8 @@ def normalize_spec(spec):
         "ruin": "ruins", "rubble_field": "ruins", "battlefield": "ruins",
         "port": "harbour", "harbor": "harbour", "docks": "harbour",
         "dock": "harbour", "waterfront": "harbour", "quay": "harbour",
+        "city": "district", "town": "district", "quarter": "district",
+        "block": "district", "alley": "district", "slum": "district",
         "pier": "harbour", "coast": "harbour",
         "ship": "deck", "shipdeck": "deck", "at_sea": "deck", "sea": "deck",
         "boarding": "deck", "galleon": "deck",

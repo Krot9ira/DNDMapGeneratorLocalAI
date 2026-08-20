@@ -306,13 +306,13 @@ Right-click *and drag* still pans, so the menu only opens on a click that stayed
 
 ## Styles
 
-Twenty-six of them, one JSON file each in `styles/`, covering the places a campaign actually
+Twenty-eight of them, one JSON file each in `styles/`, covering the places a campaign actually
 visits:
 
 | | |
 |---|---|
 | **Settlement** | `village_hamlet`, `farmstead` |
-| **Urban** | `city_streets`, `city_harbour`, `cyberpunk_street` |
+| **Urban** | `city_streets`, `city_district`, `city_townhouse`, `city_harbour`, `cyberpunk_street` |
 | **Fortress** | `castle_keep` |
 | **Dungeon** | `classic_dungeon`, `gothic_crypt`, `sunken_temple`, `sewer_tunnels` |
 | **Underground** | `underdark_cavern`, `abandoned_mine`, `volcanic_lair` |

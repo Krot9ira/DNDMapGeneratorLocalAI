@@ -812,6 +812,76 @@ inline RoomList GenStreet(TileGrid& g, const DesignSpec& spec, Rng& rng, PathLis
 // One dramatic chamber: a sand floor ringed by a barrier with four gates. It
 // used to be a plain rectangle with two rows of pillars, which a tile histogram
 // could not tell apart from `building`.
+// Buildings edge to edge, alleys between them, city to every margin. `street`
+// is one road with open ground beyond it; a city fight usually is not that.
+inline RoomList GenDistrict(TileGrid& g, const DesignSpec& spec, Rng& rng, PathList&) {
+    g.FillRect(0, 0, g.cols, g.rows, Tile::Floor);
+
+    RoomList rooms;
+    Rect inner{1, 1, g.cols - 2, g.rows - 2};
+    if (inner.w < 6 || inner.h < 6) {
+        RoomSpec rs = spec.rooms.empty()
+                          ? RoomSpec{"street", "Street", 'm', "none", {}, false, 0, 0, 0, 0}
+                          : spec.rooms[0];
+        rooms.push_back({rs, {1, 1, std::max(2, g.cols - 2), std::max(2, g.rows - 2)}});
+        return rooms;
+    }
+
+    int wanted = Clampi(spec.rooms.empty() ? 3 : (int)spec.rooms.size(), 2, 9);
+    int minLeaf = Clampi(std::min(g.cols, g.rows) / 4, 6, 14);
+    for (const Rect& leaf : BspSplit(inner, wanted, rng, minLeaf)) {
+        // The alley is the gap left between one block and the next.
+        int bx = leaf.x + 1, by = leaf.y + 1, bw = leaf.w - 2, bh = leaf.h - 2;
+        if (bw < 4 || bh < 4) continue;   // too thin for a building; leave it as street
+
+        g.FillRect(bx, by, bw, bh, Tile::Wall);
+        g.FillRect(bx + 1, by + 1, bw - 2, bh - 2, Tile::Floor);
+
+        // Bigger houses get a partition, so an interior is not one bare box.
+        if (bw >= 9 && bh >= 6 && rng.Chance(0.7f)) {
+            int px = bx + 3 + rng.Int(0, std::max(0, bw - 7));
+            for (int y = by + 1; y < by + bh - 1; ++y) g.Set(px, y, Tile::Wall);
+            g.Set(px, by + 1 + rng.Int(0, std::max(0, bh - 3)), Tile::Door);
+        } else if (bh >= 9 && bw >= 6 && rng.Chance(0.7f)) {
+            int py = by + 3 + rng.Int(0, std::max(0, bh - 7));
+            for (int x = bx + 1; x < bx + bw - 1; ++x) g.Set(x, py, Tile::Wall);
+            g.Set(bx + 1 + rng.Int(0, std::max(0, bw - 3)), py, Tile::Door);
+        }
+
+        // A street door, on a side that actually faces an alley.
+        struct Side { int x, y, ox, oy; };
+        std::vector<Side> sides;
+        if (by > 1) sides.push_back({bx + bw / 2, by, bx + bw / 2, by - 1});
+        if (by + bh < g.rows - 1)
+            sides.push_back({bx + bw / 2, by + bh - 1, bx + bw / 2, by + bh});
+        if (bx > 1) sides.push_back({bx, by + bh / 2, bx - 1, by + bh / 2});
+        if (bx + bw < g.cols - 1)
+            sides.push_back({bx + bw - 1, by + bh / 2, bx + bw, by + bh / 2});
+        for (size_t i = sides.size(); i > 1; --i)
+            std::swap(sides[i - 1], sides[(size_t)rng.Int(0, (int)i - 1)]);
+        for (const Side& sd : sides) {
+            if (g.Get(sd.ox, sd.oy) == Tile::Floor) {
+                g.Set(sd.x, sd.y, Tile::Door);
+                break;
+            }
+        }
+
+        size_t idx = rooms.size();
+        RoomSpec rs = idx < spec.rooms.size() ? spec.rooms[idx] : RoomSpec{};
+        if (rs.label.empty()) rs.label = "Building " + std::to_string(idx + 1);
+        if (rs.id.empty()) rs.id = rs.label;
+        rooms.push_back({rs, {bx + 1, by + 1, std::max(2, bw - 2), std::max(2, bh - 2)}});
+    }
+
+    if (rooms.empty()) {
+        RoomSpec rs = spec.rooms.empty()
+                          ? RoomSpec{"street", "Street", 'm', "none", {}, false, 0, 0, 0, 0}
+                          : spec.rooms[0];
+        rooms.push_back({rs, {1, 1, std::max(2, g.cols - 2), std::max(2, g.rows - 2)}});
+    }
+    return rooms;
+}
+
 inline RoomList GenArena(TileGrid& g, const DesignSpec& spec, Rng&, PathList&) {
     g.FillRect(0, 0, g.cols, g.rows, Tile::Void);
     const int m = 1;
@@ -1044,6 +1114,10 @@ inline void EnsureConnected(TileGrid& g, Rng& rng) {
             Tile t = g.Get(cell.first, cell.second);
             if (t == Tile::Water || t == Tile::Pit || t == Tile::Void)
                 g.Set(cell.first, cell.second, Tile::Bridge);
+            else if (t == Tile::Wall)
+                // FixDoors runs afterwards and demotes this to a plain opening
+                // if it turns out not to be seated in a wall run.
+                g.Set(cell.first, cell.second, Tile::Door);
         }
     }
 }
@@ -1246,6 +1320,7 @@ inline MapData Build(DesignSpec spec, uint32_t seed) {
     else if (L == "ruins") rooms = GenRuins(g, spec, rng, paths);
     else if (L == "deck") rooms = GenDeck(g, spec, rng, paths, structures);
     else if (L == "street") rooms = GenStreet(g, spec, rng, paths);
+    else if (L == "district") rooms = GenDistrict(g, spec, rng, paths);
     else if (L == "arena") rooms = GenArena(g, spec, rng, paths);
     else if (L == "harbour") rooms = GenHarbour(g, spec, rng, paths, structures);
     else if (L == "custom") rooms = GenCustom(g, spec, rng, paths);

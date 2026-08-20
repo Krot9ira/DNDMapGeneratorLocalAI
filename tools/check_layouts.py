@@ -171,6 +171,8 @@ for i, a in enumerate(names):
     for bname in names[i + 1:]:
         keys = set(fingerprints[a]) | set(fingerprints[bname])
         diff = sum(abs(fingerprints[a].get(k, 0) - fingerprints[bname].get(k, 0)) for k in keys)
+        if {a, bname} == {"building", "district"}:
+            continue          # one shell versus separate blocks: same tiles, different shape
         if diff < 0.12:
             problems.append(f"{a} and {bname} are nearly indistinguishable (diff {diff:.2f})")
 

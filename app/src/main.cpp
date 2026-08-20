@@ -60,8 +60,8 @@ static std::vector<uint8_t> g_resultPng;
 
 // ---------------------------------------------------------------- helpers
 static const char* kLayoutNames[] = {"(from style)", "dungeon", "building", "cavern",
-                                     "open", "forest", "swamp", "ruins",
-                                     "street", "arena", "harbour"};
+                                     "open", "forest", "swamp", "ruins", "deck",
+                                     "street", "district", "arena", "harbour"};
 static const char* kTerrainNames[] = {"none", "water", "pit", "rubble", "vegetation"};
 static const char* kAmountNames[] = {"low", "medium", "high"};
 

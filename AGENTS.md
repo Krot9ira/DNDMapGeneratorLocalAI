@@ -169,7 +169,8 @@ a blank rim, their guessing spoils empty space instead of the corner of a room. 
 | `forest` | dense woodland; clearings are carved out of thicket |
 | `swamp` | standing water, reed beds, islands of solid ground, plank walkways |
 | `ruins` | open site strewn with fragments of collapsed building |
-| `street` | city block with buildings along a road |
+| `street` | city block with buildings along a road, open ground beyond |
+| `district` | wall-to-wall city: buildings edge to edge with alleys between |
 | `arena` | a sand fighting floor inside a ringed barrier with gates |
 | `harbour` | quay, open water and a moored ship (the ship is generated for you) |
 | `deck` | one ship under way, its deck filling the map, open water all round |
