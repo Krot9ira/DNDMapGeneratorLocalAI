@@ -355,12 +355,20 @@ def build_caption(map_data, style=None, base=None):
     #    (see below - walls are emitted first, because openings only make sense
     #    once the runs they sit in exist)
     #    gets its own box - without this the renderer put openings where it liked.
-    door_word = style.get("door") or "a heavy closed timber door with iron banding and a ring handle"
+    # Seen from above, a door shows only the top face of its leaf. Asking for a
+    # "door leaf with a ring handle" asks for a front view, which is what made
+    # the intended doors come out tilted and arched.
+    door_word = style.get("door") or (
+        "A closed door filling this opening in the wall, seen from directly overhead so "
+        "only the flat top face of the door leaf is visible: a plain rectangular "
+        "timber panel with dark iron bands across it, lying flush inside the wall "
+        "opening and squared up with the wall, exactly as wide as the wall is thick. "
+        "It is drawn flat, straight on and level with everything around it, with no "
+        "perspective, no tilt, no arch or vault above it, no door frame standing "
+        "proud, no steps and no visible handle")
     for (x, y, w, h) in _merge_runs(grid, A.DOOR):
         structure.append({"type": "obj", "bbox": _bbox(x, y, w, h, cols, rows),
-                         "desc": f"{door_word}, set into the wall and completely filling the "
-                                 f"opening as a solid closed door leaf, not an empty gap. "
-                                 f"{_EXACT}"})
+                         "desc": f"{door_word}. {_EXACT}"})
 
     # 4b. Windows. Like doors, few and load-bearing: they say where the wall is
     #     broken by an opening, and the renderer will invent them anywhere if it
@@ -376,8 +384,20 @@ def build_caption(map_data, style=None, base=None):
 
     # 4b-2. Buildings first: the wall loop below skips anything already inside
     #       one of them.
-    labels = [str(a.get("label", "")).strip()
-              for a in (map_data.get("areas") or []) if str(a.get("label", "")).strip()]
+    # Match a name to a footprint by where it sits, not by list order - the
+    # areas are in creation order and include things that are not buildings at
+    # all, which is how a warehouse came to be called "the Moored Ship".
+    def _name_for(bx, by, bw, bh):
+        for a in (map_data.get("areas") or []):
+            label = str(a.get("label", "")).strip()
+            if not label:
+                continue
+            ax = int(a.get("x", 0)) + int(a.get("w", 1)) / 2.0
+            ay = int(a.get("y", 0)) + int(a.get("h", 1)) / 2.0
+            if bx <= ax <= bx + bw and by <= ay <= by + bh:
+                return f"the {label}"
+        return "a building"
+
     organic = str(meta.get("layout", "")).lower() in ("cavern", "forest", "swamp")
     hulls = [(int(st.get("x", 0)), int(st.get("y", 0)), int(st.get("w", 1)),
               int(st.get("h", 1)))
@@ -398,16 +418,26 @@ def build_caption(map_data, style=None, base=None):
             building_rects.append((bx, by, bw, bh))
             size_word = ("large" if bw * bh > cols * rows * 0.12 else
                          "small" if bw * bh < cols * rows * 0.05 else "mid-sized")
-            named = f"the {labels[i]}" if i < len(labels) else "a building"
+            named = _name_for(bx, by, bw, bh)
+            # A count attached to the wall it belongs to holds far better than
+            # one stated once for the whole map.
+            doors_here = sum(1 for yy in range(by, by + bh) for xx in range(bx, bx + bw)
+                             if grid.get(xx, yy) == A.DOOR)
+            door_note = (
+                "Exactly one doorway breaks its wall" if doors_here == 1 else
+                f"Exactly {doors_here} doorways break its wall" if doors_here else
+                "No doorway breaks its wall at all")
             walls.append({
                 "type": "obj",
                 "bbox": _bbox(bx, by, bw, bh, cols, rows),
                 "desc": (f"One single {size_word} building, {named}, standing alone inside "
                          f"this rectangle and nowhere else: thick unbroken outer walls right "
                          f"on the edges of the rectangle, its roof removed so the furnished "
-                         f"floor inside is fully visible from above. The ground immediately "
-                         f"outside it on every side is open and free of any wall. "
-                         f"{_EXACT}")})
+                         f"floor inside is fully visible from above. {door_note}, and the "
+                         f"rest of its outer wall is continuous masonry with no second "
+                         f"door, no archway and no gap anywhere in it. The ground "
+                         f"immediately outside it on every side is open and free of any "
+                         f"wall. {_EXACT}")})
 
     # 4c. Walls. Until now the renderer was handed room rectangles and left to
     #     invent every wall line itself, which is exactly where the layout came

@@ -144,9 +144,16 @@ public:
         "planking running fore and aft, a square cargo hatch amidships, the round base of a "
         "single mast with coiled rigging, and mooring ropes running to the dock. No sails and "
         "no lower decks.";
+    // Seen from above, a door shows only the top face of its leaf. Asking for a
+    // "door leaf with a ring handle" asks for a front view, which is what made
+    // the intended doors come out tilted and arched.
     static constexpr const char* DOOR_TEXT =
-        "A heavy closed timber door with iron banding and a ring handle, set into the wall and "
-        "completely filling the opening as a solid closed door leaf, not an empty gap.";
+        "A closed door filling this opening in the wall, seen from directly overhead so only "
+        "the flat top face of the door leaf is visible: a plain rectangular timber panel with "
+        "dark iron bands across it, lying flush inside the wall opening and squared up with "
+        "the wall, exactly as wide as the wall is thick. It is drawn flat, straight on and "
+        "level with everything around it, with no perspective, no tilt, no arch or vault "
+        "above it, no door frame standing proud, no steps and no visible handle.";
 
     static nlohmann::json Build(const MapData& map, const StyleDef* style,
                                 const BaseStyle& base) {
@@ -307,7 +314,6 @@ public:
             std::vector<Rect> hulls;
             for (const auto& st : map.structures)
                 if (st.kind == "ship") hulls.push_back({st.x, st.y, st.w, st.h});
-            size_t named = 0;
             for (const Blob& b : Components(g, {Tile::Wall, Tile::Door, Tile::Window})) {
                 if (buildings.size() >= 5) break;
                 if (b.cells < 6 || b.rect.w < 3 || b.rect.h < 3) continue;
@@ -323,9 +329,30 @@ public:
                 double share = (double)b.rect.w * b.rect.h / std::max(1, cols * rows);
                 std::string sizeWord = share > 0.12 ? "large"
                                      : (share < 0.05 ? "small" : "mid-sized");
+                // A count attached to the wall it belongs to holds far better
+                // than one stated once for the whole map.
+                int doorsHere = 0;
+                for (int yy = b.rect.y; yy < b.rect.y + b.rect.h; ++yy)
+                    for (int xx = b.rect.x; xx < b.rect.x + b.rect.w; ++xx)
+                        if (g.Get(xx, yy) == Tile::Door) ++doorsHere;
+                std::string doorNote =
+                    doorsHere == 1 ? "Exactly one doorway breaks its wall"
+                  : doorsHere == 0 ? "No doorway breaks its wall at all"
+                                   : "Exactly " + std::to_string(doorsHere) +
+                                     " doorways break its wall";
+                // Match a name to a footprint by where it sits, not by list
+                // order - the areas include things that are not buildings, which
+                // is how a warehouse came to be called "the Moored Ship".
                 std::string label = "a building";
-                while (named < map.areas.size() && map.areas[named].label.empty()) ++named;
-                if (named < map.areas.size()) label = "the " + map.areas[named++].label;
+                for (const Area& ar : map.areas) {
+                    if (ar.label.empty()) continue;
+                    double ax = ar.x + ar.w / 2.0, ay = ar.y + ar.h / 2.0;
+                    if (ax >= b.rect.x && ax <= b.rect.x + b.rect.w &&
+                        ay >= b.rect.y && ay <= b.rect.y + b.rect.h) {
+                        label = "the " + ar.label;
+                        break;
+                    }
+                }
                 walls.push_back({
                     {"type", "obj"},
                     {"bbox", Bbox(b.rect.x, b.rect.y, b.rect.w, b.rect.h, cols, rows)},
@@ -333,8 +360,10 @@ public:
                              ", standing alone inside this rectangle and nowhere else: thick "
                              "unbroken outer walls right on the edges of the rectangle, its "
                              "roof removed so the furnished floor inside is fully visible "
-                             "from above. The ground immediately outside it on every side is "
-                             "open and free of any wall. " + kExact}});
+                             "from above. " + doorNote + ", and the rest of its outer wall "
+                             "is continuous masonry with no second door, no archway and no "
+                             "gap anywhere in it. The ground immediately outside it on every "
+                             "side is open and free of any wall. " + kExact}});
             }
         }
 
