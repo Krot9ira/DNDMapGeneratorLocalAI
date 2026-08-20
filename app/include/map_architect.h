@@ -88,12 +88,22 @@ inline const std::set<std::string>& KnownProps() {
 
 // Language models write "wooden_barrels" and "mooring_bollards"; without this
 // every such prop degrades to a featureless blob.
+// Object kinds somebody added to the wording file themselves. Set once at
+// startup from the loaded phrasebook; empty until then, which is harmless.
+inline std::set<std::string>& CustomProps() {
+    static std::set<std::string> s;
+    return s;
+}
+
 inline std::string NormalizeProp(const std::string& raw) {
     std::string name = Lower(raw);
     for (char& c : name) if (c == ' ' || c == '-') c = '_';
     if (name.empty()) return name;
     const auto& known = KnownProps();
     if (known.count(name)) return name;
+    // A kind defined by hand is left exactly as written, or "raspberry_bush"
+    // collapses into "bush" and loses the description written for it.
+    if (CustomProps().count(name)) return name;
     if (name.size() > 1 && name.back() == 's' && known.count(name.substr(0, name.size() - 1)))
         return name.substr(0, name.size() - 1);
     // Longest known kind inside the phrase wins, so "stacked_crates" resolves
@@ -105,7 +115,16 @@ inline std::string NormalizeProp(const std::string& raw) {
 }
 
 // Props that genuinely shape play get pinned; the rest is left to the renderer.
+inline bool IsStructuralPropBuiltIn(const std::string& k);
+
 inline bool IsStructuralProp(const std::string& k) {
+    // Something defined by hand was defined deliberately, so it is pinned with
+    // its own rectangle rather than left to the renderer's judgement.
+    if (CustomProps().count(Lower(k))) return true;
+    return IsStructuralPropBuiltIn(k);
+}
+
+inline bool IsStructuralPropBuiltIn(const std::string& k) {
     static const std::set<std::string> s = {
         "pillar", "column", "statue", "obelisk", "totem", "idol", "altar", "shrine",
         "sarcophagus", "coffin", "tomb", "table", "bed", "bunk", "throne", "anvil",
@@ -802,7 +821,7 @@ inline RoomList GenStreet(TileGrid& g, const DesignSpec& spec, Rng& rng, PathLis
     // named stretch of it is better than nothing to hang props on.
     if (rooms.empty()) {
         RoomSpec rs = spec.rooms.empty()
-                          ? RoomSpec{"street", "Street", 'm', "none", {}, false, 0, 0, 0, 0}
+                          ? RoomSpec{"street", "Street", "", 'm', "none", {}, false, 0, 0, 0, 0}
                           : spec.rooms[0];
         rooms.push_back({rs, {1, 1, std::max(2, g.cols - 2), std::max(2, g.rows - 2)}});
     }
@@ -821,7 +840,7 @@ inline RoomList GenDistrict(TileGrid& g, const DesignSpec& spec, Rng& rng, PathL
     Rect inner{1, 1, g.cols - 2, g.rows - 2};
     if (inner.w < 6 || inner.h < 6) {
         RoomSpec rs = spec.rooms.empty()
-                          ? RoomSpec{"street", "Street", 'm', "none", {}, false, 0, 0, 0, 0}
+                          ? RoomSpec{"street", "Street", "", 'm', "none", {}, false, 0, 0, 0, 0}
                           : spec.rooms[0];
         rooms.push_back({rs, {1, 1, std::max(2, g.cols - 2), std::max(2, g.rows - 2)}});
         return rooms;
@@ -875,7 +894,7 @@ inline RoomList GenDistrict(TileGrid& g, const DesignSpec& spec, Rng& rng, PathL
 
     if (rooms.empty()) {
         RoomSpec rs = spec.rooms.empty()
-                          ? RoomSpec{"street", "Street", 'm', "none", {}, false, 0, 0, 0, 0}
+                          ? RoomSpec{"street", "Street", "", 'm', "none", {}, false, 0, 0, 0, 0}
                           : spec.rooms[0];
         rooms.push_back({rs, {1, 1, std::max(2, g.cols - 2), std::max(2, g.rows - 2)}});
     }
@@ -925,7 +944,7 @@ inline RoomList GenArena(TileGrid& g, const DesignSpec& spec, Rng&, PathList&) {
     }
 
     RoomSpec first = spec.rooms.empty()
-                         ? RoomSpec{"arena", "Arena", 'l', "none", {}, false, 0, 0, 0, 0}
+                         ? RoomSpec{"arena", "Arena", "", 'l', "none", {}, false, 0, 0, 0, 0}
                          : spec.rooms[0];
     int r = std::max(2, (int)(radius * 0.7f));
     RoomList rooms;
@@ -959,7 +978,7 @@ inline RoomList GenHarbour(TileGrid& g, DesignSpec& spec, Rng& rng, PathList&,
     if (hy + hullH > g.rows) hullH = g.rows - hy;
     CarveShip(g, hx, hy, hullW, hullH);
     outStructures.push_back({"ship", hx, hy, hullW, hullH, "e"});
-    rooms.push_back({RoomSpec{"ship", "Moored Ship", 'l', "none",
+    rooms.push_back({RoomSpec{"ship", "Moored Ship", "", 'l', "none",
                               {"mast", "capstan", "crate", "barrel", "rope_coil"},
                               false, 0, 0, 0, 0},
                      Rect{hx + 2, hy + 1, std::max(2, hullW - 4), std::max(2, hullH - 2)}});
@@ -1000,7 +1019,7 @@ inline RoomList GenHarbour(TileGrid& g, DesignSpec& spec, Rng& rng, PathList&,
     }
     // The dock itself is an area, otherwise it renders as blank background.
     int dockTop = std::max(1, quayY - 3);
-    rooms.push_back({RoomSpec{"quay", "Quay", 'l', "none",
+    rooms.push_back({RoomSpec{"quay", "Quay", "", 'l', "none",
                               {"crate", "barrel", "cart", "rope_coil", "net", "crate", "barrel"},
                               false, 0, 0, 0, 0},
                      Rect{1, dockTop, g.cols - 2, quayY - dockTop}});
@@ -1300,9 +1319,16 @@ inline void AddBorder(MapData& map, int cells) {
 inline MapData Build(DesignSpec spec, uint32_t seed) {
     Rng rng(seed);
     if (spec.rooms.empty()) {
-        spec.rooms = {{"main_hall", "Main Hall", 'l', "none", {}, false, 0, 0, 0, 0},
-                      {"side_room", "Side Chamber", 'm', "none", {}, false, 0, 0, 0, 0},
-                      {"back_room", "Back Chamber", 'm', "none", {}, false, 0, 0, 0, 0}};
+        spec.rooms = {
+            {"main_hall", "Main Hall",
+             "The largest space, worn smooth down the middle where people walk.", 'l',
+             "none", {}, false, 0, 0, 0, 0},
+            {"side_room", "Side Chamber",
+             "A smaller room off the main one, its floor less worn.", 'm',
+             "none", {}, false, 0, 0, 0, 0},
+            {"back_room", "Back Chamber",
+             "The room furthest from the entrance, dusty and little used.", 'm',
+             "none", {}, false, 0, 0, 0, 0}};
     }
     spec.cols = Clampi(spec.cols, kMinCells, kMaxCells);
     spec.rows = Clampi(spec.rows, kMinCells, kMaxCells);
@@ -1352,8 +1378,8 @@ inline MapData Build(DesignSpec spec, uint32_t seed) {
     map.structures = structures;
     map.features = PlaceProps(g, rooms, spec, rng);
     for (const auto& rp : rooms)
-        map.areas.push_back({rp.first.id, rp.first.label, std::string(), rp.second.x,
-                             rp.second.y, rp.second.w, rp.second.h});
+        map.areas.push_back({rp.first.id, rp.first.label, rp.first.description,
+                             rp.second.x, rp.second.y, rp.second.w, rp.second.h});
     // The blank ring goes on last, so every generator above works in plain
     // 0..cols coordinates and knows nothing about it.
     AddBorder(map, Clampi(spec.border, 0, 8));

@@ -309,9 +309,16 @@ static DesignSpec SpecFromUi() {
     spec.edge_walls = !outdoor;
 
     // Without a described scene the architect still needs areas to fill.
-    spec.rooms = {{"area_1", "Main Area", 'l', "none", {}, false, 0, 0, 0, 0},
-                  {"area_2", "Second Area", 'm', "none", {}, false, 0, 0, 0, 0},
-                  {"area_3", "Third Area", 'm', "none", {}, false, 0, 0, 0, 0}};
+    spec.rooms = {
+        {"main_hall", "Main Hall",
+         "The largest space, worn smooth down the middle where people walk.", 'l',
+         "none", {}, false, 0, 0, 0, 0},
+        {"side_room", "Side Chamber",
+         "A smaller room off the main one, its floor less worn.", 'm',
+         "none", {}, false, 0, 0, 0, 0},
+        {"back_room", "Back Chamber",
+         "The room furthest from the entrance, dusty and little used.", 'm',
+         "none", {}, false, 0, 0, 0, 0}};
     return spec;
 }
 

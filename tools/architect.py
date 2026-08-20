@@ -1468,9 +1468,12 @@ def zones_to_grid(map_data):
 # -- spec normalisation and the public entry point --------------------
 
 _DEFAULT_ROOMS = [
-    {"id": "main_hall", "label": "Main Hall", "size": "l", "props": []},
-    {"id": "side_room", "label": "Side Chamber", "size": "m", "props": []},
-    {"id": "back_room", "label": "Back Chamber", "size": "m", "props": []},
+    {"id": "main_hall", "label": "Main Hall", "size": "l", "props": [],
+     "description": "The largest space, worn smooth down the middle where people walk."},
+    {"id": "side_room", "label": "Side Chamber", "size": "m", "props": [],
+     "description": "A smaller room off the main one, its floor less worn."},
+    {"id": "back_room", "label": "Back Chamber", "size": "m", "props": [],
+     "description": "The room furthest from the entrance, dusty and little used."},
 ]
 
 

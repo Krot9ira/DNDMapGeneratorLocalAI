@@ -215,6 +215,9 @@ struct TileGrid {
 struct RoomSpec {
     std::string id;
     std::string label;
+    // What this room is, in the planner's own words. It travels to the area and
+    // from there into the caption: the second half of naming a room.
+    std::string description;
     char size = 'm';                 // s / m / l
     std::string terrain = "none";
     std::vector<std::string> props;

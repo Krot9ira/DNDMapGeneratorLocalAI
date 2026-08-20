@@ -5,6 +5,7 @@
 // and removed without touching the app. styles/_base.json holds the fragments
 // shared by every style - most importantly the negative list that keeps text,
 // creatures and grid overlays out of every render.
+#include "map_architect.h"
 #include "map_types.h"
 #include "map_serializer.h"
 
@@ -103,6 +104,17 @@ public:
 
     // The wording file is optional: anything missing falls back to the text
     // compiled into the caption builder.
+    // The architect needs to know which kinds were defined by hand, so it can
+    // leave their names alone and pin them with their own rectangles.
+    void PublishCustomProps() {
+        arch::CustomProps().clear();
+        auto it = phrases.sections.find("props");
+        if (it == phrases.sections.end()) return;
+        for (const auto& [kind, phrase] : it->second)
+            if (!phrase.empty() && !arch::KnownProps().count(kind))
+                arch::CustomProps().insert(kind);
+    }
+
     void LoadPhrases() {
         phrases.sections.clear();
         fs::path p = fs::path(stylesDir) / "_phrases.json";
@@ -120,6 +132,7 @@ public:
         } catch (const std::exception& e) {
             lastError = std::string("_phrases.json: ") + e.what();
         }
+        PublishCustomProps();
     }
 
     bool SavePhrases() {
