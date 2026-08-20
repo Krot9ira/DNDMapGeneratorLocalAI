@@ -95,26 +95,25 @@ and low in contrast.
 1. **The app closed itself once**, after a successful render. The file was saved and the
    image written. No entry in the Windows event log, and it has not happened since. Worth
    watching.
-2. **Prompt adherence is better but not solved.** Three test renders of the same harbour
-   plan, each changing one thing:
+2. **Prompt adherence.** Five test renders of the same harbour plan, each changing one thing:
 
    | Round | Change | Result |
    |---|---|---|
-   | 1 | wall runs given their own bounding boxes | walls straight, thick and continuous instead of wandering; margin respected; renderer added a row of archways along one long wall |
-   | 2 | caption states how many doors and windows exist in total | the invented archways stopped; layout came back mirrored and over-subdivided |
-   | 3 | each logical wall merged into one rectangle, open ground described, "not symmetrical" stated | open quay stayed genuinely open; symmetry reduced but not gone |
+   | 1 | wall runs given their own bounding boxes | walls straight and continuous instead of wandering; a row of invented archways along one long wall |
+   | 2 | the caption states how many doors and windows exist in total | invented archways stopped; layout came back mirrored and over-subdivided |
+   | 3 | each logical wall merged into one rectangle; open ground described; "not symmetrical" stated | open quay stayed open; symmetry reduced, not gone |
+   | 4 | buildings as footprints, open ground as real blocks, every wall run kept | walls covered 98% of the plan - and at 45 elements the layout came back mirrored, interiors subdivided, and **two human figures appeared** in a map whose caption forbids them |
+   | 5 | **fewer elements, not more**: buildings as whole named objects, only free-standing wall runs, no room described twice, ban repeated last. 24 elements, 10 KB | three separate buildings of the right sizes, one door each, open ground genuinely open, margin clean, no people |
 
-   What is fixed: walls exist in the caption at all, they are straight and continuous, the
-   bleed margin is honoured, no invented openings, and the open ground is no longer filled
-   with buildings the renderer made up.
+   The turning point was drawing the caption's own bounding boxes back onto the plan
+   (`scratchpad/bbox_overlay.py` in the working notes). It showed the wall boxes landing
+   exactly where they should - and the open ground carrying no boxes at all. The renderer was
+   not ignoring the walls; it was filling the silence everywhere else. Adding more boxes made
+   that worse, because the caption has a finite attention budget and sixteen near-identical
+   wall runs spent it.
 
-   What is not: on a scene with several similar buildings, the renderer still tends towards a
-   symmetrical arrangement and subdivides the interiors more than the plan asks for.
-
-   **The next lever to try** is describing each building as one footprint object with its own
-   distinct wording — "the large cargo warehouse", "the small harbourmaster's office" — rather
-   than as a set of wall runs that all read alike. Distinct objects should break the symmetry
-   the way a dozen similar walls provoke it.
+   Still imperfect: room proportions drift by a cell or two, and a room the plan leaves open
+   on one side may come back closed with a door.
 
 ---
 
