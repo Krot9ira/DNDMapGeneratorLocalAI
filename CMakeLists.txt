@@ -99,6 +99,8 @@ add_custom_command(TARGET DndBattlemapGenerator POST_BUILD
     # Licences. The executable statically contains Dear ImGui, nlohmann/json and
     # stb, all of which require their notice to travel with any copy - so both
     # files ship, not just ours.
+    COMMAND ${CMAKE_COMMAND} -E rm -f "${DIST_DIR}/imgui.ini"
+
     COMMAND ${CMAKE_COMMAND} -E copy
             "${CMAKE_CURRENT_SOURCE_DIR}/LICENSE"
             "${CMAKE_CURRENT_SOURCE_DIR}/THIRD_PARTY.md"
