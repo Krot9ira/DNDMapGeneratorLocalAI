@@ -1,0 +1,33 @@
+{
+  "id": "volcanic_lair",
+  "name": "Volcanic Dragon Lair",
+  "category": "Cavern",
+  "description": "Obsidian rock, magma fissures and glowing ember light.",
+  "palette": "obsidian black, ember orange, molten yellow, ash grey, sulphur",
+  "lighting": "hot orange underlighting from magma, harsh contrast, glowing rim light",
+  "default_layout": "cavern",
+  "props": [
+    "boulder",
+    "bones",
+    "chest",
+    "stalagmite",
+    "brazier",
+    "crystal"
+  ],
+  "tags": [
+    "volcano",
+    "dragon",
+    "lava",
+    "lair"
+  ],
+  "aesthetics": "Hand-painted fantasy cartography, rough painterly brushwork with visible strokes, strong dark ink outlines around every object and wall, subtle black and brown linework, restrained desaturated colour, carefully shaded volumetric detail, inked line art over watercolour and gouache, premium hand-drawn D&D virtual tabletop map, dense environmental storytelling",
+  "hex_palette": [
+    "#241F1D",
+    "#7A2E12",
+    "#E08A2E",
+    "#4A403A",
+    "#C0492A"
+  ],
+  "ground": "heat-fractured black basalt crusted with grey ash and sulphur",
+  "materials": "A volcanic dragon lair of black obsidian and scorched basalt. Cracked heat-fractured rock floor, rivers and pools of glowing orange magma casting light upward, drifting ash and ember sparks, sulphurous yellow mineral crusts, heaps of scorched treasure and blackened bone, jagged volcanic spires."
+}

@@ -1,0 +1,36 @@
+{
+  "id": "gothic_crypt",
+  "name": "Gothic Crypt & Catacombs",
+  "category": "Dungeon",
+  "description": "Ancient stone crypts, dusty sarcophagi, bone ossuaries and cold candlelight.",
+  "palette": "cold slate grey, charcoal, bone white, desaturated indigo, faint teal glow",
+  "lighting": "cold pale blue candlelight with deep rim shadows",
+  "default_layout": "dungeon",
+  "props": [
+    "sarcophagus",
+    "bones",
+    "brazier",
+    "pillar",
+    "rubble",
+    "torch",
+    "chest",
+    "statue"
+  ],
+  "tags": [
+    "crypt",
+    "tomb",
+    "catacombs",
+    "undead",
+    "gothic"
+  ],
+  "aesthetics": "Hand-painted fantasy cartography, rough painterly brushwork with visible strokes, strong dark ink outlines around every object and wall, subtle black and brown linework, restrained desaturated colour, carefully shaded volumetric detail, inked line art over watercolour and gouache, premium hand-drawn D&D virtual tabletop map, dense environmental storytelling",
+  "hex_palette": [
+    "#6E7076",
+    "#3B3F46",
+    "#A9A497",
+    "#20242B",
+    "#5C7A88"
+  ],
+  "ground": "cracked damp flagstones of dark slate, streaked with lime and black moss",
+  "materials": "An ancient gothic crypt carved from dark slate and weathered granite. Cracked flagstone floors streaked with damp, heavy masonry walls with carved reliefs and arched niches, stone sarcophagi with chipped lids, bone piles stacked in alcoves, iron candelabras with cold pale-blue flames, creeping black moss and cobwebs in the corners."
+}

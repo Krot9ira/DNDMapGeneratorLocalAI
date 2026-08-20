@@ -1,0 +1,29 @@
+# Build
+/build/
+/bin/
+/dist/
+*.obj
+*.pdb
+*.ilk
+*.exp
+*.lib
+
+# Generated maps. Keep the folder, not what lands in it.
+/output/*
+!/output/.gitkeep
+
+# Python
+__pycache__/
+*.py[cod]
+
+# Editors and Windows
+.vs/
+.vscode/
+.idea/
+*.user
+*.suo
+Thumbs.db
+desktop.ini
+
+# Local machine settings. Copy config.json and edit the copy.
+config.local.json

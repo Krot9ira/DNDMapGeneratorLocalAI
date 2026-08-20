@@ -1,0 +1,33 @@
+{
+  "id": "underdark_cavern",
+  "name": "Underdark Crystal Cavern",
+  "category": "Cavern",
+  "description": "Glowing fungi, violet crystal and black subterranean pools.",
+  "palette": "black basalt, violet glow, cyan luminescence, pale mineral grey",
+  "lighting": "bioluminescent crystal glow from below, cold rim light, deep shadow",
+  "default_layout": "cavern",
+  "props": [
+    "crystal",
+    "stalagmite",
+    "mushroom",
+    "boulder",
+    "bones",
+    "pool"
+  ],
+  "tags": [
+    "underdark",
+    "cave",
+    "crystal",
+    "drow"
+  ],
+  "aesthetics": "Hand-painted fantasy cartography, rough painterly brushwork with visible strokes, strong dark ink outlines around every object and wall, subtle black and brown linework, restrained desaturated colour, carefully shaded volumetric detail, inked line art over watercolour and gouache, premium hand-drawn D&D virtual tabletop map, dense environmental storytelling",
+  "hex_palette": [
+    "#2A2733",
+    "#5B4A7A",
+    "#3FA9A0",
+    "#8E8A9C",
+    "#12111A"
+  ],
+  "ground": "uneven black rock shot through with pale mineral veins",
+  "materials": "A vast underdark cavern of rough black stone. Uneven rock floor with mineral veins, jagged stalagmites, clusters of glowing violet and cyan crystal growing from the walls, luminescent mushrooms in soft blue and green, still black subterranean pools reflecting the glow, chalky mineral deposits and scattered scree."
+}

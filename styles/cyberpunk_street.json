@@ -1,0 +1,34 @@
+{
+  "id": "cyberpunk_street",
+  "name": "Cyberpunk Neon Alley",
+  "category": "Urban",
+  "description": "Rain-slick asphalt, neon signage and steaming vents.",
+  "palette": "wet black asphalt, magenta and cyan neon, dirty concrete grey, sodium orange",
+  "lighting": "saturated neon reflections on wet ground, deep shadow between signs",
+  "default_layout": "street",
+  "props": [
+    "dumpster",
+    "crate",
+    "barrel",
+    "lamp",
+    "vending",
+    "cart",
+    "console"
+  ],
+  "tags": [
+    "cyberpunk",
+    "city",
+    "neon",
+    "modern"
+  ],
+  "aesthetics": "Hand-painted fantasy cartography, rough painterly brushwork with visible strokes, strong dark ink outlines around every object and wall, subtle black and brown linework, restrained desaturated colour, carefully shaded volumetric detail, inked line art over watercolour and gouache, premium hand-drawn D&D virtual tabletop map, dense environmental storytelling",
+  "hex_palette": [
+    "#14161C",
+    "#D6318C",
+    "#2ED9E0",
+    "#54585E",
+    "#E08A2E"
+  ],
+  "ground": "rain-slick cracked asphalt with reflective puddles and painted road markings",
+  "materials": "A rain-slick cyberpunk back alley. Cracked wet asphalt with reflective puddles, graffiti-tagged concrete walls, dense holographic neon signage in magenta and cyan, tangled cabling and air-conditioning units, steaming street vents, overflowing dumpsters and stacked plastic crates, corrugated shutters."
+}

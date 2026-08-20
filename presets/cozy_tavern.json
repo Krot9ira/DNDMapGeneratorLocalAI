@@ -1,0 +1,428 @@
+{
+  "meta": {
+    "name": "cozy_tavern",
+    "title": "The Drowned Rat",
+    "style": "cozy_tavern",
+    "layout": "building",
+    "scene_summary": "A warm timber tavern seen with its roof removed.",
+    "render_details": "",
+    "terrain_kind": "none",
+    "terrain_amount": "medium",
+    "prop_density": "high",
+    "seed": 11
+  },
+  "grid": {
+    "cols": 28,
+    "rows": 20,
+    "cell_px": 32
+  },
+  "zones": [
+    {
+      "id": "base",
+      "kind": "void",
+      "x": 0,
+      "y": 0,
+      "w": 28,
+      "h": 20
+    },
+    {
+      "id": "floor_1",
+      "kind": "floor",
+      "x": 2,
+      "y": 2,
+      "w": 12,
+      "h": 17
+    },
+    {
+      "id": "floor_2",
+      "kind": "floor",
+      "x": 15,
+      "y": 2,
+      "w": 5,
+      "h": 17
+    },
+    {
+      "id": "floor_3",
+      "kind": "floor",
+      "x": 21,
+      "y": 2,
+      "w": 6,
+      "h": 17
+    },
+    {
+      "id": "wall_1",
+      "kind": "wall",
+      "x": 23,
+      "y": 0,
+      "w": 3,
+      "h": 1
+    },
+    {
+      "id": "wall_2",
+      "kind": "wall",
+      "x": 1,
+      "y": 1,
+      "w": 23,
+      "h": 1
+    },
+    {
+      "id": "wall_3",
+      "kind": "wall",
+      "x": 25,
+      "y": 1,
+      "w": 3,
+      "h": 1
+    },
+    {
+      "id": "wall_4",
+      "kind": "wall",
+      "x": 1,
+      "y": 2,
+      "w": 1,
+      "h": 18
+    },
+    {
+      "id": "wall_5",
+      "kind": "wall",
+      "x": 14,
+      "y": 2,
+      "w": 1,
+      "h": 8
+    },
+    {
+      "id": "wall_6",
+      "kind": "wall",
+      "x": 20,
+      "y": 2,
+      "w": 1,
+      "h": 8
+    },
+    {
+      "id": "wall_7",
+      "kind": "wall",
+      "x": 27,
+      "y": 2,
+      "w": 1,
+      "h": 18
+    },
+    {
+      "id": "wall_8",
+      "kind": "wall",
+      "x": 14,
+      "y": 11,
+      "w": 1,
+      "h": 9
+    },
+    {
+      "id": "wall_9",
+      "kind": "wall",
+      "x": 20,
+      "y": 11,
+      "w": 1,
+      "h": 9
+    },
+    {
+      "id": "wall_10",
+      "kind": "wall",
+      "x": 2,
+      "y": 19,
+      "w": 12,
+      "h": 1
+    },
+    {
+      "id": "wall_11",
+      "kind": "wall",
+      "x": 15,
+      "y": 19,
+      "w": 5,
+      "h": 1
+    },
+    {
+      "id": "wall_12",
+      "kind": "wall",
+      "x": 21,
+      "y": 19,
+      "w": 6,
+      "h": 1
+    },
+    {
+      "id": "door_1",
+      "kind": "door",
+      "x": 24,
+      "y": 1,
+      "w": 1,
+      "h": 1
+    },
+    {
+      "id": "door_2",
+      "kind": "door",
+      "x": 14,
+      "y": 10,
+      "w": 1,
+      "h": 1
+    },
+    {
+      "id": "door_3",
+      "kind": "door",
+      "x": 20,
+      "y": 10,
+      "w": 1,
+      "h": 1
+    }
+  ],
+  "structures": [],
+  "features": [
+    {
+      "kind": "table",
+      "x": 24,
+      "y": 10,
+      "structural": true
+    },
+    {
+      "kind": "chair",
+      "x": 22,
+      "y": 10,
+      "structural": false
+    },
+    {
+      "kind": "hearth",
+      "x": 24,
+      "y": 12,
+      "structural": true
+    },
+    {
+      "kind": "bar",
+      "x": 26,
+      "y": 6,
+      "structural": true
+    },
+    {
+      "kind": "barrel",
+      "x": 26,
+      "y": 14,
+      "structural": false
+    },
+    {
+      "kind": "bar",
+      "x": 21,
+      "y": 18,
+      "structural": true
+    },
+    {
+      "kind": "lamp",
+      "x": 24,
+      "y": 8,
+      "structural": false
+    },
+    {
+      "kind": "hearth",
+      "x": 24,
+      "y": 14,
+      "structural": true
+    },
+    {
+      "kind": "barrel",
+      "x": 26,
+      "y": 18,
+      "structural": false
+    },
+    {
+      "kind": "lamp",
+      "x": 22,
+      "y": 12,
+      "structural": false
+    },
+    {
+      "kind": "bar",
+      "x": 26,
+      "y": 9,
+      "structural": true
+    },
+    {
+      "kind": "barrel",
+      "x": 26,
+      "y": 3,
+      "structural": false
+    },
+    {
+      "kind": "hearth",
+      "x": 8,
+      "y": 10,
+      "structural": true
+    },
+    {
+      "kind": "table",
+      "x": 8,
+      "y": 12,
+      "structural": true
+    },
+    {
+      "kind": "crate",
+      "x": 12,
+      "y": 18,
+      "structural": false
+    },
+    {
+      "kind": "bar",
+      "x": 13,
+      "y": 5,
+      "structural": true
+    },
+    {
+      "kind": "lamp",
+      "x": 8,
+      "y": 8,
+      "structural": false
+    },
+    {
+      "kind": "hearth",
+      "x": 10,
+      "y": 10,
+      "structural": true
+    },
+    {
+      "kind": "barrel",
+      "x": 3,
+      "y": 2,
+      "structural": false
+    },
+    {
+      "kind": "bed",
+      "x": 13,
+      "y": 13,
+      "structural": true
+    },
+    {
+      "kind": "bed",
+      "x": 8,
+      "y": 18,
+      "structural": true
+    },
+    {
+      "kind": "chair",
+      "x": 6,
+      "y": 10,
+      "structural": false
+    },
+    {
+      "kind": "bed",
+      "x": 2,
+      "y": 8,
+      "structural": true
+    },
+    {
+      "kind": "bed",
+      "x": 12,
+      "y": 2,
+      "structural": true
+    },
+    {
+      "kind": "hearth",
+      "x": 8,
+      "y": 6,
+      "structural": true
+    },
+    {
+      "kind": "table",
+      "x": 12,
+      "y": 10,
+      "structural": true
+    },
+    {
+      "kind": "bed",
+      "x": 15,
+      "y": 7,
+      "structural": true
+    },
+    {
+      "kind": "chest",
+      "x": 15,
+      "y": 12,
+      "structural": false
+    },
+    {
+      "kind": "bar",
+      "x": 15,
+      "y": 3,
+      "structural": true
+    },
+    {
+      "kind": "bar",
+      "x": 15,
+      "y": 14,
+      "structural": true
+    },
+    {
+      "kind": "bookshelf",
+      "x": 19,
+      "y": 8,
+      "structural": true
+    },
+    {
+      "kind": "hearth",
+      "x": 17,
+      "y": 10,
+      "structural": true
+    },
+    {
+      "kind": "bed",
+      "x": 18,
+      "y": 18,
+      "structural": true
+    },
+    {
+      "kind": "bed",
+      "x": 19,
+      "y": 6,
+      "structural": true
+    }
+  ],
+  "labels": [
+    {
+      "text": "Taproom",
+      "x": 24,
+      "y": 10,
+      "size": "md"
+    },
+    {
+      "text": "Kitchen",
+      "x": 8,
+      "y": 10,
+      "size": "md"
+    },
+    {
+      "text": "Back Room",
+      "x": 17,
+      "y": 10,
+      "size": "md"
+    }
+  ],
+  "areas": [
+    {
+      "id": "taproom",
+      "label": "Taproom",
+      "x": 21,
+      "y": 2,
+      "w": 6,
+      "h": 17
+    },
+    {
+      "id": "kitchen",
+      "label": "Kitchen",
+      "x": 2,
+      "y": 2,
+      "w": 12,
+      "h": 17
+    },
+    {
+      "id": "back_room",
+      "label": "Back Room",
+      "x": 15,
+      "y": 2,
+      "w": 5,
+      "h": 17
+    }
+  ],
+  "annotations": [],
+  "effects": []
+}

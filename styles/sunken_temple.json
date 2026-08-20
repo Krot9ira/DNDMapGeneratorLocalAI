@@ -1,0 +1,33 @@
+{
+  "id": "sunken_temple",
+  "name": "Sunken Ancient Temple",
+  "category": "Ruins",
+  "description": "Flooded marble ruins, carved idols and drifting lily pads.",
+  "palette": "pale weathered marble, jade water, moss green, tarnished gold",
+  "lighting": "soft filtered daylight, rippling caustic reflections on stone",
+  "default_layout": "dungeon",
+  "props": [
+    "pillar",
+    "statue",
+    "altar",
+    "rubble",
+    "boulder",
+    "bones"
+  ],
+  "tags": [
+    "temple",
+    "ruins",
+    "water",
+    "ancient"
+  ],
+  "aesthetics": "Hand-painted fantasy cartography, rough painterly brushwork with visible strokes, strong dark ink outlines around every object and wall, subtle black and brown linework, restrained desaturated colour, carefully shaded volumetric detail, inked line art over watercolour and gouache, premium hand-drawn D&D virtual tabletop map, dense environmental storytelling",
+  "hex_palette": [
+    "#C2BCA6",
+    "#6E8A6A",
+    "#3E5A52",
+    "#8A7C5A",
+    "#2C3A36"
+  ],
+  "ground": "cracked pale marble tiles half covered in green algae and shallow water",
+  "materials": "A half-sunken ancient temple. Cracked marble tiles and toppled fluted columns, carved stone idols and weathered relief panels, shallow green water pooling across the floor with visible submerged steps, thick moss and algae along the waterline, lily pads and drifting reeds, gold inlay dulled by centuries."
+}

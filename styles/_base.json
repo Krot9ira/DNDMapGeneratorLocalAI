@@ -1,0 +1,18 @@
+{
+  "id": "_base",
+  "name": "Shared caption contract",
+  "description": "Fragments merged into every Ideogram caption. `forbidden_suffix` is what keeps text, lettering and creatures out of every map - Ideogram takes no negative prompt, so this sentence is the only thing enforcing it.",
+  "aesthetics": "Hand-painted fantasy cartography, rough painterly brushwork with visible strokes, strong dark ink outlines around every object and wall, subtle black and brown linework, restrained desaturated colour, carefully shaded volumetric detail, inked line art over watercolour and gouache, premium hand-drawn D&D virtual tabletop map, dense environmental storytelling with many small props and clutter",
+  "medium": "Inked line art combined with watercolour and gouache painting over digital texture",
+  "lighting": "Soft warm ambient light from directly above with gentle directional shadows beneath walls and furniture",
+  "forbidden_suffix": "The scene is completely empty of people, creatures and animals, and carries no text, letters, numbers, labels or grid lines anywhere",
+  "background_suffix": "covering the whole frame, painted edge to edge with visible brushwork, grime in the joints and damp patches; the map fills the entire image with no border and no blank areas",
+  "roofless_note": "every building is drawn with its roof removed so the furnished interior is fully visible from directly above",
+  "default_palette": [
+    "#C8B99A",
+    "#8A7B63",
+    "#4A4038",
+    "#2E2A26",
+    "#6E7A6B"
+  ]
+}

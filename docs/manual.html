@@ -1,0 +1,524 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>D&D AI Battle Map Generator — User Manual</title>
+<style>
+  @page { size: A4; margin: 18mm 16mm 16mm 16mm;
+          @bottom-center { content: counter(page); font-size: 9pt; color: #888; } }
+  body { font-family: "Segoe UI", "Arial", sans-serif; font-size: 10.5pt; line-height: 1.55;
+         color: #23262b; }
+  h1 { font-size: 26pt; color: #6b4a12; margin: 0 0 4pt; page-break-before: avoid; }
+  h2 { font-size: 16pt; color: #6b4a12; margin: 22pt 0 6pt;
+       border-bottom: 2px solid #d8c48a; padding-bottom: 3pt; page-break-after: avoid; }
+  h3 { font-size: 12.5pt; color: #33383f; margin: 14pt 0 4pt; page-break-after: avoid; }
+  p { margin: 5pt 0; }
+  ul, ol { margin: 5pt 0 5pt 18pt; padding: 0; }
+  li { margin: 3pt 0; }
+  code { font-family: Consolas, monospace; font-size: 9.5pt; background: #f2efe6;
+         padding: 1pt 3pt; border-radius: 2pt; }
+  pre { font-family: Consolas, monospace; font-size: 9pt; background: #f7f5ef;
+        border-left: 3px solid #c9a227; padding: 7pt 9pt; margin: 6pt 0;
+        white-space: pre-wrap; page-break-inside: avoid; }
+  .lead { font-size: 11.5pt; color: #4a4f57; margin-bottom: 14pt; }
+  .box { border: 1px solid #ddd6c0; background: #fbfaf5; padding: 8pt 11pt;
+         margin: 9pt 0; border-radius: 3pt; page-break-inside: avoid; }
+  .warn { border-color: #e0b4a0; background: #fdf4f0; }
+  .ok   { border-color: #b6d3ac; background: #f4faf1; }
+  .box b { color: #6b4a12; }
+  table { border-collapse: collapse; width: 100%; margin: 8pt 0; font-size: 9.5pt;
+          page-break-inside: avoid; }
+  th { background: #efe9d6; text-align: left; padding: 5pt 7pt; border: 1px solid #ddd6c0; }
+  td { padding: 5pt 7pt; border: 1px solid #e6e2d4; vertical-align: top; }
+  .toc a { text-decoration: none; color: #23262b; }
+  .step { background: #6b4a12; color: #fff; border-radius: 50%; display: inline-block;
+          width: 17pt; height: 17pt; text-align: center; line-height: 17pt;
+          font-weight: bold; font-size: 10pt; margin-right: 5pt; }
+  h2 { page-break-before: always; }
+  h2:first-of-type { page-break-before: avoid; }
+  .muted { color: #7a7f87; font-size: 9.5pt; }
+</style>
+</head>
+<body>
+
+<h1>D&amp;D AI Battle Map Generator</h1>
+<p class="lead">User manual. Written for somebody who has never opened ComfyUI and does not
+intend to learn what a diffusion model is. Nothing here assumes any of that.</p>
+
+<div class="box">
+<b>In one sentence.</b> You type <i>"a harbour with one large moored ship"</i>, the program
+works out the floor plan, draws it, and then paints a finished top-down battle map you can
+load into Roll20 or Foundry and play on tonight.
+</div>
+
+<div class="toc">
+<p><b>Contents</b></p>
+<ol>
+<li><a href="#c1">What this is, and what it is not</a></li>
+<li><a href="#c2">What has to be running before you start</a></li>
+<li><a href="#c3">Quick start: your first map</a></li>
+<li><a href="#c4">The Create tab — describing the place</a></li>
+<li><a href="#c5">The Editor tab — changing it by hand</a></li>
+<li><a href="#c6">The Render tab — painting settings</a></li>
+<li><a href="#c7">The Styles tab — the look library</a></li>
+<li><a href="#c8">The Settings tab — services and models</a></li>
+<li><a href="#c9">What lands in the output folder</a></li>
+<li><a href="#c10">Working from the command line</a></li>
+<li><a href="#c11">Automation for AI agents</a></li>
+<li><a href="#c12">If something goes wrong</a></li>
+</ol>
+</div>
+
+<h2 id="c1">1. What this is, and what it is not</h2>
+
+<p>This program makes <b>battle maps</b>: the top-down picture of a place that a group fights
+across, one square per five feet. It does not make character art, region maps of a kingdom,
+or illustrations.</p>
+
+<h3>Three things are deliberately never drawn</h3>
+<table>
+<tr><th>Not drawn</th><th>Why</th></tr>
+<tr><td>Any text</td>
+    <td>Names, numbers and labels ruin a map at the table. Area names are stored in the plan
+        file and shown in the preview, never painted into the image.</td></tr>
+<tr><td>Living creatures</td>
+    <td>The GM puts tokens on the map. A painted-in guard is a guard you can never move or
+        kill.</td></tr>
+<tr><td>Grid lines</td>
+    <td>Roll20 and Foundry draw their own grid at their own scale. A baked-in grid never
+        lines up with it.</td></tr>
+</table>
+<p>You still choose the size <i>in squares</i> — that is how the proportions and the detail
+level are decided. Only the visible lines are absent.</p>
+
+<h3>The two stages</h3>
+<p>Everything the program does falls into one of two halves, and knowing which half went
+wrong is most of troubleshooting.</p>
+<ol>
+<li><b>The plan.</b> Your sentence becomes a floor plan: rooms, corridors, walls, doors,
+water, props. This is fast and happens on the CPU.</li>
+<li><b>The painting.</b> The plan is handed to the image model, which paints the finished
+map. This is the slow part and uses the graphics card.</li>
+</ol>
+<p>The plan is a file you can look at, edit and keep. If the map came out wrong, look at the
+plan first: <b>what you see in the Editor is what gets painted</b>.</p>
+
+<h2 id="c2">2. What has to be running before you start</h2>
+
+<p>The program does not paint anything itself. It drives two services on your own computer.
+Nothing is uploaded anywhere and no account is needed.</p>
+
+<table>
+<tr><th>Service</th><th>What it does</th><th>Required</th><th>Address</th></tr>
+<tr><td><b>ComfyUI</b></td><td>paints the picture</td><td>yes</td>
+    <td><code>http://127.0.0.1:8188</code></td></tr>
+<tr><td><b>Ollama</b></td><td>invents the plan from your sentence</td><td>no</td>
+    <td><code>http://127.0.0.1:11434</code></td></tr>
+</table>
+
+<div class="box ok">
+<b>Without Ollama everything still works.</b> The <b>Blueprint only</b> button builds a floor
+plan instantly, with no language model involved at all. You lose only the "type one sentence,
+get a plan" convenience — you can still shape everything by hand in the Editor and render it.
+</div>
+
+<h3>Model files ComfyUI needs</h3>
+<p>Four files, about 27.5 GB together. Each goes in a specific folder inside your ComfyUI
+installation:</p>
+<table>
+<tr><th>File</th><th>Size</th><th>Folder</th></tr>
+<tr><td><code>ideogram4_fp8_scaled.safetensors</code></td><td>8.6 GB</td>
+    <td><code>models/diffusion_models/</code></td></tr>
+<tr><td><code>ideogram4_unconditional_fp8_scaled.safetensors</code></td><td>8.6 GB</td>
+    <td><code>models/diffusion_models/</code></td></tr>
+<tr><td><code>qwen3vl_8b_fp8_scaled.safetensors</code></td><td>9.9 GB</td>
+    <td><code>models/text_encoders/</code></td></tr>
+<tr><td><code>flux2-vae.safetensors</code></td><td>0.3 GB</td>
+    <td><code>models/vae/</code></td></tr>
+</table>
+
+<div class="box warn">
+<b>Both <code>ideogram4</code> files are needed.</b> One is the ordinary model, the other is
+its unconditional twin, and the program uses the difference between them to sharpen the
+result. With only the first file the picture comes out pale, vague and low in contrast. This
+is the single most common installation mistake.
+</div>
+
+<h3>What the computer needs</h3>
+<table>
+<tr><th></th><th>Minimum</th><th>Comfortable</th></tr>
+<tr><td>Graphics card</td><td>NVIDIA, 8 GB video memory</td><td>NVIDIA, 12 GB or more</td></tr>
+<tr><td>System memory</td><td>32 GB</td><td>64 GB</td></tr>
+<tr><td>Free disk space</td><td>35 GB</td><td>50 GB</td></tr>
+<tr><td>Windows</td><td>10, 64-bit</td><td>11, 64-bit</td></tr>
+</table>
+<p>System memory matters more than usual here: the models are far too big to sit in video
+memory together, so most of them live in ordinary RAM and are streamed to the card as needed.
+With 8 GB of video memory, start ComfyUI with the <code>--lowvram</code> option if it
+struggles.</p>
+
+<p class="muted">A render takes minutes, not seconds. The first one after starting ComfyUI is
+noticeably slower than the rest, because 27 GB of model files have to be read off the disk.</p>
+
+<h2 id="c3">3. Quick start: your first map</h2>
+
+<p><span class="step">1</span> Start ComfyUI and wait until its page opens in a browser.</p>
+<p><span class="step">2</span> Start <code>DndBattlemapGenerator.exe</code>.</p>
+<p><span class="step">3</span> Open the <b>Settings</b> tab and press <b>Test both
+connections</b>. The ComfyUI line must turn green and say <i>ready</i>. If it does not,
+jump to chapter 12 — nothing else will work until it does.</p>
+<p><span class="step">4</span> Open the <b>Create</b> tab and type a scene, for example:</p>
+<pre>a flooded crypt with cracked sarcophagi and standing water</pre>
+<p><span class="step">5</span> Pick a look from the style cards. For this example,
+<i>Gothic Crypt &amp; Catacombs</i>.</p>
+<p><span class="step">6</span> Leave the size at <b>Medium</b> for now.</p>
+<p><span class="step">7</span> Press <b>MAKE MY BATTLE MAP</b> and wait.</p>
+
+<p>The plan appears within seconds and the painted map after a few minutes. Both are saved
+into the <code>output</code> folder, in a subfolder named after the map.</p>
+
+<div class="box">
+<b>If you do not want to wait.</b> The <b>Blueprint only (instant, no AI)</b> button builds
+just the floor plan — instantly, and without the language model. Useful when you want to try
+several layouts before spending time on painting one.
+</div>
+
+<h2 id="c4">4. The Create tab — describing the place</h2>
+
+<h3>The description</h3>
+<p>One or two sentences. Two things are worth naming: <b>what the place is</b>, and
+<b>what it is made of</b>.</p>
+<pre>Weak:   a dungeon
+Better: a damp stone dungeon with a collapsed corridor and a flooded lower room</pre>
+<p>You do not need to describe the geometry. Do not write "three rooms in a row" — the
+program decides the arrangement. Describe the place, not the floor plan.</p>
+
+<h3>Size in squares</h3>
+<p>Two sliders, <b>Width</b> and <b>Height</b>, from 10 to 150 squares each, with the size in
+feet shown underneath. Next to them are quick buttons:</p>
+<table>
+<tr><th>Button</th><th>Squares</th><th>When to use it</th></tr>
+<tr><td>Small</td><td>17 x 13</td><td>A single room, a short skirmish</td></tr>
+<tr><td>Medium</td><td>25 x 19</td><td>An ordinary fight — take this if unsure</td></tr>
+<tr><td>Large</td><td>66 x 50</td><td>A big scene: a harbour, several buildings</td></tr>
+<tr><td>Huge</td><td>100 x 75</td><td>A whole district or dungeon level</td></tr>
+<tr><td>Giant</td><td>150 x 150</td><td>The maximum. Noticeably slower to paint</td></tr>
+</table>
+<p class="muted">One square is the standard five feet (1.5 m) of D&amp;D.</p>
+
+<h3>Layout — the shape of the scene</h3>
+<p>Leave it on <i>(from style)</i> and the style decides. Override it when you want something
+specific:</p>
+<table>
+<tr><th>Layout</th><th>Builds</th></tr>
+<tr><td>dungeon</td><td>Separate rooms joined by corridors</td></tr>
+<tr><td>building</td><td>One structure, rooms divided by internal walls</td></tr>
+<tr><td>cavern</td><td>An organic cave with irregular walls</td></tr>
+<tr><td>open</td><td>Open ground with no enclosing walls: a field, a crossroads, a camp</td></tr>
+<tr><td>forest</td><td>Dense woodland; clearings are cut out of the thicket, paths between them</td></tr>
+<tr><td>swamp</td><td>Standing water, reed beds, islands of dry land, plank walkways</td></tr>
+<tr><td>ruins</td><td>Open ground strewn with fragments of collapsed walls</td></tr>
+<tr><td>street</td><td>A city block with buildings along a road</td></tr>
+<tr><td>arena</td><td>One dramatic chamber</td></tr>
+<tr><td>harbour</td><td>A quay, open water and a moored ship</td></tr>
+</table>
+
+<h3>Style — the look</h3>
+<p>Sets materials, palette and lighting. Styles are shown as a grid of cards, each painted in
+that style's own colours, so the right one can be spotted without reading every name.
+Hovering a card shows its description.</p>
+
+<h3>Ground clutter and prop density</h3>
+<p><b>Terrain</b> scatters water, pits, rubble or undergrowth across the floor, and
+<b>amount</b> says how much. <b>Prop density</b> controls how many objects — barrels, crates,
+tables — are placed. High density on a large map means a lot of furniture; if the result
+feels cluttered, lower it and re-plan.</p>
+
+<div class="box">
+<b>If waiting is not for you.</b> <b>Blueprint only (instant, no AI)</b> builds only the plan
+— instantly and with no language model. Handy for flipping through layout options before
+spending time on a render.
+</div>
+
+<h2 id="c5">5. The Editor tab — changing it by hand</h2>
+
+<p>The plan is shown as an editable grid. Everything you see here is what will be painted, so
+this tab is both the place to fix mistakes and the place to build a map from nothing.</p>
+
+<p><b>Left mouse</b> uses the current tool. <b>Right or middle mouse dragged</b> moves the
+view. <b>Wheel</b> zooms.</p>
+
+<h3>Tools</h3>
+<p>Each has its own icon next to its name, and a tooltip when you hover it.</p>
+<ul>
+<li><b>Look around</b> — look only, change nothing. The safe mode.</li>
+<li><b>Brush</b> — paints the selected material. Brush size is the slider below.</li>
+<li><b>Rectangle</b> — fills a rectangle: press, drag, release.</li>
+<li><b>Place prop</b> — places an object from the catalogue, or one of your own.</li>
+<li><b>Erase prop</b> — removes an object.</li>
+<li><b>Custom area</b> — a rectangle you describe in your own words.</li>
+<li><b>Effect</b> — lays an effect over an area: fire, fog, fireflies.</li>
+</ul>
+
+<h3>Materials</h3>
+<table>
+<tr><th>Material</th><th>Meaning</th></tr>
+<tr><td>floor</td><td>Ground you walk on</td></tr>
+<tr><td>wall</td><td>Solid wall, blocks movement and sight</td></tr>
+<tr><td>door</td><td>Door — belongs inside a wall</td></tr>
+<tr><td>water</td><td>Water</td></tr>
+<tr><td>pit</td><td>Pit or drop</td></tr>
+<tr><td>rubble</td><td>Loose rubble, difficult ground</td></tr>
+<tr><td>vegetation</td><td>Undergrowth and bushes</td></tr>
+<tr><td>bridge</td><td>Timber walkway or ship decking</td></tr>
+<tr><td>stairs</td><td>Stairs</td></tr>
+<tr><td>void</td><td>Emptiness — the eraser, clears everything</td></tr>
+</table>
+
+<h3>The prop catalogue</h3>
+<p>Objects are chosen from a scrolling grid of icons with names. The tooltip says what the
+thing is and how it plays — for example <i>full cover</i> or <i>difficult ground</i>.</p>
+
+<h3>Your own object</h3>
+<p>Tick <b>Custom object</b> in the <b>Place prop</b> tool. You give a name and a description,
+then choose how far the AI may embellish it:</p>
+<ul>
+<li><b>No — exactly as written</b> — draw precisely that and add nothing.</li>
+<li><b>A little</b> — fill in fitting detail.</li>
+<li><b>Freely</b> — take it as a starting point and develop it.</li>
+</ul>
+
+<h3>Custom area — an exact description for an exact place</h3>
+<p>The <b>Custom area</b> tool. Drag a rectangle and describe what belongs there: a barred
+gate, a breach in the wall, a particular door. This goes into the instructions for the painter
+at <b>top priority</b> together with its coordinates, so the thing ends up exactly where you
+marked it.</p>
+<p class="muted">This is also how you get non-standard walls and doors when the material list
+has no word for what you want.</p>
+
+<h3>Hovering and right-clicking</h3>
+<p>Hover any square and a tooltip names what stands on it — an object, an effect, one of your
+areas, or simply the floor material — along with the square's coordinates.</p>
+<p>Press the <b>right mouse button</b> and a menu opens for whatever is under the cursor. For
+your own objects, effects and areas you can change the name, the description and the amount of
+embellishment right there, or delete the thing. On an empty square it offers to pick that
+material into the brush.</p>
+<p class="muted">Right-click <i>and drag</i> still moves the view — the menu only opens on a
+click that stayed in one place.</p>
+
+<h3>Effects — a layer of their own</h3>
+<p>The <b>Effect</b> tool. Drag a rectangle and choose an effect from the icon grid: fire,
+embers, smoke, fog, mist, fireflies, arcane glow, holy light, poison gas, blood, ice, webs,
+sparks, ash, steam, shadow. You can define your own as well, exactly as with objects.</p>
+<p><b>Effects are the top layer.</b> They never change the floor and never affect whether
+something can be walked through: they are light, smoke and weather painted over the finished
+map. The <b>Strength</b> setting says how strongly the effect reads.</p>
+
+<div class="box">
+<b>The "Rebuild walls" button.</b> It re-derives every wall from the floor you have painted.
+Press it after large changes — this is exactly how generated maps get their walls, so the
+result is consistent with them.
+</div>
+
+<h3>Opening somebody else's plan</h3>
+<p><b>File → Open map.json…</b> shows every plan in the <code>output</code> folder as a grid
+of thumbnails, so you see the actual layout rather than only a folder name. This is how you
+open a map that was built by an AI agent or from the command line, look at it, and change it.</p>
+<p>The settings the map was made with come back with it: the scene description, the style, the
+size, the layout and the ground clutter.</p>
+<p class="muted">Double-clicking a card opens it immediately. Escape closes the window.</p>
+
+<h2 id="c6">6. The Render tab — painting settings</h2>
+
+<p>This tab paints whatever is currently in the Editor, so an edited plan can be re-rendered
+without being re-planned.</p>
+
+<table>
+<tr><th>Setting</th><th>What it does</th></tr>
+<tr><td><b>Preset</b></td>
+    <td><i>Turbo</i> 12 steps — fast and rough. <i>Default</i> 20 steps. <i>Quality</i> 48
+        steps — slow and best. Start with Quality; drop to Turbo when trying ideas.</td></tr>
+<tr><td><b>Guidance</b></td>
+    <td>How strictly the painter follows the instructions. Higher means more obedient and
+        less imaginative. The default is a good compromise.</td></tr>
+<tr><td><b>Resolution</b></td>
+    <td>Set as target megapixels; the actual width and height follow the shape of your grid.
+        Bigger means slower and more detailed.</td></tr>
+<tr><td><b>Seed</b></td>
+    <td>The same seed with the same plan gives the same picture. <code>-1</code> means a new
+        random one each time.</td></tr>
+</table>
+
+<p>Below the settings is the exact instruction text that will be sent, including the
+coordinates of every object. It is worth reading once, to see what the program actually asks
+for.</p>
+
+<h2 id="c7">7. The Styles tab — the look library</h2>
+
+<p>Every style is a single file in the <code>styles</code> folder. There are eleven of them,
+and this tab edits them in place: materials, palette, lighting, aesthetics, default layout and
+the standard set of props.</p>
+
+<p>The shared part that every style inherits lives in <code>styles/_base.json</code>. Among
+other things it holds the one sentence that forbids text, creatures and grid lines.</p>
+
+<div class="box warn">
+<b>Be careful with the base file.</b> The image model has no way of being told "do not draw
+X" — that sentence is the only thing keeping labels and people out of your maps. Rewrite it
+and they come back.
+</div>
+
+<p>To make your own style, copy any style file, change the <code>id</code> inside, and it
+appears in the program after a restart.</p>
+
+<h2 id="c8">8. The Settings tab — services and models</h2>
+
+<table>
+<tr><th>Setting</th><th>Notes</th></tr>
+<tr><td>ComfyUI address</td><td>Normally <code>http://127.0.0.1:8188</code></td></tr>
+<tr><td>Ollama address</td><td>Normally <code>http://127.0.0.1:11434</code></td></tr>
+<tr><td>Model filenames</td>
+    <td>Must match the files in <code>ComfyUI/models/</code> exactly, character for
+        character</td></tr>
+<tr><td>Planner model</td>
+    <td>The name as <code>ollama list</code> shows it</td></tr>
+<tr><td>Temperature</td>
+    <td>How inventive the planner is. Higher means more variety and less predictability</td></tr>
+</table>
+
+<p><b>Test both connections</b> checks both services and reports what it found. Everything is
+saved to <code>config.json</code> beside the program and shared with the command line
+tools.</p>
+
+<h2 id="c9">9. What lands in the output folder</h2>
+
+<p>Everything belonging to one map goes into <code>output/&lt;name&gt;/</code>:</p>
+<table>
+<tr><th>File</th><th>What it is</th></tr>
+<tr><td><code>battlemap*.png</code></td><td><b>The finished map.</b> This is the one you load
+    into your VTT</td></tr>
+<tr><td><code>preview.png</code></td><td>The labelled plan, for your eyes only — never
+    painted</td></tr>
+<tr><td><code>map.json</code></td><td>The plan itself. Can be reopened and re-rendered at any
+    time</td></tr>
+<tr><td><code>caption.json</code></td><td>The exact instructions the painter was given</td></tr>
+<tr><td><code>spec.json</code></td><td>The design description the first stage produced</td></tr>
+</table>
+
+<div class="box ok">
+<b>Keep <code>map.json</code>.</b> As long as you have it you can re-render the same place at
+a different size, in a different style, with a different seed, for as long as you like. The
+PNG is a result; the plan is the source.
+</div>
+
+<h2 id="c10">10. Working from the command line</h2>
+
+<p>Needs Python 3.10 or newer and the Pillow package:</p>
+<pre>pip install pillow</pre>
+
+<p>List everything available:</p>
+<pre>python tools/pipeline.py styles</pre>
+
+<p>Plan and paint in one go:</p>
+<pre>python tools/pipeline.py auto "a harbour with one large moored ship" --style city_harbour</pre>
+
+<p>Plan only, then paint later:</p>
+<pre>python tools/pipeline.py plan "flooded crypt with sarcophagi" --style gothic_crypt
+python tools/pipeline.py generate output/flooded_crypt/map.json</pre>
+
+<p>Redraw the human preview, or check and repair a plan:</p>
+<pre>python tools/pipeline.py preview output/flooded_crypt/map.json
+python tools/pipeline.py validate output/flooded_crypt/map.json</pre>
+
+<table>
+<tr><th>Flag</th><th>Meaning</th></tr>
+<tr><td><code>--cols</code>, <code>--rows</code></td><td>Exact grid size in squares</td></tr>
+<tr><td><code>--size</code></td><td><code>small</code> … <code>giant</code></td></tr>
+<tr><td><code>--seed</code></td><td>Fixed seed, so the same plan comes out again</td></tr>
+<tr><td><code>--out</code></td><td>Where to write the result</td></tr>
+<tr><td><code>--sketch</code></td><td>Hand the planner a rough layout picture. Needs an Ollama
+    model that can see images</td></tr>
+</table>
+
+<h2 id="c11">11. Automation for AI agents</h2>
+
+<p>A capable AI agent does not need Ollama at all: it writes the design description itself,
+which is faster and leaves the graphics card free for painting.</p>
+
+<pre>import sys; sys.path.insert(0, "tools")
+import agent_api
+
+result = agent_api.generate({
+    "title": "Baldur's Gate Docks",
+    "style": "city_harbour",
+    "layout": "harbour",
+    "grid": {"cols": 40, "rows": 30},
+    "scene_summary": "A stone quay with one large ship moored alongside and a gangway ashore.",
+    "rooms": [
+        {"label": "Cargo Warehouse", "size": "l", "props": ["crate", "barrel", "cart"]},
+        {"label": "Harbourmaster",   "size": "s", "props": ["table", "bookshelf"]},
+    ],
+})
+
+print(result["images"])</pre>
+
+<p>The full description of every field is in <code>AGENTS.md</code>, which ships next to the
+program.</p>
+
+<div class="box">
+<b>The rule that matters.</b> Describe the place; never compute coordinates. All geometry —
+where rooms sit, how corridors run, where walls and doors go — is decided by the program. That
+split is why the layouts are always valid.
+</div>
+
+<h2 id="c12">12. If something goes wrong</h2>
+
+<table>
+<tr><th>Symptom</th><th>What to do</th></tr>
+<tr><td>The status line says <code>ComfyUI: offline</code></td>
+    <td>ComfyUI is not running, or it is on a different port. Start it and open
+        <code>http://127.0.0.1:8188</code> in a browser to check. Then compare the address in
+        the Settings tab.</td></tr>
+<tr><td>Rendering fails immediately</td>
+    <td>One of the model filenames in Settings does not match a real file in
+        <code>ComfyUI/models/</code>. Compare them character by character.</td></tr>
+<tr><td>The picture is pale, vague, low in contrast</td>
+    <td>The <code>ideogram4_unconditional</code> file is missing or misnamed. Both model files
+        are required.</td></tr>
+<tr><td>Out of memory while rendering</td>
+    <td>Close other programs that use the graphics card, start ComfyUI with
+        <code>--lowvram</code>, and lower the target megapixels in Settings.</td></tr>
+<tr><td><code>Ollama: offline</code> although it is installed</td>
+    <td>Ollama is not running, or the model name in Settings differs from what
+        <code>ollama list</code> shows.</td></tr>
+<tr><td>Planning takes very long</td>
+    <td>The planner model is large and is competing with ComfyUI for the graphics card. Pull a
+        smaller one, or raise the timeout.</td></tr>
+<tr><td>A door on the plan came out as a plain doorway</td>
+    <td>A door only makes sense inside a wall. If there is open space beside it, the program
+        honestly turns it into an opening. Draw a wall and put the door into it, or press
+        <b>Rebuild walls</b>.</td></tr>
+<tr><td>Something you asked for is missing</td>
+    <td>Minor decoration is left to the painter's judgement. If an object matters, place it as
+        a <b>Custom object</b> or mark it with a <b>Custom area</b> — then it is drawn strictly
+        in its place.</td></tr>
+<tr><td>The map looks empty</td>
+    <td>Raise <b>Prop density</b> on the Create tab, or place what you want yourself in the
+        Editor.</td></tr>
+<tr><td>The painted map does not match the plan</td>
+    <td>Look at the Editor: what is there is what was sent. If the plan is right and the
+        picture is not, raise <b>Guidance</b> on the Render tab and use <b>Custom areas</b> for
+        the parts that must be exact.</td></tr>
+<tr><td>Text appeared in the picture</td>
+    <td>Something re-introduced it into the instructions. Check the forbidding sentence in
+        <code>styles/_base.json</code>.</td></tr>
+</table>
+
+<div class="box ok">
+<b>The general rule.</b> Wrong shape of the place — fix the plan in the Editor. Wrong look of
+the place — change the style or the Render settings. Almost everything falls into one of those
+two.
+</div>
+
+</body>
+</html>

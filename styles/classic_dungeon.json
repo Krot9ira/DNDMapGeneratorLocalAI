@@ -1,0 +1,34 @@
+{
+  "id": "classic_dungeon",
+  "name": "Classic Stone Dungeon",
+  "category": "Dungeon",
+  "description": "Torchlit corridors, heavy masonry and iron-bound doors.",
+  "palette": "cool grey stone, iron black, warm amber torchlight, muted brown timber",
+  "lighting": "warm torchlight pooling on stone, strong contrast into darkness",
+  "default_layout": "dungeon",
+  "props": [
+    "torch",
+    "crate",
+    "barrel",
+    "chest",
+    "pillar",
+    "rubble",
+    "weapon_rack",
+    "brazier"
+  ],
+  "tags": [
+    "dungeon",
+    "stone",
+    "classic"
+  ],
+  "aesthetics": "Hand-painted fantasy cartography, rough painterly brushwork with visible strokes, strong dark ink outlines around every object and wall, subtle black and brown linework, restrained desaturated colour, carefully shaded volumetric detail, inked line art over watercolour and gouache, premium hand-drawn D&D virtual tabletop map, dense environmental storytelling",
+  "hex_palette": [
+    "#8C8A82",
+    "#5A5852",
+    "#2E2C28",
+    "#B99A62",
+    "#3E3A33"
+  ],
+  "ground": "worn grey flagstones with deep mortar joints and scattered straw",
+  "materials": "A classic stone dungeon of heavy grey masonry. Worn flagstone floors with mortar lines, thick block walls, iron-bound oak doors with rivets, rusted chains and portcullis grates, wall-mounted torches throwing warm pools of light, scattered straw and broken crates."
+}

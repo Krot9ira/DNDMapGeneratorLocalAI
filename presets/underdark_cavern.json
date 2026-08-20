@@ -1,0 +1,811 @@
+{
+  "meta": {
+    "name": "underdark_cavern",
+    "title": "Crystal Grotto",
+    "style": "underdark_cavern",
+    "layout": "cavern",
+    "scene_summary": "A black rock cavern lit by violet crystal, with a still subterranean pool.",
+    "render_details": "",
+    "terrain_kind": "water",
+    "terrain_amount": "low",
+    "prop_density": "high",
+    "seed": 11
+  },
+  "grid": {
+    "cols": 32,
+    "rows": 24,
+    "cell_px": 32
+  },
+  "zones": [
+    {
+      "id": "base",
+      "kind": "void",
+      "x": 0,
+      "y": 0,
+      "w": 32,
+      "h": 24
+    },
+    {
+      "id": "floor_1",
+      "kind": "floor",
+      "x": 4,
+      "y": 2,
+      "w": 7,
+      "h": 5
+    },
+    {
+      "id": "floor_2",
+      "kind": "floor",
+      "x": 19,
+      "y": 2,
+      "w": 1,
+      "h": 16
+    },
+    {
+      "id": "floor_3",
+      "kind": "floor",
+      "x": 21,
+      "y": 2,
+      "w": 1,
+      "h": 1
+    },
+    {
+      "id": "floor_4",
+      "kind": "floor",
+      "x": 2,
+      "y": 3,
+      "w": 2,
+      "h": 1
+    },
+    {
+      "id": "floor_5",
+      "kind": "floor",
+      "x": 11,
+      "y": 3,
+      "w": 1,
+      "h": 4
+    },
+    {
+      "id": "floor_6",
+      "kind": "floor",
+      "x": 16,
+      "y": 3,
+      "w": 3,
+      "h": 15
+    },
+    {
+      "id": "floor_7",
+      "kind": "floor",
+      "x": 20,
+      "y": 3,
+      "w": 1,
+      "h": 15
+    },
+    {
+      "id": "floor_8",
+      "kind": "floor",
+      "x": 3,
+      "y": 4,
+      "w": 1,
+      "h": 18
+    },
+    {
+      "id": "floor_9",
+      "kind": "floor",
+      "x": 12,
+      "y": 4,
+      "w": 4,
+      "h": 17
+    },
+    {
+      "id": "floor_10",
+      "kind": "floor",
+      "x": 25,
+      "y": 4,
+      "w": 3,
+      "h": 17
+    },
+    {
+      "id": "floor_11",
+      "kind": "floor",
+      "x": 2,
+      "y": 5,
+      "w": 1,
+      "h": 1
+    },
+    {
+      "id": "floor_12",
+      "kind": "floor",
+      "x": 28,
+      "y": 5,
+      "w": 1,
+      "h": 16
+    },
+    {
+      "id": "floor_13",
+      "kind": "floor",
+      "x": 21,
+      "y": 6,
+      "w": 1,
+      "h": 12
+    },
+    {
+      "id": "floor_14",
+      "kind": "floor",
+      "x": 24,
+      "y": 6,
+      "w": 1,
+      "h": 16
+    },
+    {
+      "id": "floor_15",
+      "kind": "floor",
+      "x": 2,
+      "y": 7,
+      "w": 1,
+      "h": 1
+    },
+    {
+      "id": "floor_16",
+      "kind": "floor",
+      "x": 4,
+      "y": 7,
+      "w": 5,
+      "h": 15
+    },
+    {
+      "id": "floor_17",
+      "kind": "floor",
+      "x": 22,
+      "y": 7,
+      "w": 2,
+      "h": 13
+    },
+    {
+      "id": "floor_18",
+      "kind": "floor",
+      "x": 2,
+      "y": 9,
+      "w": 1,
+      "h": 12
+    },
+    {
+      "id": "floor_19",
+      "kind": "floor",
+      "x": 9,
+      "y": 9,
+      "w": 1,
+      "h": 13
+    },
+    {
+      "id": "floor_20",
+      "kind": "floor",
+      "x": 11,
+      "y": 9,
+      "w": 1,
+      "h": 13
+    },
+    {
+      "id": "floor_21",
+      "kind": "floor",
+      "x": 10,
+      "y": 10,
+      "w": 1,
+      "h": 12
+    },
+    {
+      "id": "floor_22",
+      "kind": "floor",
+      "x": 29,
+      "y": 16,
+      "w": 1,
+      "h": 1
+    },
+    {
+      "id": "floor_23",
+      "kind": "floor",
+      "x": 16,
+      "y": 18,
+      "w": 2,
+      "h": 2
+    },
+    {
+      "id": "floor_24",
+      "kind": "floor",
+      "x": 29,
+      "y": 18,
+      "w": 1,
+      "h": 1
+    },
+    {
+      "id": "floor_25",
+      "kind": "floor",
+      "x": 12,
+      "y": 21,
+      "w": 2,
+      "h": 1
+    },
+    {
+      "id": "floor_26",
+      "kind": "floor",
+      "x": 15,
+      "y": 21,
+      "w": 1,
+      "h": 1
+    },
+    {
+      "id": "floor_27",
+      "kind": "floor",
+      "x": 26,
+      "y": 21,
+      "w": 1,
+      "h": 1
+    },
+    {
+      "id": "water_1",
+      "kind": "water",
+      "x": 21,
+      "y": 3,
+      "w": 3,
+      "h": 3
+    },
+    {
+      "id": "water_2",
+      "kind": "water",
+      "x": 24,
+      "y": 4,
+      "w": 1,
+      "h": 2
+    },
+    {
+      "id": "water_3",
+      "kind": "water",
+      "x": 22,
+      "y": 6,
+      "w": 2,
+      "h": 1
+    },
+    {
+      "id": "water_4",
+      "kind": "water",
+      "x": 9,
+      "y": 7,
+      "w": 3,
+      "h": 2
+    },
+    {
+      "id": "water_5",
+      "kind": "water",
+      "x": 10,
+      "y": 9,
+      "w": 1,
+      "h": 1
+    },
+    {
+      "id": "wall_1",
+      "kind": "wall",
+      "x": 3,
+      "y": 1,
+      "w": 9,
+      "h": 1
+    },
+    {
+      "id": "wall_2",
+      "kind": "wall",
+      "x": 18,
+      "y": 1,
+      "w": 5,
+      "h": 1
+    },
+    {
+      "id": "wall_3",
+      "kind": "wall",
+      "x": 1,
+      "y": 2,
+      "w": 3,
+      "h": 1
+    },
+    {
+      "id": "wall_4",
+      "kind": "wall",
+      "x": 11,
+      "y": 2,
+      "w": 2,
+      "h": 1
+    },
+    {
+      "id": "wall_5",
+      "kind": "wall",
+      "x": 15,
+      "y": 2,
+      "w": 4,
+      "h": 1
+    },
+    {
+      "id": "wall_6",
+      "kind": "wall",
+      "x": 20,
+      "y": 2,
+      "w": 1,
+      "h": 1
+    },
+    {
+      "id": "wall_7",
+      "kind": "wall",
+      "x": 22,
+      "y": 2,
+      "w": 3,
+      "h": 1
+    },
+    {
+      "id": "wall_8",
+      "kind": "wall",
+      "x": 1,
+      "y": 3,
+      "w": 1,
+      "h": 19
+    },
+    {
+      "id": "wall_9",
+      "kind": "wall",
+      "x": 12,
+      "y": 3,
+      "w": 4,
+      "h": 1
+    },
+    {
+      "id": "wall_10",
+      "kind": "wall",
+      "x": 24,
+      "y": 3,
+      "w": 5,
+      "h": 1
+    },
+    {
+      "id": "wall_11",
+      "kind": "wall",
+      "x": 2,
+      "y": 4,
+      "w": 1,
+      "h": 1
+    },
+    {
+      "id": "wall_12",
+      "kind": "wall",
+      "x": 28,
+      "y": 4,
+      "w": 2,
+      "h": 1
+    },
+    {
+      "id": "wall_13",
+      "kind": "wall",
+      "x": 29,
+      "y": 5,
+      "w": 1,
+      "h": 11
+    },
+    {
+      "id": "wall_14",
+      "kind": "wall",
+      "x": 2,
+      "y": 6,
+      "w": 1,
+      "h": 1
+    },
+    {
+      "id": "wall_15",
+      "kind": "wall",
+      "x": 2,
+      "y": 8,
+      "w": 1,
+      "h": 1
+    },
+    {
+      "id": "wall_16",
+      "kind": "wall",
+      "x": 30,
+      "y": 15,
+      "w": 1,
+      "h": 5
+    },
+    {
+      "id": "wall_17",
+      "kind": "wall",
+      "x": 29,
+      "y": 17,
+      "w": 1,
+      "h": 1
+    },
+    {
+      "id": "wall_18",
+      "kind": "wall",
+      "x": 18,
+      "y": 18,
+      "w": 4,
+      "h": 1
+    },
+    {
+      "id": "wall_19",
+      "kind": "wall",
+      "x": 18,
+      "y": 19,
+      "w": 1,
+      "h": 2
+    },
+    {
+      "id": "wall_20",
+      "kind": "wall",
+      "x": 21,
+      "y": 19,
+      "w": 1,
+      "h": 2
+    },
+    {
+      "id": "wall_21",
+      "kind": "wall",
+      "x": 29,
+      "y": 19,
+      "w": 1,
+      "h": 3
+    },
+    {
+      "id": "wall_22",
+      "kind": "wall",
+      "x": 16,
+      "y": 20,
+      "w": 2,
+      "h": 1
+    },
+    {
+      "id": "wall_23",
+      "kind": "wall",
+      "x": 22,
+      "y": 20,
+      "w": 2,
+      "h": 1
+    },
+    {
+      "id": "wall_24",
+      "kind": "wall",
+      "x": 2,
+      "y": 21,
+      "w": 1,
+      "h": 2
+    },
+    {
+      "id": "wall_25",
+      "kind": "wall",
+      "x": 14,
+      "y": 21,
+      "w": 1,
+      "h": 2
+    },
+    {
+      "id": "wall_26",
+      "kind": "wall",
+      "x": 16,
+      "y": 21,
+      "w": 1,
+      "h": 2
+    },
+    {
+      "id": "wall_27",
+      "kind": "wall",
+      "x": 23,
+      "y": 21,
+      "w": 1,
+      "h": 2
+    },
+    {
+      "id": "wall_28",
+      "kind": "wall",
+      "x": 25,
+      "y": 21,
+      "w": 1,
+      "h": 2
+    },
+    {
+      "id": "wall_29",
+      "kind": "wall",
+      "x": 27,
+      "y": 21,
+      "w": 2,
+      "h": 1
+    },
+    {
+      "id": "wall_30",
+      "kind": "wall",
+      "x": 3,
+      "y": 22,
+      "w": 11,
+      "h": 1
+    },
+    {
+      "id": "wall_31",
+      "kind": "wall",
+      "x": 15,
+      "y": 22,
+      "w": 1,
+      "h": 1
+    },
+    {
+      "id": "wall_32",
+      "kind": "wall",
+      "x": 24,
+      "y": 22,
+      "w": 1,
+      "h": 1
+    },
+    {
+      "id": "wall_33",
+      "kind": "wall",
+      "x": 26,
+      "y": 22,
+      "w": 2,
+      "h": 1
+    }
+  ],
+  "structures": [],
+  "features": [
+    {
+      "kind": "crystal",
+      "x": 8,
+      "y": 8,
+      "structural": true
+    },
+    {
+      "kind": "stalagmite",
+      "x": 8,
+      "y": 10,
+      "structural": true
+    },
+    {
+      "kind": "boulder",
+      "x": 6,
+      "y": 8,
+      "structural": true
+    },
+    {
+      "kind": "boulder",
+      "x": 8,
+      "y": 6,
+      "structural": true
+    },
+    {
+      "kind": "pool",
+      "x": 6,
+      "y": 6,
+      "structural": true
+    },
+    {
+      "kind": "mushroom",
+      "x": 20,
+      "y": 4,
+      "structural": false
+    },
+    {
+      "kind": "bones",
+      "x": 21,
+      "y": 6,
+      "structural": false
+    },
+    {
+      "kind": "pool",
+      "x": 24,
+      "y": 6,
+      "structural": true
+    },
+    {
+      "kind": "bones",
+      "x": 19,
+      "y": 6,
+      "structural": false
+    },
+    {
+      "kind": [
+        20,
+        6
+      ],
+      "x": 6,
+      "y": 14,
+      "structural": false
+    },
+    {
+      "kind": [
+        23,
+        7
+      ],
+      "x": 3,
+      "y": 4,
+      "structural": false
+    },
+    {
+      "kind": [
+        19,
+        5
+      ],
+      "x": 15,
+      "y": 14,
+      "structural": false
+    },
+    {
+      "kind": [
+        19,
+        7
+      ],
+      "x": 6,
+      "y": 21,
+      "structural": false
+    },
+    {
+      "kind": [
+        22,
+        7
+      ],
+      "x": 18,
+      "y": 10,
+      "structural": false
+    },
+    {
+      "kind": [
+        20,
+        5
+      ],
+      "x": 24,
+      "y": 20,
+      "structural": false
+    },
+    {
+      "kind": [
+        23,
+        7
+      ],
+      "x": 12,
+      "y": 5,
+      "structural": false
+    },
+    {
+      "kind": [
+        25,
+        5
+      ],
+      "x": 18,
+      "y": 12,
+      "structural": false
+    },
+    {
+      "kind": [
+        20,
+        5
+      ],
+      "x": 6,
+      "y": 2,
+      "structural": false
+    },
+    {
+      "kind": [
+        23,
+        7
+      ],
+      "x": 6,
+      "y": 11,
+      "structural": false
+    },
+    {
+      "kind": [
+        20,
+        7
+      ],
+      "x": 29,
+      "y": 16,
+      "structural": false
+    },
+    {
+      "kind": [
+        20,
+        6
+      ],
+      "x": 20,
+      "y": 17,
+      "structural": false
+    },
+    {
+      "kind": [
+        19,
+        4
+      ],
+      "x": 3,
+      "y": 12,
+      "structural": false
+    },
+    {
+      "kind": [
+        20,
+        5
+      ],
+      "x": 16,
+      "y": 18,
+      "structural": false
+    },
+    {
+      "kind": [
+        20,
+        5
+      ],
+      "x": 26,
+      "y": 6,
+      "structural": false
+    },
+    {
+      "kind": [
+        24,
+        7
+      ],
+      "x": 12,
+      "y": 19,
+      "structural": false
+    },
+    {
+      "kind": [
+        21,
+        7
+      ],
+      "x": 8,
+      "y": 14,
+      "structural": false
+    },
+    {
+      "kind": [
+        24,
+        7
+      ],
+      "x": 4,
+      "y": 7,
+      "structural": false
+    },
+    {
+      "kind": [
+        21,
+        7
+      ],
+      "x": 2,
+      "y": 10,
+      "structural": false
+    }
+  ],
+  "labels": [
+    {
+      "text": "Main Chamber",
+      "x": 8,
+      "y": 8,
+      "size": "md"
+    },
+    {
+      "text": "Pool Cave",
+      "x": 22,
+      "y": 4,
+      "size": "md"
+    }
+  ],
+  "areas": [
+    {
+      "id": "main_chamber",
+      "label": "Main Chamber",
+      "x": 6,
+      "y": 6,
+      "w": 5,
+      "h": 5
+    },
+    {
+      "id": "pool_cave",
+      "label": "Pool Cave",
+      "x": 20,
+      "y": 2,
+      "w": 5,
+      "h": 5
+    }
+  ],
+  "annotations": [],
+  "effects": []
+}

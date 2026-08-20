@@ -1,0 +1,33 @@
+{
+  "id": "coastal_ruins",
+  "name": "Coastal Sea Cliff Ruins",
+  "category": "Ruins",
+  "description": "Weathered sandstone ruins above tide pools and breaking surf.",
+  "palette": "bleached sandstone, sea foam white, deep teal water, wet slate, pale grass",
+  "lighting": "bright overcast coastal daylight, cool blue shadows",
+  "default_layout": "open",
+  "props": [
+    "boulder",
+    "rubble",
+    "crate",
+    "barrel",
+    "rope_coil",
+    "bones"
+  ],
+  "tags": [
+    "coast",
+    "sea",
+    "ruins",
+    "cliff"
+  ],
+  "aesthetics": "Hand-painted fantasy cartography, rough painterly brushwork with visible strokes, strong dark ink outlines around every object and wall, subtle black and brown linework, restrained desaturated colour, carefully shaded volumetric detail, inked line art over watercolour and gouache, premium hand-drawn D&D virtual tabletop map, dense environmental storytelling",
+  "hex_palette": [
+    "#CFC3A6",
+    "#8A8272",
+    "#3E6E72",
+    "#E6E2D6",
+    "#5B6A5C"
+  ],
+  "ground": "sun-bleached sandstone paving worn smooth, pitted with salt and wet in patches",
+  "materials": "Weathered coastal ruins on a sea cliff. Sun-bleached sandstone walls half collapsed, salt-worn stone paving, tide pools and wet dark rock, foaming surf breaking against the cliff base, tufts of hardy sea grass, scattered driftwood and barnacle-crusted debris, bleached rope and broken masonry."
+}

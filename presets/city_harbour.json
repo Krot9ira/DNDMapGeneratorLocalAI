@@ -1,0 +1,781 @@
+{
+  "meta": {
+    "name": "city_harbour",
+    "title": "Harbour Docks",
+    "style": "city_harbour",
+    "layout": "harbour",
+    "scene_summary": "A stone quay with one large ship moored alongside and a gangway ashore.",
+    "render_details": "",
+    "terrain_kind": "none",
+    "terrain_amount": "medium",
+    "prop_density": "high",
+    "seed": 11
+  },
+  "grid": {
+    "cols": 36,
+    "rows": 26,
+    "cell_px": 32
+  },
+  "zones": [
+    {
+      "id": "base",
+      "kind": "void",
+      "x": 0,
+      "y": 0,
+      "w": 36,
+      "h": 26
+    },
+    {
+      "id": "floor_1",
+      "kind": "floor",
+      "x": 0,
+      "y": 0,
+      "w": 36,
+      "h": 2
+    },
+    {
+      "id": "floor_2",
+      "kind": "floor",
+      "x": 0,
+      "y": 2,
+      "w": 2,
+      "h": 16
+    },
+    {
+      "id": "floor_3",
+      "kind": "floor",
+      "x": 21,
+      "y": 2,
+      "w": 2,
+      "h": 16
+    },
+    {
+      "id": "floor_4",
+      "kind": "floor",
+      "x": 34,
+      "y": 2,
+      "w": 2,
+      "h": 16
+    },
+    {
+      "id": "floor_5",
+      "kind": "floor",
+      "x": 3,
+      "y": 3,
+      "w": 17,
+      "h": 11
+    },
+    {
+      "id": "floor_6",
+      "kind": "floor",
+      "x": 24,
+      "y": 3,
+      "w": 9,
+      "h": 11
+    },
+    {
+      "id": "floor_7",
+      "kind": "floor",
+      "x": 2,
+      "y": 15,
+      "w": 19,
+      "h": 3
+    },
+    {
+      "id": "floor_8",
+      "kind": "floor",
+      "x": 23,
+      "y": 15,
+      "w": 11,
+      "h": 3
+    },
+    {
+      "id": "bridge_1",
+      "kind": "bridge",
+      "x": 17,
+      "y": 18,
+      "w": 2,
+      "h": 6
+    },
+    {
+      "id": "bridge_2",
+      "kind": "bridge",
+      "x": 10,
+      "y": 20,
+      "w": 7,
+      "h": 4
+    },
+    {
+      "id": "bridge_3",
+      "kind": "bridge",
+      "x": 19,
+      "y": 20,
+      "w": 5,
+      "h": 4
+    },
+    {
+      "id": "bridge_4",
+      "kind": "bridge",
+      "x": 9,
+      "y": 21,
+      "w": 1,
+      "h": 2
+    },
+    {
+      "id": "bridge_5",
+      "kind": "bridge",
+      "x": 24,
+      "y": 21,
+      "w": 2,
+      "h": 2
+    },
+    {
+      "id": "water_1",
+      "kind": "water",
+      "x": 0,
+      "y": 18,
+      "w": 17,
+      "h": 1
+    },
+    {
+      "id": "water_2",
+      "kind": "water",
+      "x": 19,
+      "y": 18,
+      "w": 17,
+      "h": 1
+    },
+    {
+      "id": "water_3",
+      "kind": "water",
+      "x": 0,
+      "y": 19,
+      "w": 10,
+      "h": 1
+    },
+    {
+      "id": "water_4",
+      "kind": "water",
+      "x": 24,
+      "y": 19,
+      "w": 12,
+      "h": 1
+    },
+    {
+      "id": "water_5",
+      "kind": "water",
+      "x": 0,
+      "y": 20,
+      "w": 8,
+      "h": 6
+    },
+    {
+      "id": "water_6",
+      "kind": "water",
+      "x": 26,
+      "y": 20,
+      "w": 10,
+      "h": 1
+    },
+    {
+      "id": "water_7",
+      "kind": "water",
+      "x": 27,
+      "y": 21,
+      "w": 9,
+      "h": 5
+    },
+    {
+      "id": "water_8",
+      "kind": "water",
+      "x": 26,
+      "y": 23,
+      "w": 1,
+      "h": 3
+    },
+    {
+      "id": "water_9",
+      "kind": "water",
+      "x": 8,
+      "y": 24,
+      "w": 2,
+      "h": 2
+    },
+    {
+      "id": "water_10",
+      "kind": "water",
+      "x": 24,
+      "y": 24,
+      "w": 2,
+      "h": 2
+    },
+    {
+      "id": "water_11",
+      "kind": "water",
+      "x": 10,
+      "y": 25,
+      "w": 14,
+      "h": 1
+    },
+    {
+      "id": "wall_1",
+      "kind": "wall",
+      "x": 2,
+      "y": 2,
+      "w": 19,
+      "h": 1
+    },
+    {
+      "id": "wall_2",
+      "kind": "wall",
+      "x": 23,
+      "y": 2,
+      "w": 11,
+      "h": 1
+    },
+    {
+      "id": "wall_3",
+      "kind": "wall",
+      "x": 2,
+      "y": 3,
+      "w": 1,
+      "h": 12
+    },
+    {
+      "id": "wall_4",
+      "kind": "wall",
+      "x": 20,
+      "y": 3,
+      "w": 1,
+      "h": 12
+    },
+    {
+      "id": "wall_5",
+      "kind": "wall",
+      "x": 23,
+      "y": 3,
+      "w": 1,
+      "h": 12
+    },
+    {
+      "id": "wall_6",
+      "kind": "wall",
+      "x": 33,
+      "y": 3,
+      "w": 1,
+      "h": 12
+    },
+    {
+      "id": "wall_7",
+      "kind": "wall",
+      "x": 3,
+      "y": 14,
+      "w": 8,
+      "h": 1
+    },
+    {
+      "id": "wall_8",
+      "kind": "wall",
+      "x": 12,
+      "y": 14,
+      "w": 8,
+      "h": 1
+    },
+    {
+      "id": "wall_9",
+      "kind": "wall",
+      "x": 24,
+      "y": 14,
+      "w": 4,
+      "h": 1
+    },
+    {
+      "id": "wall_10",
+      "kind": "wall",
+      "x": 29,
+      "y": 14,
+      "w": 4,
+      "h": 1
+    },
+    {
+      "id": "wall_11",
+      "kind": "wall",
+      "x": 10,
+      "y": 19,
+      "w": 7,
+      "h": 1
+    },
+    {
+      "id": "wall_12",
+      "kind": "wall",
+      "x": 19,
+      "y": 19,
+      "w": 5,
+      "h": 1
+    },
+    {
+      "id": "wall_13",
+      "kind": "wall",
+      "x": 8,
+      "y": 20,
+      "w": 2,
+      "h": 1
+    },
+    {
+      "id": "wall_14",
+      "kind": "wall",
+      "x": 24,
+      "y": 20,
+      "w": 2,
+      "h": 1
+    },
+    {
+      "id": "wall_15",
+      "kind": "wall",
+      "x": 8,
+      "y": 21,
+      "w": 1,
+      "h": 3
+    },
+    {
+      "id": "wall_16",
+      "kind": "wall",
+      "x": 26,
+      "y": 21,
+      "w": 1,
+      "h": 2
+    },
+    {
+      "id": "wall_17",
+      "kind": "wall",
+      "x": 9,
+      "y": 23,
+      "w": 1,
+      "h": 1
+    },
+    {
+      "id": "wall_18",
+      "kind": "wall",
+      "x": 24,
+      "y": 23,
+      "w": 2,
+      "h": 1
+    },
+    {
+      "id": "wall_19",
+      "kind": "wall",
+      "x": 10,
+      "y": 24,
+      "w": 14,
+      "h": 1
+    },
+    {
+      "id": "door_1",
+      "kind": "door",
+      "x": 11,
+      "y": 14,
+      "w": 1,
+      "h": 1
+    },
+    {
+      "id": "door_2",
+      "kind": "door",
+      "x": 28,
+      "y": 14,
+      "w": 1,
+      "h": 1
+    }
+  ],
+  "structures": [
+    {
+      "kind": "ship",
+      "x": 8,
+      "y": 19,
+      "w": 19,
+      "h": 6,
+      "facing": "e"
+    }
+  ],
+  "features": [
+    {
+      "kind": "mast",
+      "x": 17,
+      "y": 22,
+      "structural": true
+    },
+    {
+      "kind": "capstan",
+      "x": 19,
+      "y": 22,
+      "structural": true
+    },
+    {
+      "kind": "crate",
+      "x": 20,
+      "y": 20,
+      "structural": false
+    },
+    {
+      "kind": "barrel",
+      "x": 14,
+      "y": 20,
+      "structural": false
+    },
+    {
+      "kind": "rope_coil",
+      "x": 15,
+      "y": 22,
+      "structural": false
+    },
+    {
+      "kind": "mast",
+      "x": 17,
+      "y": 20,
+      "structural": true
+    },
+    {
+      "kind": "mast",
+      "x": 13,
+      "y": 22,
+      "structural": true
+    },
+    {
+      "kind": "bollard",
+      "x": 21,
+      "y": 22,
+      "structural": false
+    },
+    {
+      "kind": "rope_coil",
+      "x": 23,
+      "y": 22,
+      "structural": false
+    },
+    {
+      "kind": "crate",
+      "x": 17,
+      "y": 3,
+      "structural": false
+    },
+    {
+      "kind": "barrel",
+      "x": 3,
+      "y": 12,
+      "structural": false
+    },
+    {
+      "kind": "cart",
+      "x": 11,
+      "y": 8,
+      "structural": true
+    },
+    {
+      "kind": "mast",
+      "x": 13,
+      "y": 8,
+      "structural": true
+    },
+    {
+      "kind": "lamp",
+      "x": 11,
+      "y": 10,
+      "structural": false
+    },
+    {
+      "kind": "lamp",
+      "x": 11,
+      "y": 6,
+      "structural": false
+    },
+    {
+      "kind": "lamp",
+      "x": 9,
+      "y": 8,
+      "structural": false
+    },
+    {
+      "kind": "barrel",
+      "x": 5,
+      "y": 3,
+      "structural": false
+    },
+    {
+      "kind": "bollard",
+      "x": 11,
+      "y": 12,
+      "structural": false
+    },
+    {
+      "kind": "cart",
+      "x": 7,
+      "y": 8,
+      "structural": true
+    },
+    {
+      "kind": "net",
+      "x": 11,
+      "y": 4,
+      "structural": false
+    },
+    {
+      "kind": "barrel",
+      "x": 19,
+      "y": 3,
+      "structural": false
+    },
+    {
+      "kind": "cart",
+      "x": 9,
+      "y": 6,
+      "structural": true
+    },
+    {
+      "kind": "net",
+      "x": 15,
+      "y": 8,
+      "structural": false
+    },
+    {
+      "kind": "table",
+      "x": 28,
+      "y": 8,
+      "structural": true
+    },
+    {
+      "kind": "bookshelf",
+      "x": 24,
+      "y": 8,
+      "structural": true
+    },
+    {
+      "kind": "lamp",
+      "x": 26,
+      "y": 8,
+      "structural": false
+    },
+    {
+      "kind": "mast",
+      "x": 30,
+      "y": 8,
+      "structural": true
+    },
+    {
+      "kind": "mast",
+      "x": 28,
+      "y": 6,
+      "structural": true
+    },
+    {
+      "kind": "mast",
+      "x": 28,
+      "y": 10,
+      "structural": true
+    },
+    {
+      "kind": "barrel",
+      "x": 32,
+      "y": 6,
+      "structural": false
+    },
+    {
+      "kind": "crate",
+      "x": 32,
+      "y": 9,
+      "structural": false
+    },
+    {
+      "kind": "cart",
+      "x": 26,
+      "y": 6,
+      "structural": true
+    },
+    {
+      "kind": "crate",
+      "x": 26,
+      "y": 15,
+      "structural": false
+    },
+    {
+      "kind": "barrel",
+      "x": 34,
+      "y": 13,
+      "structural": false
+    },
+    {
+      "kind": "cart",
+      "x": 18,
+      "y": 16,
+      "structural": true
+    },
+    {
+      "kind": "rope_coil",
+      "x": 21,
+      "y": 15,
+      "structural": false
+    },
+    {
+      "kind": "net",
+      "x": 16,
+      "y": 16,
+      "structural": false
+    },
+    {
+      "kind": "crate",
+      "x": 4,
+      "y": 15,
+      "structural": false
+    },
+    {
+      "kind": "barrel",
+      "x": 18,
+      "y": 13,
+      "structural": false
+    },
+    {
+      "kind": "bollard",
+      "x": 20,
+      "y": 17,
+      "structural": false
+    },
+    {
+      "kind": "mast",
+      "x": 14,
+      "y": 16,
+      "structural": true
+    },
+    {
+      "kind": "cart",
+      "x": 23,
+      "y": 16,
+      "structural": true
+    },
+    {
+      "kind": "rope_coil",
+      "x": 12,
+      "y": 16,
+      "structural": false
+    },
+    {
+      "kind": "crate",
+      "x": 21,
+      "y": 13,
+      "structural": false
+    },
+    {
+      "kind": "mast",
+      "x": 10,
+      "y": 16,
+      "structural": true
+    },
+    {
+      "kind": "crate",
+      "x": 26,
+      "y": 13,
+      "structural": false
+    },
+    {
+      "kind": "bollard",
+      "x": 2,
+      "y": 17,
+      "structural": false
+    },
+    {
+      "kind": "bollard",
+      "x": 7,
+      "y": 17,
+      "structural": false
+    },
+    {
+      "kind": "bollard",
+      "x": 12,
+      "y": 17,
+      "structural": false
+    },
+    {
+      "kind": "bollard",
+      "x": 17,
+      "y": 17,
+      "structural": false
+    },
+    {
+      "kind": "bollard",
+      "x": 22,
+      "y": 17,
+      "structural": false
+    },
+    {
+      "kind": "bollard",
+      "x": 27,
+      "y": 17,
+      "structural": false
+    },
+    {
+      "kind": "bollard",
+      "x": 32,
+      "y": 17,
+      "structural": false
+    }
+  ],
+  "labels": [
+    {
+      "text": "Moored Ship",
+      "x": 17,
+      "y": 22,
+      "size": "md"
+    },
+    {
+      "text": "Warehouse",
+      "x": 11,
+      "y": 8,
+      "size": "md"
+    },
+    {
+      "text": "Harbourmaster",
+      "x": 28,
+      "y": 8,
+      "size": "md"
+    },
+    {
+      "text": "Quay",
+      "x": 18,
+      "y": 15,
+      "size": "md"
+    }
+  ],
+  "areas": [
+    {
+      "id": "ship",
+      "label": "Moored Ship",
+      "x": 10,
+      "y": 20,
+      "w": 15,
+      "h": 4
+    },
+    {
+      "id": "warehouse",
+      "label": "Warehouse",
+      "x": 3,
+      "y": 3,
+      "w": 17,
+      "h": 11
+    },
+    {
+      "id": "harbourmaster",
+      "label": "Harbourmaster",
+      "x": 24,
+      "y": 3,
+      "w": 9,
+      "h": 11
+    },
+    {
+      "id": "quay",
+      "label": "Quay",
+      "x": 1,
+      "y": 14,
+      "w": 34,
+      "h": 3
+    }
+  ],
+  "annotations": [],
+  "effects": []
+}

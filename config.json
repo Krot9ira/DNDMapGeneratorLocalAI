@@ -1,0 +1,29 @@
+{
+  "ollama": {
+    "base_url": "http://127.0.0.1:11434",
+    "model": "qwen3.8:27b",
+    "temperature": 0.6,
+    "timeout": 600
+  },
+  "comfy": {
+    "base_url": "http://127.0.0.1:8188",
+    "ideogram": {
+      "unet": "ideogram4_fp8_scaled.safetensors",
+      "unet_unconditional": "ideogram4_unconditional_fp8_scaled.safetensors",
+      "clip": "qwen3vl_8b_fp8_scaled.safetensors",
+      "vae": "flux2-vae.safetensors",
+      "preset": "Quality",
+      "cfg": 7.0,
+      "cfg_late": 3.0,
+      "cfg_late_start": 0.7,
+      "sampler": "euler",
+      "target_megapixels": 1.8,
+      "seed": -1
+    }
+  },
+  "default_style": "city_harbour",
+  "default_size": "medium",
+  "styles_dir": "styles",
+  "presets_dir": "presets",
+  "output_dir": "output"
+}

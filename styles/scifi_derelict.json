@@ -1,0 +1,33 @@
+{
+  "id": "scifi_derelict",
+  "name": "Sci-Fi Derelict Starship",
+  "category": "Sci-Fi",
+  "description": "Riveted hull plating, severed cabling and failing emergency light.",
+  "palette": "gunmetal grey, oxidised teal, warning amber, emergency red, cold white",
+  "lighting": "failing emergency lighting, hard directional pools, cold blue fill",
+  "default_layout": "building",
+  "props": [
+    "console",
+    "locker",
+    "crate",
+    "barrel",
+    "lamp",
+    "rubble"
+  ],
+  "tags": [
+    "scifi",
+    "starship",
+    "derelict",
+    "space"
+  ],
+  "aesthetics": "Hand-painted fantasy cartography, rough painterly brushwork with visible strokes, strong dark ink outlines around every object and wall, subtle black and brown linework, restrained desaturated colour, carefully shaded volumetric detail, inked line art over watercolour and gouache, premium hand-drawn D&D virtual tabletop map, dense environmental storytelling",
+  "hex_palette": [
+    "#4A5257",
+    "#2A3034",
+    "#2E6E6A",
+    "#C08A2E",
+    "#9AA2A6"
+  ],
+  "ground": "scuffed metal deck grating over riveted hull plating, streaked with scorch marks",
+  "materials": "The interior of a derelict starship. Riveted metal hull plating with scuffed grating walkways, exposed conduit and severed cabling hanging loose, sparking wall consoles with cracked screens, sealed blast doors and airlock rings, scorch marks and hull breaches, floating dust, scattered supply crates and toppled lockers."
+}

@@ -1,0 +1,36 @@
+{
+  "id": "cozy_tavern",
+  "name": "Cozy Medieval Tavern",
+  "category": "Interior",
+  "description": "Warm oak interior, hearth fire, long tables and lantern light.",
+  "palette": "aged cream, warm beige, ochre, honey brown, dark walnut wood, muted grey stone",
+  "lighting": "soft warm hearth and lantern light from above, gentle directional shadows",
+  "default_layout": "building",
+  "props": [
+    "table",
+    "chair",
+    "barrel",
+    "hearth",
+    "bookshelf",
+    "crate",
+    "bed",
+    "bar",
+    "lamp"
+  ],
+  "tags": [
+    "tavern",
+    "inn",
+    "interior",
+    "cozy"
+  ],
+  "aesthetics": "Hand-painted fantasy cartography, rough painterly brushwork with visible strokes, strong dark ink outlines around every object and wall, subtle black and brown linework, restrained desaturated colour, carefully shaded volumetric detail, inked line art over watercolour and gouache, premium hand-drawn D&D virtual tabletop map, dense environmental storytelling",
+  "hex_palette": [
+    "#C8A87A",
+    "#8A5F3C",
+    "#3E2A1B",
+    "#E4D6BC",
+    "#7A7169"
+  ],
+  "ground": "wide oak plank flooring with visible grain, knots and spilled-ale stains",
+  "materials": "A warm, cozy medieval tavern interior. Wide oak plank floors with visible grain and knots, timber-framed plaster walls, a large stone hearth with a crackling fire, long trestle tables and benches, a polished bar counter with ale barrels behind it, hanging iron lanterns, woven rugs and clutter of mugs and crockery."
+}

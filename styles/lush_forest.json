@@ -1,0 +1,33 @@
+{
+  "id": "lush_forest",
+  "name": "Enchanted Forest Clearing",
+  "category": "Wilderness",
+  "description": "Emerald undergrowth, mossy boulders and a winding stream.",
+  "palette": "deep emerald, moss green, warm bark brown, cool stream blue, golden sun flecks",
+  "lighting": "dappled daylight through leaves, soft green bounce light",
+  "default_layout": "forest",
+  "props": [
+    "tree",
+    "boulder",
+    "bush",
+    "stump",
+    "campfire",
+    "mushroom"
+  ],
+  "tags": [
+    "forest",
+    "nature",
+    "outdoor",
+    "druid"
+  ],
+  "aesthetics": "Hand-painted fantasy cartography, rough painterly brushwork with visible strokes, strong dark ink outlines around every object and wall, subtle black and brown linework, restrained desaturated colour, carefully shaded volumetric detail, inked line art over watercolour and gouache, premium hand-drawn D&D virtual tabletop map, dense environmental storytelling",
+  "hex_palette": [
+    "#4E7A42",
+    "#2F5230",
+    "#7A5E3A",
+    "#9CB477",
+    "#3A4A6B"
+  ],
+  "ground": "thick emerald grass and layered leaf litter over dark soil",
+  "materials": "An enchanted forest clearing seen from directly above. Lush emerald grass and layered undergrowth, broad tree canopies with painted leaf clusters, moss-covered boulders and gnarled exposed roots, a clear winding stream over pebbles, fallen mossy logs, patches of wildflowers and ferns, dappled sunlight filtering through the canopy."
+}
