@@ -62,7 +62,7 @@ SIZE_PRESETS = {
     "giant": (150, 150),
 }
 
-LAYOUTS = ["dungeon", "building", "cavern", "open", "forest", "swamp", "ruins",
+LAYOUTS = ["dungeon", "building", "cavern", "open", "forest", "swamp", "ruins", "deck",
            "street", "arena", "harbour", "custom"]
 
 TERRAIN_KINDS = {"water", "pit", "rubble", "vegetation", "none"}
@@ -511,47 +511,125 @@ def _gen_building(grid, spec, rng):
 
 
 def _gen_cavern(grid, spec, rng):
-    """Cellular-automata cave - organic, no straight lines."""
-    for y in range(grid.rows):
-        for x in range(grid.cols):
-            edge = x <= 1 or y <= 1 or x >= grid.cols - 2 or y >= grid.rows - 2
-            grid.set(x, y, VOID if edge or rng.random() < 0.44 else FLOOR)
-    for _ in range(5):
+    """Chambers joined by winding passages, then softened into rock.
+
+    Pure cellular automata kept collapsing below the safety threshold and
+    falling back to a single oval, so every cave came out as one featureless
+    blob. Chambers first, passages second, smoothing last: the result is always
+    connected and always reads as a cave system.
+    """
+    grid.fill_rect(0, 0, grid.cols, grid.rows, VOID)
+    span = min(grid.cols, grid.rows)
+
+    n = _clamp(len(spec["rooms"]), 2, 6)
+    centres = []
+    rooms = []
+    for i in range(n):
+        # Spread the chambers around the map instead of clustering them.
+        ang = (i / float(n)) * 2.0 * math.pi + rng.uniform(-0.4, 0.4)
+        spread = rng.uniform(0.22, 0.36)
+        cx = grid.cols / 2.0 + math.cos(ang) * grid.cols * spread
+        cy = grid.rows / 2.0 + math.sin(ang) * grid.rows * spread
+        size_hint = {"l": 0.30, "m": 0.24, "s": 0.18}.get(
+            str(spec["rooms"][i].get("size", "m"))[:1], 0.24)
+        radius = _clamp(span * size_hint * rng.uniform(0.9, 1.25), 3.0, 16.0)
+        cx = _clamp(cx, radius + 2, grid.cols - radius - 2)
+        cy = _clamp(cy, radius + 2, grid.rows - radius - 2)
+        _blob(grid, cx, cy, radius, FLOOR, rng, squish=rng.uniform(0.7, 1.5))
+        centres.append((int(cx), int(cy)))
+        r = int(radius)
+        rooms.append({"spec": spec["rooms"][i],
+                      "rect": (_clamp(int(cx) - r // 2, 0, grid.cols - 2),
+                               _clamp(int(cy) - r // 2, 0, grid.rows - 2),
+                               max(3, r), max(3, r))})
+
+    # Winding passages. A straight corridor would look quarried, so each leg is
+    # carved and then blistered outwards at a few points.
+    for i in range(1, len(centres)):
+        path = _carve_corridor(grid, centres[i - 1], centres[i], rng)
+        for j, cell in enumerate(path):
+            # Widen the whole leg, and blister it out here and there.
+            _blob(grid, cell[0], cell[1], rng.uniform(1.4, 2.0), FLOOR, rng)
+            if j % max(2, len(path) // 5) == 0:
+                _blob(grid, cell[0], cell[1], rng.uniform(2.2, 3.6), FLOOR, rng)
+    if len(centres) > 2 and rng.random() < 0.7:
+        # One loop, so a cave is not a dead-end tree.
+        _carve_corridor(grid, centres[-1], centres[0], rng)
+
+    # Two rounds of smoothing to eat the corners off, walls only.
+    for _ in range(1):
         snapshot = [row[:] for row in grid.cells]
         for y in range(1, grid.rows - 1):
             for x in range(1, grid.cols - 1):
-                walls = 0
+                solid = 0
                 for dy in (-1, 0, 1):
                     for dx in (-1, 0, 1):
                         if dx == 0 and dy == 0:
                             continue
-                        yy, xx = y + dy, x + dx
-                        if not grid.inside(xx, yy) or snapshot[yy][xx] == VOID:
-                            walls += 1
-                grid.set(x, y, VOID if walls >= 5 else FLOOR)
+                        if snapshot[y + dy][x + dx] == VOID:
+                            solid += 1
+                if snapshot[y][x] == FLOOR and solid >= 6:
+                    grid.set(x, y, VOID)
+                elif snapshot[y][x] == VOID and solid <= 2:
+                    grid.set(x, y, FLOOR)
+
+    # A rim of rock, so the cave never runs off the edge of the map.
+    for x in range(grid.cols):
+        for y in range(grid.rows):
+            if x == 0 or y == 0 or x == grid.cols - 1 or y == grid.rows - 1:
+                grid.set(x, y, VOID)
 
     keep = _largest_component(grid, {FLOOR})
-    # A cave that collapsed to nothing is useless - fall back to a big chamber.
-    if len(keep) < (grid.cols * grid.rows) // 6:
-        grid.fill_rect(0, 0, grid.cols, grid.rows, VOID)
-        _blob(grid, grid.cols / 2, grid.rows / 2, min(grid.cols, grid.rows) / 2.4,
-              FLOOR, rng, squish=1.4)
-        keep = _largest_component(grid, {FLOOR})
     for y in range(grid.rows):
         for x in range(grid.cols):
             if grid.get(x, y) == FLOOR and (x, y) not in keep:
                 grid.set(x, y, VOID)
 
-    # Treat wide lobes of the cave as "rooms" so props still land sensibly.
+    # Loose stone where the passages meet the chambers.
+    for _ in range(_clamp(grid.cols * grid.rows // 130, 2, 16)):
+        _blob(grid, rng.uniform(0, grid.cols), rng.uniform(0, grid.rows),
+              rng.uniform(1.0, 2.4), RUBBLE, rng, only_on={FLOOR})
+    return rooms, []
+
+
+def _gen_deck(grid, spec, rng):
+    """One ship under way, open water on every side.
+
+    `harbour` builds a quay and moors a vessel against it. A fight on the deck
+    of a ship at sea is a different map: the deck is the whole playing field.
+    """
+    grid.fill_rect(0, 0, grid.cols, grid.rows, WATER)
+
+    hull_w = _clamp(int(grid.cols * 0.82), 8, grid.cols - 2)
+    hull_h = _clamp(int(grid.rows * 0.62), 5, grid.rows - 4)
+    hx = (grid.cols - hull_w) // 2
+    hy = (grid.rows - hull_h) // 2
+    _carve_ship(grid, hx, hy, hull_w, hull_h, rng)
+
+    # A mast step and a hatch coaming amidships, so the deck is not a bare oval.
+    mid_y = hy + hull_h // 2
+    for dx in (-1, 0, 1):
+        grid.set(hx + hull_w // 2 + dx, mid_y, BRIDGE)
+
+    # Fore, main and aft: the three places a boarding action happens.
+    thirds = [("Forecastle", hx + int(hull_w * 0.70)),
+              ("Main Deck", hx + int(hull_w * 0.38)),
+              ("Quarterdeck", hx + int(hull_w * 0.10))]
     rooms = []
-    cells = sorted(keep)
-    if cells:
-        n = _clamp(len(spec["rooms"]), 1, 6)
-        step = max(1, len(cells) // n)
-        for i in range(n):
-            cx, cy = cells[min(len(cells) - 1, i * step + step // 2)]
-            rooms.append({"spec": spec["rooms"][i % len(spec["rooms"])],
-                          "rect": (max(0, cx - 2), max(0, cy - 2), 5, 5)})
+    for i, (fallback, cx) in enumerate(thirds):
+        room = dict(spec["rooms"][i]) if i < len(spec["rooms"]) else {}
+        room.setdefault("label", fallback)
+        room.setdefault("id", fallback.lower().replace(" ", "_"))
+        room.setdefault("size", "m")
+        room.setdefault("props", [])
+        w = max(3, hull_w // 5)
+        h = max(3, hull_h // 2)
+        rooms.append({"spec": room,
+                      "rect": (_clamp(cx - w // 2, hx + 1, grid.cols - w - 1),
+                               _clamp(mid_y - h // 2, hy + 1, grid.rows - h - 1), w, h)})
+
+    spec.setdefault("structures", [])
+    spec["structures"].append({"kind": "ship", "x": hx, "y": hy, "w": hull_w, "h": hull_h})
     return rooms, []
 
 
@@ -603,6 +681,8 @@ def _gen_street(grid, spec, rng):
         h = (road_y - 1) if side == 0 else (grid.rows - top - 1)
         if h < 4:
             continue
+        if bw < 5 or grid.cols < 12:
+            continue
         for i in range(per_side):
             idx = side * per_side + i
             if idx >= n:
@@ -616,20 +696,75 @@ def _gen_street(grid, spec, rng):
             dx = bx + bw // 2
             dy = top + h - 1 if side == 0 else top
             grid.set(dx, dy, DOOR)
+
+    # Too small for buildings either side: the road is the whole map, and one
+    # named stretch of it is better than nothing to hang props on.
+    if not rooms:
+        rooms.append({"spec": specs[0] if specs else {"label": "Street", "size": "m",
+                                                      "props": []},
+                      "rect": (1, 1, max(2, grid.cols - 2), max(2, grid.rows - 2))})
     return rooms, []
 
 
 def _gen_arena(grid, spec, rng):
-    """One dramatic chamber - the classic boss room."""
-    m = 2
+    """One dramatic chamber: a sand floor ringed by a colonnade and a gallery.
+
+    It used to be a plain rectangle with two rows of pillars, which made it
+    indistinguishable from `building` once the tiles were counted. An arena is a
+    shape, not a room: a round fighting floor, a walled ring around it, and a
+    way in from each side.
+    """
+    grid.fill_rect(0, 0, grid.cols, grid.rows, VOID)
+    m = 1
     grid.fill_rect(m, m, grid.cols - m * 2, grid.rows - m * 2, FLOOR)
-    rect = (m + 1, m + 1, grid.cols - m * 2 - 2, grid.rows - m * 2 - 2)
-    specs = spec["rooms"] or [{"id": "arena", "label": "Arena", "props": []}]
-    rooms = [{"spec": specs[0], "rect": rect}]
-    if grid.cols >= 15 and grid.rows >= 11:
-        for gx in (m + 3, grid.cols - m - 4):
-            for gy in range(m + 3, grid.rows - m - 3, 3):
-                grid.set(gx, gy, WALL)
+
+    cx, cy = grid.cols / 2.0, grid.rows / 2.0
+    radius = min(grid.cols, grid.rows) / 2.0 - 3.0
+
+    if radius >= 3.0:
+        # The barrier: a ring of wall with four gates onto the sand.
+        for y in range(grid.rows):
+            for x in range(grid.cols):
+                dx = (x - cx) / max(1.0, radius)
+                dy = (y - cy) / max(1.0, radius * 0.82)
+                d = math.sqrt(dx * dx + dy * dy)
+                if 0.97 <= d <= 1.06:
+                    grid.set(x, y, WALL)
+        for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+            for lane in (-1, 0, 1):
+                x = int(cx) + (lane if dy else 0)
+                y = int(cy) + (lane if dx else 0)
+                for _ in range(max(grid.cols, grid.rows)):
+                    x += dx
+                    y += dy
+                    if not grid.inside(x, y):
+                        break
+                    if grid.get(x, y) == WALL:
+                        grid.set(x, y, FLOOR)
+        # Sand inside the barrier, so the fighting floor reads differently from
+        # the gallery walkway outside it.
+        for y in range(grid.rows):
+            for x in range(grid.cols):
+                dx = (x - cx) / max(1.0, radius)
+                dy = (y - cy) / max(1.0, radius * 0.82)
+                if math.sqrt(dx * dx + dy * dy) < 0.95 and grid.get(x, y) == FLOOR:
+                    grid.set(x, y, RUBBLE)
+
+    specs = spec["rooms"] or [{"id": "arena", "label": "Arena", "size": "l", "props": []}]
+    r = max(2, int(radius * 0.7))
+    rooms = [{"spec": specs[0], "rect": (_clamp(int(cx) - r, 1, grid.cols - 3),
+                                         _clamp(int(cy) - r // 2, 1, grid.rows - 3),
+                                         max(3, r * 2), max(3, r))}]
+    # A holding cell or two off the gallery, if there is room and the caller
+    # asked for more than one area.
+    for i, extra in enumerate(specs[1:3]):
+        side = -1 if i % 2 == 0 else 1
+        w = max(3, grid.cols // 7)
+        h = max(3, grid.rows // 6)
+        rx = _clamp(int(cx + side * (grid.cols / 2.0 - w / 2.0 - 1)) - w // 2, 1,
+                    grid.cols - w - 1)
+        ry = _clamp(int(cy) - h // 2, 1, grid.rows - h - 1)
+        rooms.append({"spec": extra, "rect": (rx, ry, w, h)})
     return rooms, []
 
 
@@ -885,6 +1020,7 @@ _GENERATORS = {
     "forest": _gen_forest,
     "swamp": _gen_swamp,
     "ruins": _gen_ruins,
+    "deck": _gen_deck,
     "custom": _gen_custom,
 }
 
@@ -965,29 +1101,31 @@ def _apply_terrain(grid, rooms, spec, rng):
 
 
 def _ensure_connected(grid, rng):
-    """If terrain cut the map in two, bridge the gap. A battle map you cannot
-    walk across is a bug, not a feature."""
-    for _ in range(6):
+    """If terrain cut the map into islands, bridge them. A battle map you cannot
+    walk across is a bug, not a feature.
+
+    Six passes used to be the budget and each pass joined a single cell, so a
+    swamp with two dozen reed beds came out with most of them unreachable. It
+    now runs until the map is whole, and picks the nearest main cell to one
+    stranded cell rather than comparing every pair.
+    """
+    for _ in range(60):
         main = _largest_component(grid, WALKABLE)
-        stranded = set()
+        if not main:
+            return
+        stranded = None
         for y in range(grid.rows):
             for x in range(grid.cols):
                 if grid.get(x, y) in WALKABLE and (x, y) not in main:
-                    stranded.add((x, y))
-        if not stranded or not main:
+                    stranded = (x, y)
+                    break
+            if stranded:
+                break
+        if stranded is None:
             return
-        # Bridge from the stranded cell closest to the main region.
-        best = None
-        for sx, sy in stranded:
-            for mx, my in main:
-                d = abs(sx - mx) + abs(sy - my)
-                if best is None or d < best[0]:
-                    best = (d, (sx, sy), (mx, my))
-        if best is None:
-            return
-        _, a, b = best
-        for cell in _carve_corridor(grid, a, b, rng):
-            if grid.get(*cell) in (WATER, PIT):
+        target = min(main, key=lambda c: abs(c[0] - stranded[0]) + abs(c[1] - stranded[1]))
+        for cell in _carve_corridor(grid, stranded, target, rng):
+            if grid.get(*cell) in (WATER, PIT, VOID):
                 grid.set(cell[0], cell[1], BRIDGE)
 
 
@@ -1030,13 +1168,14 @@ def _place_props(grid, rooms, spec, rng, style_props=None):
                          "structural": is_structural_prop(kind)})
         return True
 
+    pool = style_props or _DEFAULT_FILLER["dungeon"]
+
     for room in rooms:
         rect = room["rect"]
         wanted = [normalize_prop(p) for p in (room["spec"].get("props") or [])]
         wanted = [w for w in wanted if w]
         area = max(1, rect[2] * rect[3])
         filler_budget = int(round(area / 22.0 * density))
-        pool = style_props or _DEFAULT_FILLER["dungeon"]
         if pool and filler_budget > 0:
             wanted = wanted + [rng.choice(pool) for _ in range(filler_budget)]
 
@@ -1186,7 +1325,9 @@ def normalize_spec(spec):
         "ruin": "ruins", "rubble_field": "ruins", "battlefield": "ruins",
         "port": "harbour", "harbor": "harbour", "docks": "harbour",
         "dock": "harbour", "waterfront": "harbour", "quay": "harbour",
-        "pier": "harbour", "coast": "harbour", "ship": "harbour",
+        "pier": "harbour", "coast": "harbour",
+        "ship": "deck", "shipdeck": "deck", "at_sea": "deck", "sea": "deck",
+        "boarding": "deck", "galleon": "deck",
     }
     layout = aliases.get(layout, layout)
     out["layout"] = layout if layout in _GENERATORS else "dungeon"

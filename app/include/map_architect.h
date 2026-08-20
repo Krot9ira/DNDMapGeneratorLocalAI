@@ -544,6 +544,153 @@ inline RoomList GenOpen(TileGrid& g, const DesignSpec& spec, Rng& rng, PathList&
     return rooms;
 }
 
+// Dense woodland: the default state is thicket, and clearings are carved out of
+// it. The opposite of `open`, where the default is bare ground.
+inline RoomList GenForest(TileGrid& g, const DesignSpec& spec, Rng& rng, PathList&) {
+    g.FillRect(0, 0, g.cols, g.rows, Tile::Vegetation);
+
+    RoomList rooms;
+    int n = Clampi((int)spec.rooms.size(), 1, 6);
+    float span = (float)std::min(g.cols, g.rows);
+    for (int i = 0; i < n; ++i) {
+        const RoomSpec& rs = spec.rooms[i];
+        char size = rs.size ? rs.size : 'm';
+        float hint = size == 'l' ? 0.20f : (size == 's' ? 0.09f : 0.14f);
+        float radius = std::clamp(span * hint, 2.0f, 14.0f);
+        float cx = rng.Float(radius + 1, g.cols - radius - 1);
+        float cy = rng.Float(radius + 1, g.rows - radius - 1);
+        Blob(g, cx, cy, radius, Tile::Floor, rng, nullptr, rng.Float(0.8f, 1.4f));
+        int r = (int)radius;
+        rooms.push_back({rs, {Clampi((int)cx - r / 2, 0, g.cols - 2),
+                              Clampi((int)cy - r / 2, 0, g.rows - 2),
+                              std::max(3, r), std::max(3, r)}});
+    }
+
+    // Trodden paths joining the clearings, so the scene is actually crossable.
+    for (size_t i = 1; i < rooms.size(); ++i) {
+        for (auto cell : CarveCorridor(g, rooms[i - 1].second.Center(),
+                                       rooms[i].second.Center(), rng)) {
+            g.Set(cell.first, cell.second, Tile::Rubble);
+            if (rng.Chance(0.5f))
+                g.Set(cell.first, cell.second + (rng.Chance(0.5f) ? -1 : 1), Tile::Rubble);
+        }
+    }
+
+    // A scatter of thicker undergrowth so the canopy is not uniform.
+    std::set<Tile> onFloor{Tile::Floor};
+    int clumps = Clampi(g.cols * g.rows / 120, 2, 20);
+    for (int i = 0; i < clumps; ++i)
+        Blob(g, rng.Float(0, (float)g.cols), rng.Float(0, (float)g.rows),
+             rng.Float(1.5f, 4.0f), Tile::Vegetation, rng, &onFloor);
+    return rooms;
+}
+
+// Standing water broken by reed beds and tussocks of solid ground.
+inline RoomList GenSwamp(TileGrid& g, const DesignSpec& spec, Rng& rng, PathList&) {
+    g.FillRect(0, 0, g.cols, g.rows, Tile::Water);
+    float span = (float)std::min(g.cols, g.rows);
+
+    RoomList rooms;
+    int n = Clampi((int)spec.rooms.size(), 1, 6);
+    for (int i = 0; i < n; ++i) {
+        float radius = std::clamp(span * rng.Float(0.10f, 0.18f), 2.0f, 12.0f);
+        float cx = rng.Float(radius + 1, g.cols - radius - 1);
+        float cy = rng.Float(radius + 1, g.rows - radius - 1);
+        Blob(g, cx, cy, radius, Tile::Floor, rng, nullptr, rng.Float(0.7f, 1.5f));
+        int r = (int)radius;
+        rooms.push_back({spec.rooms[i], {Clampi((int)cx - r / 2, 0, g.cols - 2),
+                                         Clampi((int)cy - r / 2, 0, g.rows - 2),
+                                         std::max(3, r), std::max(3, r)}});
+    }
+
+    // Reed beds along the waterline.
+    std::set<Tile> onWater{Tile::Water};
+    int beds = Clampi(g.cols * g.rows / 90, 3, 26);
+    for (int i = 0; i < beds; ++i)
+        Blob(g, rng.Float(0, (float)g.cols), rng.Float(0, (float)g.rows),
+             rng.Float(1.5f, 4.0f), Tile::Vegetation, rng, &onWater);
+
+    // Plank walkways between the islands - a swamp you cannot cross is useless.
+    for (size_t i = 1; i < rooms.size(); ++i) {
+        for (auto cell : CarveCorridor(g, rooms[i - 1].second.Center(),
+                                       rooms[i].second.Center(), rng)) {
+            Tile t = g.Get(cell.first, cell.second);
+            if (t == Tile::Water || t == Tile::Vegetation)
+                g.Set(cell.first, cell.second, Tile::Bridge);
+        }
+    }
+    return rooms;
+}
+
+// An open site strewn with fragments of collapsed building.
+inline RoomList GenRuins(TileGrid& g, const DesignSpec& spec, Rng& rng, PathList&) {
+    g.FillRect(0, 0, g.cols, g.rows, Tile::Floor);
+    for (int x = 0; x < g.cols; ++x) {
+        for (int y = 0; y < g.rows; ++y) {
+            int edge = std::min(std::min(x, y), std::min(g.cols - 1 - x, g.rows - 1 - y));
+            if (edge == 0 || (edge == 1 && rng.Chance(0.4f))) g.Set(x, y, Tile::Vegetation);
+        }
+    }
+
+    RoomList rooms;
+    int n = Clampi((int)spec.rooms.size(), 2, 7);
+    int minLeaf = Clampi(std::min(g.cols, g.rows) / 5, 4, 12);
+    for (const Rect& leaf : BspSplit({2, 2, g.cols - 4, g.rows - 4}, n, rng, minLeaf)) {
+        size_t i = rooms.size();
+        if (i >= spec.rooms.size() || leaf.w < 4 || leaf.h < 4) continue;
+        int rx = leaf.x + 1, ry = leaf.y + 1, rw = leaf.w - 2, rh = leaf.h - 2;
+        // Broken outline: each wall run survives only in pieces.
+        for (int x = rx; x < rx + rw; ++x) {
+            if (rng.Chance(0.65f)) g.Set(x, ry, Tile::Wall);
+            if (rng.Chance(0.65f)) g.Set(x, ry + rh - 1, Tile::Wall);
+        }
+        for (int y = ry; y < ry + rh; ++y) {
+            if (rng.Chance(0.65f)) g.Set(rx, y, Tile::Wall);
+            if (rng.Chance(0.65f)) g.Set(rx + rw - 1, y, Tile::Wall);
+        }
+        rooms.push_back({spec.rooms[i], {rx + 1, ry + 1, std::max(2, rw - 2),
+                                         std::max(2, rh - 2)}});
+    }
+
+    std::set<Tile> onFloor{Tile::Floor};
+    int heaps = Clampi(g.cols * g.rows / 100, 3, 24);
+    for (int i = 0; i < heaps; ++i)
+        Blob(g, rng.Float(0, (float)g.cols), rng.Float(0, (float)g.rows),
+             rng.Float(1.0f, 3.0f), Tile::Rubble, rng, &onFloor);
+    return rooms;
+}
+
+// One ship under way, open water on every side. `harbour` builds a quay and
+// moors a vessel against it; a fight on the deck of a ship at sea is a
+// different map, where the deck is the whole playing field.
+inline RoomList GenDeck(TileGrid& g, const DesignSpec& spec, Rng&, PathList&,
+                        std::vector<Structure>& structures) {
+    g.FillRect(0, 0, g.cols, g.rows, Tile::Water);
+
+    int hullW = Clampi((int)(g.cols * 0.82f), 8, g.cols - 2);
+    int hullH = Clampi((int)(g.rows * 0.62f), 5, g.rows - 4);
+    int hx = (g.cols - hullW) / 2, hy = (g.rows - hullH) / 2;
+    CarveShip(g, hx, hy, hullW, hullH);
+
+    int midY = hy + hullH / 2;
+    for (int dx = -1; dx <= 1; ++dx) g.Set(hx + hullW / 2 + dx, midY, Tile::Bridge);
+
+    const char* fallback[3] = {"Forecastle", "Main Deck", "Quarterdeck"};
+    const float at[3] = {0.70f, 0.38f, 0.10f};
+    RoomList rooms;
+    for (int i = 0; i < 3; ++i) {
+        RoomSpec rs = (i < (int)spec.rooms.size()) ? spec.rooms[i] : RoomSpec{};
+        if (rs.label.empty()) rs.label = fallback[i];
+        if (rs.id.empty()) rs.id = rs.label;
+        int w = std::max(3, hullW / 5), h = std::max(3, hullH / 2);
+        int cx = hx + (int)(hullW * at[i]);
+        rooms.push_back({rs, {Clampi(cx - w / 2, hx + 1, g.cols - w - 1),
+                              Clampi(midY - h / 2, hy + 1, g.rows - h - 1), w, h}});
+    }
+    structures.push_back({"ship", hx, hy, hullW, hullH});
+    return rooms;
+}
+
 inline RoomList GenStreet(TileGrid& g, const DesignSpec& spec, Rng&, PathList&) {
     g.FillRect(0, 0, g.cols, g.rows, Tile::Floor);
     int roadH = Clampi(g.rows / 3, 4, 8);
@@ -949,6 +1096,10 @@ inline MapData Build(DesignSpec spec, uint32_t seed) {
     if (L == "building") rooms = GenBuilding(g, spec, rng, paths);
     else if (L == "cavern") rooms = GenCavern(g, spec, rng, paths);
     else if (L == "open") rooms = GenOpen(g, spec, rng, paths);
+    else if (L == "forest") rooms = GenForest(g, spec, rng, paths);
+    else if (L == "swamp") rooms = GenSwamp(g, spec, rng, paths);
+    else if (L == "ruins") rooms = GenRuins(g, spec, rng, paths);
+    else if (L == "deck") rooms = GenDeck(g, spec, rng, paths, structures);
     else if (L == "street") rooms = GenStreet(g, spec, rng, paths);
     else if (L == "arena") rooms = GenArena(g, spec, rng, paths);
     else if (L == "harbour") rooms = GenHarbour(g, spec, rng, paths, structures);

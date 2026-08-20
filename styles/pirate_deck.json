@@ -5,7 +5,7 @@
   "description": "The whole fighting deck of a sailing ship, open water on every side.",
   "palette": "salt-bleached oak, tarred rope black, canvas cream, deep ocean blue",
   "lighting": "bright open sea daylight, hard shadows from the rigging across the planks",
-  "default_layout": "harbour",
+  "default_layout": "deck",
   "props": [
     "mast",
     "capstan",
