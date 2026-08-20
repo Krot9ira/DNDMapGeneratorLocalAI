@@ -696,6 +696,12 @@ def _gen_street(grid, spec, rng):
             dx = bx + bw // 2
             dy = top + h - 1 if side == 0 else top
             grid.set(dx, dy, DOOR)
+            # Some cottages open onto the side path instead of, or as well as,
+            # the lane. A row of identical front doors reads as a barracks.
+            if h >= 6 and rng.random() < 0.55:
+                sx = bx if rng.random() < 0.5 else bx + bw - 1
+                sy = top + rng.randrange(2, h - 2)
+                grid.set(sx, sy, DOOR)
 
     # Too small for buildings either side: the road is the whole map, and one
     # named stretch of it is better than nothing to hang props on.

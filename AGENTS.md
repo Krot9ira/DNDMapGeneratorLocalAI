@@ -1,37 +1,90 @@
 # AI agent integration guide
 
-You are already a capable language model, so you do not need the local Ollama step at all.
-Write the design spec yourself and call the API — it is faster, frees the VRAM for the
-renderer, and gives you direct control over the scene.
-
-The tools live in `tools/`. They locate the project root themselves, so they work from the
-repository or from an unpacked release.
+This folder generates D&D battle maps. You drive it from Python.
 
 ---
 
-## The one rule that matters
+## Start here
 
-**Describe the place. Never compute coordinates.**
+**1. Where to run.** From the folder that contains `tools/`, `styles/` and `config.json` -
+the folder this file is in. Everything resolves relative to it.
 
-The architect (`tools/architect.py`) owns every spatial decision: room packing, corridor
-routing, wall derivation, door placement, prop distribution. Your job is the semantic
-layer — what kind of place this is, which areas it has, what it is made of, what is lying
-around.
+**2. How to import.**
 
-That split is why layouts are always valid. Earlier versions asked the model for rectangles
-and got overlapping rooms, walls enclosing nothing, and doors in the middle of the floor.
+```python
+import sys; sys.path.insert(0, "tools")
+import agent_api
+```
 
-The exception is deliberate annotation: once the geometry exists you *may* pin a rectangle
-and describe exactly what belongs in it (see **Annotations** below).
+**3. Which call.** These are not interchangeable. Pick from the request, not from habit.
+
+| You were asked for | Call | Takes | Produces |
+|---|---|---|---|
+| a **plan**, layout, blueprint, schema, floor plan | `agent_api.blueprint(spec)` | seconds, no GPU | `map.json` + readable `preview.png` |
+| a **finished map**, a render, an image to play on | `agent_api.generate(spec)` | minutes, needs ComfyUI | painted `battlemap*.png` |
+| several options to choose between | `blueprint` per option | seconds each | one folder each |
+| a render of a plan that exists already | `agent_api.generate_from_map(path_or_dict)` | minutes | painted image |
+
+> **If the request is ambiguous, call `blueprint`.** It is cheap and reversible, and its
+> output can be rendered later without redoing the planning. Four renders when somebody
+> asked for four layouts is the expensive mistake; the reverse costs nothing.
+
+**4. The one rule.** Describe the place. **Never compute coordinates.** Room positions,
+corridors, walls, doors and prop placement are all worked out for you by
+`tools/architect.py`. Your job is what kind of place it is, which areas it has, what it is
+made of, what is lying about. Earlier versions asked a model for rectangles and got
+overlapping rooms and doors in the middle of the floor; this split is why a broken layout
+is now impossible to express.
+
+The one exception is deliberate: once the geometry exists you may pin a rectangle and say
+exactly what belongs in it. See **Annotations**.
 
 ---
 
-## Quick start
+## The smallest thing that works
 
 ```python
 import sys; sys.path.insert(0, "tools")
 import agent_api
 
+plan = agent_api.blueprint({
+    "title": "Riverside Hamlet",
+    "style": "village_hamlet",
+    "grid": {"cols": 30, "rows": 24},
+    "scene_summary": "Thatched cottages either side of a rutted dirt lane, a stone well.",
+    "rooms": [{"label": "Smithy", "size": "m", "props": ["anvil", "forge", "barrel"]}],
+})
+
+print(plan["out_dir"])     # map.json and preview.png are written here
+```
+
+Three fields are required: `title`, `style`, `scene_summary`. Everything else has a
+sensible default. `agent_api.list_styles()` returns every style id.
+
+### What you get back
+
+Both calls return a dict:
+
+| Key | What it is |
+|---|---|
+| `out_dir` | the folder everything was written to |
+| `map_json` | the plan as a dict - areas, walls, props, the lot |
+| `caption` | exactly what the painter is told, if you want to inspect it |
+| `images` | list of finished PNG paths. **`blueprint` does not set this** |
+| `problems` | anything the validator quietly repaired |
+
+### Did it work?
+
+- `blueprint`: `out_dir` contains `map.json` and `preview.png`. Open the preview to see
+  the layout. Report the folder and describe what came out.
+- `generate`: `result["images"]` is a non-empty list of files that exist on disk. If it is
+  empty, the render failed - say so, do not claim success.
+
+---
+
+## A full spec, with everything worth setting
+
+```python
 result = agent_api.generate({
     "title": "Baldur's Gate Docks",
     "style": "city_harbour",
@@ -53,9 +106,23 @@ result = agent_api.generate({
     ],
 })
 
-print(result["images"])       # finished PNG paths
-print(result["out_dir"])      # everything else lives here
+print(result["images"])
 ```
+
+---
+
+## When it goes wrong
+
+| What you see | What it means |
+|---|---|
+| `ModuleNotFoundError: agent_api` | you are in the wrong folder, or forgot `sys.path.insert(0, "tools")` |
+| `RuntimeError: ComfyUI unreachable` | ComfyUI is not running. `blueprint` still works; `generate` cannot |
+| `generate` returns no images | the render failed. The reason is in the exception text - report it |
+| `ModuleNotFoundError: PIL` | run `pip install pillow`; the preview needs it |
+| the style id is rejected | call `agent_api.list_styles()` and use one of those keys |
+| a render takes many minutes | that is normal. Quality is 48 steps. Do not retry over the top of it |
+
+Never say a map was produced without checking that the file exists.
 
 ---
 
@@ -97,14 +164,15 @@ a blank rim, their guessing spoils empty space instead of the corner of a room. 
 |---|---|
 | `dungeon` | separate rooms joined by corridors — crypts, tombs, keeps |
 | `building` | inside of one structure — tavern, shop, station |
-| `cavern` | organic irregular cave |
+| `cavern` | chambers joined by winding passages, no straight lines |
 | `open` | bare outdoor ground, no enclosing walls |
 | `forest` | dense woodland; clearings are carved out of thicket |
 | `swamp` | standing water, reed beds, islands of solid ground, plank walkways |
 | `ruins` | open site strewn with fragments of collapsed building |
 | `street` | city block with buildings along a road |
-| `arena` | one dramatic chamber |
+| `arena` | a sand fighting floor inside a ringed barrier with gates |
 | `harbour` | quay, open water and a moored ship (the ship is generated for you) |
+| `deck` | one ship under way, its deck filling the map, open water all round |
 | `custom` | you supply explicit `x/y/w/h` per room and they are validated and walled |
 
 ---
@@ -201,20 +269,60 @@ while a free renderer paints convincing clutter on its own.
 ```python
 agent_api.list_styles()          # every style, keyed by id
 agent_api.list_layouts()         # layouts and grid sizes
-agent_api.render_only(spec)      # Stage 1 only — inspect the plan before spending GPU time
+agent_api.blueprint(spec)        # Stage 1 only — the plan, in seconds, with no GPU
 agent_api.generate_from_map(m)   # re-render an existing map.json or dict
 agent_api.build_map(spec)        # spec -> map dict, no network at all
 agent_api.make_caption(map_data) # the exact JSON caption that will be sent
 ```
 
-`render_only` is the cheap iteration loop: it writes `preview.png` (a labelled blueprint you
+`blueprint` is the cheap iteration loop: it writes `preview.png` (a labelled blueprint you
 can read) plus `map.json`, with no GPU work. Check the layout, then call `generate`.
+(`render_only` is the old name for it and still works, but it read as "only render", which is
+the opposite of what it does.)
 
 A plan written this way opens directly in the desktop app: **File → Open map.json** lists
 every plan under `output/` with a thumbnail, and restores the scene text, style, size,
 layout and terrain it was built with.
 
 ---
+
+---
+
+## What to say to an agent
+
+Copy one of these. Each is written so the agent cannot mistake a plan for a render.
+
+**Four plans, no rendering:**
+
+> You have the D&D AI Battle Map Generator in this folder. Read `AGENTS.md` first.
+> Using `agent_api.blueprint(...)` and nothing else, build four separate plans:
+> a village square, a flooded crypt, a bandit camp in the woods, and a harbour with one
+> moored ship. Do not call `generate` - I want the blueprints only, not painted maps.
+> Tell me the output folder of each and describe what came out.
+
+**One finished map:**
+
+> You have the D&D AI Battle Map Generator in this folder. Read `AGENTS.md` first.
+> ComfyUI is running. Build and render one finished battle map: a gothic crypt, medium
+> size, with a flooded lower chamber. Use `agent_api.generate(...)`. It takes a few
+> minutes - wait for it and give me the path to the PNG.
+
+**Plan first, then decide:**
+
+> Read `AGENTS.md`. Make three plans of a mountain pass ambush with
+> `agent_api.blueprint(...)`, at three different seeds, and show me the previews. Do not
+> render anything yet. When I pick one, render that one with
+> `agent_api.generate_from_map(...)`.
+
+**Edit an existing plan:**
+
+> Read `AGENTS.md`. Open `output/village/map.json`, add a barred gate across the lane at
+> the north end as an annotation, put a well in the middle of the square, then render it
+> with `agent_api.generate_from_map(...)`.
+
+The two words that decide everything are **plan** (`blueprint`, seconds, no GPU) and
+**render** (`generate`, minutes, needs ComfyUI). Say which one you want and the agent has
+nothing to guess.
 
 ## Command line equivalent
 

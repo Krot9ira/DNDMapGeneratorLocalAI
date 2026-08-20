@@ -3,22 +3,43 @@
 Python API for AI agents.
 
 An agent that is already a capable language model does not need the local LLM at
-all: it writes the design spec itself and calls `generate(...)`. That skips
-Ollama entirely, frees the VRAM for the renderer, and is the fastest path.
+all: it writes the design spec itself. That skips Ollama entirely, frees the
+VRAM for the renderer, and is the fastest path.
+
+TWO CALLS, AND THEY ARE NOT INTERCHANGEABLE
+-------------------------------------------
+
+    blueprint(spec)  -> the plan only. Seconds, no GPU. Writes map.json and a
+                        readable preview.png. This is what "make me a schema",
+                        "a layout", "a floor plan", "a blueprint" means.
+
+    generate(spec)   -> the finished painted map. Minutes, needs ComfyUI
+                        running with the Ideogram 4 models loaded.
+
+If the request is ambiguous, call `blueprint`. It is cheap and reversible, and
+its output can be rendered afterwards with `generate_from_map(...)` without
+redoing the planning. Rendering four maps because somebody asked for four
+layouts is the expensive mistake.
 
     import agent_api
 
-    agent_api.generate({
+    plan = agent_api.blueprint({
         "title": "Baldur's Gate Docks",
         "style": "city_harbour",
         "layout": "harbour",
         "size": "large",
         "scene_summary": "A stone quay with a large ship moored alongside.",
         "rooms": [
-            {"label": "Warehouse",    "size": "m", "props": ["crate", "barrel"]},
+            {"label": "Warehouse",     "size": "m", "props": ["crate", "barrel"]},
             {"label": "Harbourmaster", "size": "s", "props": ["table"]},
         ],
     })
+    print(plan["out_dir"])          # map.json + preview.png live here
+
+    # ...and only when a finished image is actually wanted:
+    agent_api.generate_from_map(plan["map_json"])
+
+Full field reference: AGENTS.md, next to this folder.
 """
 import json
 import math
@@ -97,9 +118,17 @@ def make_caption(map_data):
     return build_caption_json(map_data, style, planner.load_base())
 
 
-def render_only(spec, seed=None, out_dir=None, cols=None, rows=None):
-    """Stage 1 only: build the layout and stop. Useful for iterating on a plan
-    before spending GPU time on it."""
+def blueprint(spec, seed=None, out_dir=None, cols=None, rows=None):
+    """Stage 1 only: plan the place, write the blueprint, and stop.
+
+    No GPU, no image, seconds rather than minutes. Writes `map.json` (the plan
+    itself), `preview.png` (a labelled picture of it a human can read) and
+    `caption.json` (what the painter would be told). Open the result in the
+    desktop app with File - Open map.json, or hand it to `generate` later.
+
+    This is the one to call when somebody asks for a plan, a layout, a
+    blueprint or a schema. `generate` paints a finished map and takes minutes.
+    """
     result = build_map(spec, seed=seed, cols=cols, rows=rows)
     map_data = result["map_json"]
     out_dir = Path(out_dir) if out_dir else PROJECT / "output" / map_data["meta"]["name"]
@@ -159,6 +188,11 @@ def generate(spec=None, map_data=None, seed=None, out_dir=None, cols=None, rows=
     result.update({"images": images, "caption": caption, "out_dir": str(out_dir),
                    "prompt_id": prompt_id, "size": (width, height)})
     return result
+
+
+# The old name for `blueprint`. It read as "only render", which is the opposite
+# of what it does, so it misled every agent that met it first.
+render_only = blueprint
 
 
 def generate_from_map(map_dict_or_path, out_dir=None, **kwargs):

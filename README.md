@@ -411,6 +411,44 @@ spatial decision. The single exception is annotating a rectangle you want contro
 
 ---
 
+---
+
+## What to say to an agent
+
+Copy one of these. Each is written so the agent cannot mistake a plan for a render.
+
+**Four plans, no rendering:**
+
+> You have the D&D AI Battle Map Generator in this folder. Read `AGENTS.md` first.
+> Using `agent_api.blueprint(...)` and nothing else, build four separate plans:
+> a village square, a flooded crypt, a bandit camp in the woods, and a harbour with one
+> moored ship. Do not call `generate` - I want the blueprints only, not painted maps.
+> Tell me the output folder of each and describe what came out.
+
+**One finished map:**
+
+> You have the D&D AI Battle Map Generator in this folder. Read `AGENTS.md` first.
+> ComfyUI is running. Build and render one finished battle map: a gothic crypt, medium
+> size, with a flooded lower chamber. Use `agent_api.generate(...)`. It takes a few
+> minutes - wait for it and give me the path to the PNG.
+
+**Plan first, then decide:**
+
+> Read `AGENTS.md`. Make three plans of a mountain pass ambush with
+> `agent_api.blueprint(...)`, at three different seeds, and show me the previews. Do not
+> render anything yet. When I pick one, render that one with
+> `agent_api.generate_from_map(...)`.
+
+**Edit an existing plan:**
+
+> Read `AGENTS.md`. Open `output/village/map.json`, add a barred gate across the lane at
+> the north end as an annotation, put a well in the middle of the square, then render it
+> with `agent_api.generate_from_map(...)`.
+
+The two words that decide everything are **plan** (`blueprint`, seconds, no GPU) and
+**render** (`generate`, minutes, needs ComfyUI). Say which one you want and the agent has
+nothing to guess.
+
 ## Build from source
 
 ### Prerequisites
@@ -424,6 +462,16 @@ spatial decision. The single exception is annotating a rectangle you want contro
 No package manager step: Dear ImGui, nlohmann/json and stb are vendored in `app/vendor/`.
 
 ### Build
+
+One script does the lot — configure, build, assemble the release folder, check it is
+complete, and pack it:
+
+```powershell
+.uild.ps1 -Zip
+```
+
+`-Clean` throws the build folder away first; without `-Zip` it stops after assembling the
+folder. Or drive CMake yourself:
 
 ```bash
 cmake -B build -S . -A x64

@@ -468,50 +468,85 @@ inline RoomList GenBuilding(TileGrid& g, const DesignSpec& spec, Rng& rng, PathL
     return rooms;
 }
 
+// Chambers joined by winding passages, then softened into rock. Pure cellular
+// automata kept collapsing below the safety threshold and falling back to a
+// single oval, so every cave came out as one featureless blob.
 inline RoomList GenCavern(TileGrid& g, const DesignSpec& spec, Rng& rng, PathList&) {
-    for (int y = 0; y < g.rows; ++y)
-        for (int x = 0; x < g.cols; ++x) {
-            bool edge = x <= 1 || y <= 1 || x >= g.cols - 2 || y >= g.rows - 2;
-            g.Set(x, y, (edge || rng.Chance(0.44f)) ? Tile::Void : Tile::Floor);
+    g.FillRect(0, 0, g.cols, g.rows, Tile::Void);
+    float span = (float)std::min(g.cols, g.rows);
+
+    int n = Clampi((int)spec.rooms.size(), 2, 6);
+    std::vector<std::pair<int, int>> centres;
+    RoomList rooms;
+    for (int i = 0; i < n; ++i) {
+        // Spread the chambers around the map instead of clustering them.
+        float ang = (i / (float)n) * 6.2831853f + rng.Float(-0.4f, 0.4f);
+        float spread = rng.Float(0.22f, 0.36f);
+        float cx = g.cols / 2.0f + std::cos(ang) * g.cols * spread;
+        float cy = g.rows / 2.0f + std::sin(ang) * g.rows * spread;
+        char size = spec.rooms[(size_t)i].size ? spec.rooms[(size_t)i].size : 'm';
+        float hint = size == 'l' ? 0.30f : (size == 's' ? 0.18f : 0.24f);
+        float radius = std::clamp(span * hint * rng.Float(0.9f, 1.25f), 3.0f, 16.0f);
+        cx = std::clamp(cx, radius + 2, g.cols - radius - 2);
+        cy = std::clamp(cy, radius + 2, g.rows - radius - 2);
+        Blob(g, cx, cy, radius, Tile::Floor, rng, nullptr, rng.Float(0.7f, 1.5f));
+        centres.push_back({(int)cx, (int)cy});
+        int r = (int)radius;
+        rooms.push_back({spec.rooms[(size_t)i],
+                         {Clampi((int)cx - r / 2, 0, g.cols - 2),
+                          Clampi((int)cy - r / 2, 0, g.rows - 2),
+                          std::max(3, r), std::max(3, r)}});
+    }
+
+    // Winding passages. A straight corridor would look quarried, so each leg is
+    // carved and then blistered outwards.
+    for (size_t i = 1; i < centres.size(); ++i) {
+        auto path = CarveCorridor(g, centres[i - 1], centres[i], rng);
+        for (size_t j = 0; j < path.size(); ++j) {
+            Blob(g, (float)path[j].first, (float)path[j].second, rng.Float(1.4f, 2.0f),
+                 Tile::Floor, rng);
+            if (j % std::max<size_t>(2, path.size() / 5) == 0)
+                Blob(g, (float)path[j].first, (float)path[j].second, rng.Float(2.2f, 3.6f),
+                     Tile::Floor, rng);
         }
-    for (int pass = 0; pass < 5; ++pass) {
+    }
+    if (centres.size() > 2 && rng.Chance(0.7f))
+        CarveCorridor(g, centres.back(), centres.front(), rng);
+
+    // One round of smoothing to eat the corners off.
+    {
         std::vector<Tile> snap = g.cells;
-        for (int y = 1; y < g.rows - 1; ++y)
+        for (int y = 1; y < g.rows - 1; ++y) {
             for (int x = 1; x < g.cols - 1; ++x) {
-                int walls = 0;
+                int solid = 0;
                 for (int dy = -1; dy <= 1; ++dy)
                     for (int dx = -1; dx <= 1; ++dx) {
                         if (!dx && !dy) continue;
-                        int xx = x + dx, yy = y + dy;
-                        if (!g.Inside(xx, yy) || snap[(size_t)yy * g.cols + xx] == Tile::Void)
-                            ++walls;
+                        if (snap[(size_t)(y + dy) * g.cols + (x + dx)] == Tile::Void) ++solid;
                     }
-                g.Set(x, y, walls >= 5 ? Tile::Void : Tile::Floor);
+                Tile here = snap[(size_t)y * g.cols + x];
+                if (here == Tile::Floor && solid >= 6) g.Set(x, y, Tile::Void);
+                else if (here == Tile::Void && solid <= 2) g.Set(x, y, Tile::Floor);
             }
+        }
     }
+
+    // A rim of rock, so the cave never runs off the edge of the map.
+    for (int x = 0; x < g.cols; ++x)
+        for (int y = 0; y < g.rows; ++y)
+            if (x == 0 || y == 0 || x == g.cols - 1 || y == g.rows - 1)
+                g.Set(x, y, Tile::Void);
+
     auto keep = LargestComponent(g, {Tile::Floor});
-    if ((int)keep.size() < (g.cols * g.rows) / 6) {
-        // A cave that collapsed to nothing is useless - fall back to a chamber.
-        g.FillRect(0, 0, g.cols, g.rows, Tile::Void);
-        Blob(g, g.cols / 2.0f, g.rows / 2.0f, std::min(g.cols, g.rows) / 2.4f,
-             Tile::Floor, rng, nullptr, 1.4f);
-        keep = LargestComponent(g, {Tile::Floor});
-    }
     for (int y = 0; y < g.rows; ++y)
         for (int x = 0; x < g.cols; ++x)
             if (g.Get(x, y) == Tile::Floor && !keep.count({x, y})) g.Set(x, y, Tile::Void);
 
-    RoomList rooms;
-    std::vector<std::pair<int, int>> cells(keep.begin(), keep.end());
-    if (!cells.empty() && !spec.rooms.empty()) {
-        int n = Clampi((int)spec.rooms.size(), 1, 6);
-        int step = std::max(1, (int)cells.size() / n);
-        for (int i = 0; i < n; ++i) {
-            auto c = cells[(size_t)std::min((int)cells.size() - 1, i * step + step / 2)];
-            rooms.push_back({spec.rooms[(size_t)(i % spec.rooms.size())],
-                             Rect{std::max(0, c.first - 2), std::max(0, c.second - 2), 5, 5}});
-        }
-    }
+    std::set<Tile> onFloor{Tile::Floor};
+    int heaps = Clampi(g.cols * g.rows / 130, 2, 16);
+    for (int i = 0; i < heaps; ++i)
+        Blob(g, rng.Float(0, (float)g.cols), rng.Float(0, (float)g.rows),
+             rng.Float(1.0f, 2.4f), Tile::Rubble, rng, &onFloor);
     return rooms;
 }
 
@@ -691,7 +726,7 @@ inline RoomList GenDeck(TileGrid& g, const DesignSpec& spec, Rng&, PathList&,
     return rooms;
 }
 
-inline RoomList GenStreet(TileGrid& g, const DesignSpec& spec, Rng&, PathList&) {
+inline RoomList GenStreet(TileGrid& g, const DesignSpec& spec, Rng& rng, PathList&) {
     g.FillRect(0, 0, g.cols, g.rows, Tile::Floor);
     int roadH = Clampi(g.rows / 3, 4, 8);
     int roadY = (g.rows - roadH) / 2;
@@ -714,22 +749,88 @@ inline RoomList GenStreet(TileGrid& g, const DesignSpec& spec, Rng&, PathList&) 
             rooms.push_back({spec.rooms[(size_t)idx],
                              Rect{bx + 1, top + 1, std::max(2, bw - 2), std::max(2, h - 2)}});
             g.Set(bx + bw / 2, side == 0 ? top + h - 1 : top, Tile::Door);
+            // Some cottages open onto the side path instead of, or as well as,
+            // the lane. A row of identical front doors reads as a barracks.
+            if (h >= 6 && rng.Chance(0.55f)) {
+                int sx = rng.Chance(0.5f) ? bx : bx + bw - 1;
+                int sy = top + 2 + rng.Int(0, std::max(0, h - 5));
+                g.Set(sx, sy, Tile::Door);
+            }
         }
+    }
+    // Too small for buildings either side: the road is the whole map, and one
+    // named stretch of it is better than nothing to hang props on.
+    if (rooms.empty()) {
+        RoomSpec rs = spec.rooms.empty()
+                          ? RoomSpec{"street", "Street", 'm', "none", {}, false, 0, 0, 0, 0}
+                          : spec.rooms[0];
+        rooms.push_back({rs, {1, 1, std::max(2, g.cols - 2), std::max(2, g.rows - 2)}});
     }
     return rooms;
 }
 
+// One dramatic chamber: a sand floor ringed by a barrier with four gates. It
+// used to be a plain rectangle with two rows of pillars, which a tile histogram
+// could not tell apart from `building`.
 inline RoomList GenArena(TileGrid& g, const DesignSpec& spec, Rng&, PathList&) {
-    const int m = 2;
+    g.FillRect(0, 0, g.cols, g.rows, Tile::Void);
+    const int m = 1;
     g.FillRect(m, m, g.cols - m * 2, g.rows - m * 2, Tile::Floor);
-    Rect r{m + 1, m + 1, g.cols - m * 2 - 2, g.rows - m * 2 - 2};
-    RoomSpec s = spec.rooms.empty() ? RoomSpec{"arena", "Arena", 'l', "none", {}, false, 0, 0, 0, 0}
-                                    : spec.rooms[0];
-    if (g.cols >= 15 && g.rows >= 11) {  // symmetric colonnade reads as a grand hall
-        for (int gx : {m + 3, g.cols - m - 4})
-            for (int gy = m + 3; gy < g.rows - m - 3; gy += 3) g.Set(gx, gy, Tile::Wall);
+
+    float cx = g.cols / 2.0f, cy = g.rows / 2.0f;
+    float radius = std::min(g.cols, g.rows) / 2.0f - 3.0f;
+
+    if (radius >= 3.0f) {
+        for (int y = 0; y < g.rows; ++y) {
+            for (int x = 0; x < g.cols; ++x) {
+                float dx = (x - cx) / std::max(1.0f, radius);
+                float dy = (y - cy) / std::max(1.0f, radius * 0.82f);
+                float d = std::sqrt(dx * dx + dy * dy);
+                if (d >= 0.97f && d <= 1.06f) g.Set(x, y, Tile::Wall);
+            }
+        }
+        // Cut the gates by walking outward from the centre: trigonometry kept
+        // missing the ring and sealing the gallery off.
+        const int dirs[4][2] = {{1, 0}, {-1, 0}, {0, 1}, {0, -1}};
+        for (auto& d : dirs) {
+            for (int lane = -1; lane <= 1; ++lane) {
+                int x = (int)cx + (d[1] ? lane : 0);
+                int y = (int)cy + (d[0] ? lane : 0);
+                for (int step = 0; step < std::max(g.cols, g.rows); ++step) {
+                    x += d[0];
+                    y += d[1];
+                    if (!g.Inside(x, y)) break;
+                    if (g.Get(x, y) == Tile::Wall) g.Set(x, y, Tile::Floor);
+                }
+            }
+        }
+        for (int y = 0; y < g.rows; ++y) {
+            for (int x = 0; x < g.cols; ++x) {
+                float dx = (x - cx) / std::max(1.0f, radius);
+                float dy = (y - cy) / std::max(1.0f, radius * 0.82f);
+                if (std::sqrt(dx * dx + dy * dy) < 0.95f && g.Get(x, y) == Tile::Floor)
+                    g.Set(x, y, Tile::Rubble);
+            }
+        }
     }
-    return RoomList{{s, r}};
+
+    RoomSpec first = spec.rooms.empty()
+                         ? RoomSpec{"arena", "Arena", 'l', "none", {}, false, 0, 0, 0, 0}
+                         : spec.rooms[0];
+    int r = std::max(2, (int)(radius * 0.7f));
+    RoomList rooms;
+    rooms.push_back({first, {Clampi((int)cx - r, 1, g.cols - 3),
+                             Clampi((int)cy - r / 2, 1, g.rows - 3),
+                             std::max(3, r * 2), std::max(3, r)}});
+    for (size_t i = 1; i < spec.rooms.size() && i < 3; ++i) {
+        int side = (i % 2 == 1) ? -1 : 1;
+        int w = std::max(3, g.cols / 7), h = std::max(3, g.rows / 6);
+        int rx = Clampi((int)(cx + side * (g.cols / 2.0f - w / 2.0f - 1)) - w / 2, 1,
+                        g.cols - w - 1);
+        int ry = Clampi((int)cy - h / 2, 1, g.rows - h - 1);
+        rooms.push_back({spec.rooms[i], {rx, ry, w, h}});
+    }
+    return rooms;
 }
 
 inline RoomList GenHarbour(TileGrid& g, DesignSpec& spec, Rng& rng, PathList&,
@@ -880,7 +981,9 @@ inline void EnsureConnected(TileGrid& g, Rng& rng) {
     for (int i = 0; i < (int)Tile::COUNT; ++i)
         if (IsWalkable((Tile)i)) walk.insert((Tile)i);
 
-    for (int attempt = 0; attempt < 6; ++attempt) {
+    // Six passes, each joining a single cell, left a swamp with two dozen reed
+    // beds mostly unreachable. Run until the map is whole.
+    for (int attempt = 0; attempt < 60; ++attempt) {
         auto main = LargestComponent(g, walk);
         if (main.empty()) return;
         std::vector<std::pair<int, int>> stranded;
@@ -889,16 +992,18 @@ inline void EnsureConnected(TileGrid& g, Rng& rng) {
                 if (walk.count(g.Get(x, y)) && !main.count({x, y})) stranded.push_back({x, y});
         if (stranded.empty()) return;
 
+        // One stranded cell against the main region, not every pair: the
+        // all-pairs search was the reason the pass budget had to be tiny.
+        std::pair<int, int> a = stranded.front(), b{0, 0};
         int bestD = INT32_MAX;
-        std::pair<int, int> a{0, 0}, b{0, 0};
-        for (auto& s : stranded)
-            for (auto& m : main) {
-                int d = std::abs(s.first - m.first) + std::abs(s.second - m.second);
-                if (d < bestD) { bestD = d; a = s; b = m; }
-            }
+        for (auto& mcell : main) {
+            int d = std::abs(a.first - mcell.first) + std::abs(a.second - mcell.second);
+            if (d < bestD) { bestD = d; b = mcell; }
+        }
         for (auto& cell : CarveCorridor(g, a, b, rng)) {
             Tile t = g.Get(cell.first, cell.second);
-            if (t == Tile::Water || t == Tile::Pit) g.Set(cell.first, cell.second, Tile::Bridge);
+            if (t == Tile::Water || t == Tile::Pit || t == Tile::Void)
+                g.Set(cell.first, cell.second, Tile::Bridge);
         }
     }
 }
