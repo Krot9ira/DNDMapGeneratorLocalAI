@@ -129,6 +129,69 @@ public:
     // Split a rectangle into tiles when it covers a big share of the map. A
     // single box the size of half the frame is not a useful instruction: the
     // model satisfies it with one blob somewhere inside.
+    // Where a rectangle sits and how far it reaches, in words.
+    static std::string SpreadOf(int x, int y, int w, int h, int cols, int rows) {
+        bool wide = w >= 0.55 * cols;
+        bool tall = h >= 0.55 * rows;
+        double cx = (x + w / 2.0) / std::max(1, cols);
+        double cy = (y + h / 2.0) / std::max(1, rows);
+        std::string side = cx < 0.38 ? "west" : (cx > 0.62 ? "east" : "");
+        std::string band = cy < 0.38 ? "north" : (cy > 0.62 ? "south" : "");
+        if (tall && !wide)
+            return side.empty() ? "down the middle from top to bottom" : "down the " + side + " side";
+        if (wide && !tall)
+            return band.empty() ? "across the middle from side to side" : "across the " + band + " end";
+        if (wide && tall) return "over most of the map";
+        std::string where = (!band.empty() && !side.empty()) ? band + "-" + side
+                                                             : (band.empty() ? side : band);
+        return where.empty() ? "in the middle" : "in the " + where;
+    }
+
+    // One sentence naming the biggest things and where they lie. The
+    // description at the top of a caption is the most powerful text in it, and
+    // until now it was whatever prose the scene came with - which for a gorge
+    // said "a war camp with a fire in the middle", so a war camp with a fire in
+    // the middle is what came back, four times over, however carefully every
+    // rectangle below it was drawn. This puts the plan's own geography in that
+    // same place, in the same voice, so the strongest text in the caption
+    // agrees with the weakest.
+    static std::string ShapeOfMap(const MapData& map, int cols, int rows) {
+        struct Piece { int area; std::string label; Rect r; };
+        std::vector<Piece> pieces;
+        for (const Annotation& a : map.annotations)
+            if (!Trim(a.label).empty())
+                pieces.push_back({std::max(1, a.w) * std::max(1, a.h), Trim(a.label),
+                                  {a.x, a.y, a.w, a.h}});
+        for (const Area& a : map.areas)
+            if (!Trim(a.label).empty())
+                pieces.push_back({std::max(1, a.w) * std::max(1, a.h), Trim(a.label),
+                                  {a.x, a.y, a.w, a.h}});
+        std::stable_sort(pieces.begin(), pieces.end(),
+                         [](const Piece& a, const Piece& b) { return a.area > b.area; });
+        // Measured against the playable field, not the stored grid: every map
+        // carries an empty bleed margin, and counting it made the one area that
+        // fills the whole map look like two thirds of it.
+        int b = arch::BorderOf(map);
+        int field = std::max(1, (cols - 2 * b) * (rows - 2 * b));
+        std::vector<std::string> said;
+        std::set<std::string> seen;
+        for (const Piece& piece : pieces) {
+            if (said.size() >= 4 || piece.area < 0.02 * field) break;
+            std::string low = arch::Lower(piece.label);
+            if (piece.area > 0.7 * field || seen.count(low)) continue;
+            seen.insert(low);
+            said.push_back(LowerFirst(TheLabel(piece.label)) + " " +
+                           SpreadOf(piece.r.x, piece.r.y, piece.r.w, piece.r.h, cols, rows));
+        }
+        if (said.size() < 2) return "";
+        std::string out = "Laid out on the map, and in these places and no others: ";
+        for (size_t i = 0; i < said.size(); ++i) {
+            if (i) out += (i + 1 == said.size()) ? " and " : ", ";
+            out += said[i];
+        }
+        return out + ".";
+    }
+
     static std::vector<Rect> TileRect(int x, int y, int w, int h, int cols, int rows,
                                       int maxTiles = 6) {
         if (cols <= 0 || rows <= 0 || w * h <= 0.22 * cols * rows)
@@ -335,8 +398,10 @@ public:
                            "scenery, not architecture.";
             }
         }
+        std::string shape = ShapeOfMap(map, cols, rows);
+        if (!shape.empty()) shape = " " + shape;
         cap["high_level_description"] =
-            CapWords(head, 44) + ". " + base.forbidden_suffix + "." + onlyRoom +
+            CapWords(head, 44) + ". " + base.forbidden_suffix + "." + shape + onlyRoom +
             " Every wall in this picture is one continuous face of " + encFace + " from "
             "corner to corner, interrupted only by " + std::to_string(doorCells) +
             " doorways and " + std::to_string(windowCells) +

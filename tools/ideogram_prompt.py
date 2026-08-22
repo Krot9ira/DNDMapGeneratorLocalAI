@@ -315,6 +315,66 @@ def _is_walled_in(grid, x, y, w, h, site_edge=None):
     return edge > 0 and walled >= 0.25 * edge
 
 
+def _spread_of(x, y, w, h, cols, rows):
+    """Where a rectangle sits and how far it reaches, in words."""
+    wide = w >= 0.55 * cols
+    tall = h >= 0.55 * rows
+    cx = (x + w / 2.0) / max(1, cols)
+    cy = (y + h / 2.0) / max(1, rows)
+    side = "west" if cx < 0.38 else "east" if cx > 0.62 else ""
+    band = "north" if cy < 0.38 else "south" if cy > 0.62 else ""
+    if tall and not wide:
+        return f"down the {side} side" if side else "down the middle from top to bottom"
+    if wide and not tall:
+        return f"across the {band} end" if band else "across the middle from side to side"
+    if wide and tall:
+        return "over most of the map"
+    where = (band + "-" + side) if band and side else (band or side)
+    return f"in the {where}" if where else "in the middle"
+
+
+def _shape_of_map(map_data, cols, rows):
+    """One sentence naming the biggest things and where they lie.
+
+    The description at the top of a caption is the most powerful text in it,
+    and until now it was whatever prose the scene came with - which for a gorge
+    said "a war camp with a fire in the middle", so a war camp with a fire in
+    the middle is what came back, four times, however carefully every rectangle
+    below it was drawn. This puts the plan's own geography in that same place,
+    in the same voice, so the strongest text in the caption agrees with the
+    weakest.
+    """
+    pieces = []
+    for a in (map_data.get("annotations") or []):
+        label = str(a.get("label", "")).strip()
+        if label:
+            pieces.append((int(a["w"]) * int(a["h"]), label, a))
+    for a in (map_data.get("areas") or []):
+        label = str(a.get("label", "")).strip()
+        if label:
+            pieces.append((int(a["w"]) * int(a["h"]), label, a))
+    pieces.sort(key=lambda t: -t[0])
+    # Measured against the playable field, not the stored grid: every map
+    # carries an empty bleed margin, and counting it made the one area that
+    # fills the whole map look like two thirds of it.
+    b = A.border_of(map_data)
+    field = max(1, (cols - 2 * b) * (rows - 2 * b))
+    said = []
+    seen = set()
+    for area, label, a in pieces:
+        if len(said) >= 4 or area < 0.02 * field:
+            break
+        if area > 0.7 * field or label.lower() in seen:
+            continue                      # the whole field is not a landmark
+        seen.add(label.lower())
+        said.append(f"{_the(label)[0].lower()}{_the(label)[1:]} "
+                    f"{_spread_of(int(a['x']), int(a['y']), int(a['w']), int(a['h']), cols, rows)}")
+    if len(said) < 2:
+        return ""
+    return ("Laid out on the map, and in these places and no others: "
+            + ", ".join(said[:-1]) + " and " + said[-1] + ".")
+
+
 def _wall_thickness(grid, bx, by, bw, bh):
     """How many squares deep the outer wall of this footprint actually is."""
     mid = by + bh // 2
@@ -561,6 +621,9 @@ def build_caption(map_data, style=None, base=None):
         "The scene is completely empty of people, creatures and animals, and carries no text, "
         "letters, numbers, labels or grid lines anywhere")
     caption["high_level_description"] = head.rstrip(",") + ". " + forbidden + "."
+    shape = _shape_of_map(map_data, cols, rows)
+    if shape:
+        caption["high_level_description"] += " " + shape
 
     # Counted openings. Without this the renderer decorates a long wall with a
     # row of invented archways, which changes how the map plays.
