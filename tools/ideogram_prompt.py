@@ -540,7 +540,8 @@ def build_caption(map_data, style=None, base=None):
     # areas are in creation order and include things that are not buildings at
     # all, which is how a warehouse came to be called "the Moored Ship".
     def _name_for(bx, by, bw, bh):
-        """The name of the area inside this footprint, and what it is like."""
+        """What to call this footprint, and what to say about its inside."""
+        held = []
         for a in (map_data.get("areas") or []):
             label = str(a.get("label", "")).strip()
             if not label:
@@ -548,7 +549,17 @@ def build_caption(map_data, style=None, base=None):
             ax = int(a.get("x", 0)) + int(a.get("w", 1)) / 2.0
             ay = int(a.get("y", 0)) + int(a.get("h", 1)) / 2.0
             if bx <= ax <= bx + bw and by <= ay <= by + bh:
-                return f"the {label}", str(a.get("description", "")).strip()
+                held.append((label, str(a.get("description", "")).strip()))
+        if len(held) == 1:
+            return f"the {held[0][0]}", held[0][1]
+        if len(held) > 1:
+            # Naming it after one of its rooms was a lie that cost the other
+            # rooms their place in the caption. Say what it really is.
+            names = ", ".join(name for name, _ in held[:-1]) + " and " + held[-1][0]
+            return ("", 
+                    f"Inside it, divided from each other by the interior walls listed "
+                    f"below, are exactly {len(held)} rooms and no others: {names}. Each is "
+                    f"described separately with its own rectangle")
         return "a building", ""
 
     organic = str(meta.get("layout", "")).lower() in ("cavern", "forest", "swamp")
@@ -603,7 +614,8 @@ def build_caption(map_data, style=None, base=None):
             walls.append({
                 "type": "obj",
                 "bbox": _bbox(bx, by, bw, bh, cols, rows),
-                "desc": (f"One single {size_word} building, {named}, standing alone inside "
+                "desc": (f"One single {size_word} building{', ' + named if named else ''}"
+                         f", standing alone inside "
                          f"this rectangle and nowhere else: thick unbroken outer walls right "
                          f"on the edges of the rectangle, its roof removed so the furnished "
                          f"floor inside is fully visible from above."
@@ -656,11 +668,19 @@ def build_caption(map_data, style=None, base=None):
         # one lump of an irregular mass, and describing it as a wall adds noise.
         if max(w, h) < 3 or w * h < 2:
             continue
-        # A wall that belongs to a building is already covered by that
-        # building's own element. Repeating it a dozen times over is what made
-        # the renderer read the map as a repeating pattern.
-        if any(bx - 1 <= x and by - 1 <= y and x + w <= bx + bw + 1 and y + h <= by + bh + 1
-               for (bx, by, bw, bh) in building_rects):
+        on_outline = False
+        for (bx, by, bw, bh) in building_rects:
+            inside = (bx - 1 <= x and by - 1 <= y and
+                      x + w <= bx + bw + 1 and y + h <= by + bh + 1)
+            if not inside:
+                continue
+            hugs_side = x <= bx + 1 or x + w >= bx + bw - 1
+            hugs_top = y <= by + 1 or y + h >= by + bh - 1
+            # Along an edge of the footprint, not across its middle.
+            if (w >= h and hugs_top) or (h > w and hugs_side):
+                on_outline = True
+            break
+        if on_outline:
             continue
         if organic:
             walls.append({
@@ -670,12 +690,17 @@ def build_caption(map_data, style=None, base=None):
                          f"face irregular and broken but with no passage, gap or opening "
                          f"through it anywhere. {exact}")})
             continue
+        fx, fy = (x + w / 2.0) / max(1, cols), (y + h / 2.0) / max(1, rows)
+        band = "north" if fy < 0.34 else "south" if fy > 0.66 else "middle"
+        side = "west" if fx < 0.34 else "east" if fx > 0.66 else "centre"
         if w >= h:
-            shape = ("a horizontal wall running the full width of this rectangle from its "
-                     "left edge to its right edge")
+            where = f"across the {band} of the map" if band != "middle" else                     "across the middle of the map"
+            shape = (f"a horizontal wall running {where}, filling the full width of this "
+                     f"rectangle from its left edge to its right edge")
         else:
-            shape = ("a vertical wall running the full height of this rectangle from its "
-                     "top edge to its bottom edge")
+            where = f"down the {side} of the map" if side != "centre" else                     "down the centre of the map"
+            shape = (f"a vertical wall running {where}, filling the full height of this "
+                     f"rectangle from its top edge to its bottom edge")
         walls.append({
             "type": "obj",
             "bbox": _bbox(x, y, w, h, cols, rows),
@@ -725,9 +750,10 @@ def build_caption(map_data, style=None, base=None):
                          if a2 is not area and (a2.get("label") or "").strip()
                          and host[0][0] <= a2["x"] + a2["w"] / 2.0 <= host[0][0] + host[0][2]
                          and host[0][1] <= a2["y"] + a2["h"] / 2.0 <= host[0][1] + host[0][3])
-            if others:
-                continue                  # its building element already names it
-            single = True
+            # Only a building with exactly one room in it is fully described by
+            # its own element. With two or more, every room needs its own, or
+            # the renderer is told the outline and left to invent the inside.
+            single = not others
         else:
             single = False
         detail = str(area.get("description", "")).strip()

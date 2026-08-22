@@ -422,19 +422,33 @@ public:
                 // is how a warehouse came to be called "the Moored Ship".
                 std::string label;
                 std::string inside;
+                std::vector<const Area*> held;
                 for (const Area& ar : map.areas) {
                     if (ar.label.empty()) continue;
                     double ax = ar.x + ar.w / 2.0, ay = ar.y + ar.h / 2.0;
                     if (ax >= b.rect.x && ax <= b.rect.x + b.rect.w &&
-                        ay >= b.rect.y && ay <= b.rect.y + b.rect.h) {
-                        label = "the " + ar.label;
-                        // The room element is skipped inside a footprint, so
-                        // without this its description would be thrown away.
-                        inside = Trim(ar.description);
-                        break;
-                    }
+                        ay >= b.rect.y && ay <= b.rect.y + b.rect.h)
+                        held.push_back(&ar);
                 }
-                if (label.empty()) {
+                if (held.size() == 1) {
+                    label = "the " + held[0]->label;
+                    // The room element is skipped when a building holds one, so
+                    // without this its description would be thrown away.
+                    inside = Trim(held[0]->description);
+                } else if (held.size() > 1) {
+                    // Naming it after one of its rooms was a lie that cost the
+                    // other rooms their place in the caption.
+                    std::string names;
+                    for (size_t k = 0; k < held.size(); ++k) {
+                        if (k) names += (k + 1 == held.size()) ? " and " : ", ";
+                        names += held[k]->label;
+                    }
+                    inside = "Inside it, divided from each other by the interior walls "
+                             "listed below, are exactly " + std::to_string(held.size()) +
+                             " rooms and no others: " + names +
+                             ". Each is described separately with its own rectangle";
+                }
+                if (label.empty() && held.empty()) {
                     // Nothing named it, so name it by where it stands. Five
                     // buildings all called "a building" read as one building
                     // drawn five times.
@@ -452,13 +466,14 @@ public:
                 walls.push_back({
                     {"type", "obj"},
                     {"bbox", Bbox(b.rect.x, b.rect.y, b.rect.w, b.rect.h, cols, rows)},
-                    {"desc", "One single " + sizeWord + " building, " + label +
+                    {"desc", "One single " + sizeWord + " building" +
+                             (label.empty() ? "" : ", " + label) +
                              ", standing alone inside this rectangle and nowhere else: thick "
                              "unbroken outer walls right on the edges of the rectangle, its "
                              "roof removed so the furnished floor inside is fully visible "
                              "from above." + (inside.empty() ? std::string()
-                                                             : " " + inside) + " " +
-                             doorNote + ". The ground immediately outside it on every "
+                                                             : " " + TrimStop(inside) + ".") +
+                             " " + doorNote + ". The ground immediately outside it on every "
                              "side is open and free of any wall. " + kExactS}});
             }
         }
@@ -497,11 +512,22 @@ public:
                 // Only genuinely elongated runs. The rest are stubs, or one lump
                 // of an irregular mass, and read as noise either way.
                 if (std::max(r.w, r.h) < 3 || r.w * r.h < 2) continue;
-                bool insideBuilding = false;
-                for (const Rect& b : buildings)
-                    if (r.x >= b.x - 1 && r.y >= b.y - 1 && r.x + r.w <= b.x + b.w + 1 &&
-                        r.y + r.h <= b.y + b.h + 1) insideBuilding = true;
-                if (insideBuilding) continue;
+                // The building element describes its own outline, so an outer
+                // wall repeated is noise. An interior partition is the
+                // opposite: it is the only thing that says where one room ends
+                // and the next begins, and dropping it left a keep as one empty
+                // shell for the renderer to subdivide however it liked.
+                bool onOutline = false;
+                for (const Rect& b : buildings) {
+                    bool inside = r.x >= b.x - 1 && r.y >= b.y - 1 &&
+                                  r.x + r.w <= b.x + b.w + 1 && r.y + r.h <= b.y + b.h + 1;
+                    if (!inside) continue;
+                    bool hugsSide = r.x <= b.x + 1 || r.x + r.w >= b.x + b.w - 1;
+                    bool hugsTop = r.y <= b.y + 1 || r.y + r.h >= b.y + b.h - 1;
+                    if ((r.w >= r.h && hugsTop) || (r.h > r.w && hugsSide)) onOutline = true;
+                    break;
+                }
+                if (onOutline) continue;
                 if (organic) {
                     walls.push_back({
                         {"type", "obj"},
@@ -512,12 +538,21 @@ public:
                                  kExactS}});
                     continue;
                 }
+                // Four wall runs described in identical words are four chances
+                // to read the map as a repeating pattern. Where each one runs
+                // is both a difference and something the renderer can use.
+                double fx = (r.x + r.w / 2.0) / std::max(1, cols);
+                double fy = (r.y + r.h / 2.0) / std::max(1, rows);
+                std::string band = fy < 0.34 ? "north" : (fy > 0.66 ? "south" : "middle");
+                std::string side = fx < 0.34 ? "west" : (fx > 0.66 ? "east" : "centre");
                 std::string shape =
                     (r.w >= r.h)
-                        ? "a horizontal wall running the full width of this rectangle from "
-                          "its left edge to its right edge"
-                        : "a vertical wall running the full height of this rectangle from "
-                          "its top edge to its bottom edge";
+                        ? "a horizontal wall running across the " + band +
+                              " of the map, filling the full width of this rectangle from "
+                              "its left edge to its right edge"
+                        : "a vertical wall running down the " + side +
+                              " of the map, filling the full height of this rectangle from "
+                              "its top edge to its bottom edge";
                 walls.push_back({
                     {"type", "obj"},
                     {"bbox", Bbox(r.x, r.y, r.w, r.h, cols, rows)},
@@ -589,8 +624,11 @@ public:
                     if (ox >= host->x && ox <= host->x + host->w &&
                         oy >= host->y && oy <= host->y + host->h) ++others;
                 }
-                if (others) continue;     // its building element already names it
-                single = true;
+                // Only a building with exactly one room in it is fully
+                // described by its own element. With two or more, every room
+                // needs its own, or the renderer is told the outline and left
+                // to invent the inside.
+                single = (others == 0);
             }
             std::string oneRoom =
                 single ? ". This building holds this one room and nothing else: it is a "
