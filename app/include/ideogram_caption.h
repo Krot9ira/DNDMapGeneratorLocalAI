@@ -946,7 +946,9 @@ public:
                         {"desc", "A band of " + natural + ": " + shape +
                                  ", filling it completely and keeping the same thickness "
                                  "along its entire length, solid the whole way with no gap, "
-                                 "no gate and no opening through it. " + kExactS}});
+                                 "no gate and no opening through it. It is seen from "
+                                 "directly overhead, so what is drawn is the top of it "
+                                 "looking straight down and never its side. " + kExactS}});
                     continue;
                 }
                 walls.push_back({

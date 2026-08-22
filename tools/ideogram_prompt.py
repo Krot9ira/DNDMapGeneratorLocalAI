@@ -1145,7 +1145,9 @@ def build_caption(map_data, style=None, base=None):
                 "bbox": _bbox(x, y, w, h, cols, rows),
                 "desc": (f"A band of {natural}: {shape}, filling it completely and keeping "
                          f"the same thickness along its entire length, solid the whole way "
-                         f"with no gap, no gate and no opening through it. {exact}")})
+                         f"with no gap, no gate and no opening through it. It is seen from "
+                         f"directly overhead, so what is drawn is the top of it looking "
+                         f"straight down and never its side. {exact}")})
             continue
         walls.append({
             "type": "obj",
