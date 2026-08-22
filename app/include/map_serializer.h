@@ -39,7 +39,7 @@ public:
         j["features"] = nlohmann::json::array();
         for (const auto& f : map.features) {
             nlohmann::json fj = {{"kind", f.kind}, {"x", f.x}, {"y", f.y},
-                                 {"structural", f.structural}};
+                                 {"structural", f.structural}, {"filler", f.filler}};
             if (!f.label.empty()) fj["label"] = f.label;
             if (!f.description.empty()) fj["description"] = f.description;
             if (!f.label.empty() || !f.description.empty())
@@ -131,6 +131,7 @@ public:
                         fj.value("elaboration", std::string("some")));
                     f.structural = fj.value("structural",
                                             arch::IsStructuralProp(f.kind) || !f.label.empty());
+                    f.filler = fj.value("filler", false);
                     out.features.push_back(f);
                 }
             }

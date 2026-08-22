@@ -110,6 +110,9 @@ inline Elaboration ElaborationFromName(const std::string& s) {
 struct Feature {
     std::string kind = "pillar";
     int x = 0, y = 0;
+    // True when the architect sprinkled this in to fill a floor rather than
+    // anybody asking for it. Only filler is ever folded into a summary.
+    bool filler = false;
     // Set only for hand-placed custom props: the renderer is told exactly what
     // this thing is, in the user's own words.
     std::string label;

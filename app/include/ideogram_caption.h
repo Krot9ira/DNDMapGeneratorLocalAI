@@ -26,6 +26,12 @@ public:
     static constexpr int kMaxElements = 24;
     // Walls are merged into the longest runs the grid allows, so this is generous.
     static constexpr int kMaxWallRuns = 8;
+
+    // How many of one kind of *filler* object get their own rectangle before
+    // the rest join the clutter sentence. Filler is what the architect
+    // sprinkles in to fill a floor; props somebody asked for are never folded
+    // away - a room with twelve chests in it is a plan, not noise.
+    static constexpr int kMaxSameProp = 3;
     // 8-connected blobs of the given tile kinds, as bounding rectangles with
     // their cell counts, biggest first.
     struct Blob { Rect rect; int cells; };
@@ -158,6 +164,37 @@ public:
     // Join a phrase to a following sentence with exactly one full stop, however
     // the phrase happens to end. The wording file is edited by hand, so half
     // its entries end with a stop and half do not.
+    // Which wall of which building - so no two doors read the same. Six doors
+    // described in identical words are six chances to read the map as a
+    // repeating pattern, and the renderer obliges by mirroring it.
+    static std::string WhichWall(const Rect& d, const std::vector<Rect>& buildings,
+                                 const std::vector<std::string>& names, int cols, int rows) {
+        const Rect* host = nullptr;
+        std::string hostName;
+        for (size_t i = 0; i < buildings.size(); ++i) {
+            const Rect& b = buildings[i];
+            if (d.x >= b.x - 1 && d.y >= b.y - 1 && d.x + d.w <= b.x + b.w + 1 &&
+                d.y + d.h <= b.y + b.h + 1) {
+                host = &b;
+                if (i < names.size()) hostName = names[i];
+                break;
+            }
+        }
+        Rect r = host ? *host : Rect{0, 0, cols, rows};
+        double dx = (d.x + d.w / 2.0 - (r.x + r.w / 2.0)) / std::max(1.0, r.w / 2.0);
+        double dy = (d.y + d.h / 2.0 - (r.y + r.h / 2.0)) / std::max(1.0, r.h / 2.0);
+        std::string side = std::abs(dx) > std::abs(dy) ? (dx > 0 ? "east" : "west")
+                                                       : (dy > 0 ? "south" : "north");
+        std::string where = "In the " + side + " wall";
+        if (!hostName.empty() && hostName != "a building") return where + " of " + hostName;
+        return where + (host ? " of this building" : " of the map");
+    }
+
+    static std::string LowerFirst(std::string s) {
+        if (!s.empty()) s[0] = (char)tolower((unsigned char)s[0]);
+        return s;
+    }
+
     static std::string Sentence(std::string head, const std::string& tail) {
         while (!head.empty() && (head.back() == ' ' || head.back() == '.')) head.pop_back();
         if (head.empty()) return tail;
@@ -196,13 +233,31 @@ public:
         int doorCells = 0, windowCells = 0;
         for (const Rect& r : MergeRuns(g, Tile::Door, cols, rows)) doorCells += r.w * r.h;
         for (const Rect& r : MergeRuns(g, Tile::Window, cols, rows)) windowCells += r.w * r.h;
+        // A hall that fills the frame fights the renderer's prior that a big
+        // roofless building has rooms in it. An element buried in the list is
+        // too quiet to win that argument; it has to be said in the headline.
+        std::string onlyRoom;
+        {
+            const Area* only = nullptr;
+            int named = 0;
+            for (const Area& a : map.areas)
+                if (!a.label.empty()) { ++named; only = &a; }
+            if (named == 1 && only &&
+                (double)only->w * only->h / std::max(1, cols * rows) > 0.45) {
+                onlyRoom = " The whole of this map is one single room, the " + only->label +
+                           ", and nothing else: one continuous floor from wall to wall with "
+                           "no interior wall, no partition, no corridor and no smaller room "
+                           "anywhere inside it. Everything standing on that floor is "
+                           "furniture, not architecture.";
+            }
+        }
         cap["high_level_description"] =
-            CapWords(head, 44) + ". " + base.forbidden_suffix +
-            ". Every wall in this map is solid from end to end. There are exactly " +
-            std::to_string(doorCells) + " doors and " + std::to_string(windowCells) +
-            " windows in the whole picture, each one listed below with its own rectangle, "
-            "and no other door, doorway, archway, gate, gap or window exists anywhere in "
-            "any wall.";
+            CapWords(head, 44) + ". " + base.forbidden_suffix + "." + onlyRoom +
+            " Every wall in this picture is one continuous face of plain masonry from "
+            "corner to corner, interrupted only by " + std::to_string(doorCells) +
+            " doorways and " + std::to_string(windowCells) +
+            " windows, each of which is listed below with its own rectangle. Everywhere "
+            "else the masonry runs straight on.";
         // Nothing in the contract forbade perspective, so a scene that happened
         // to mention a ceiling came back drawn from the corner of the room.
         if (!base.viewpoint_note.empty())
@@ -307,16 +362,6 @@ public:
                 {"desc", say("structure", "ship", SHIP_TEXT)}});
         }
 
-        // 4. Doors. Few in number and load-bearing for how the map plays, so each
-        //    gets its own box - without this the renderer put openings where it
-        //    liked, or left a plain gap where a door belongs.
-        for (const Rect& r : MergeRuns(g, Tile::Door, cols, rows)) {
-            structure.push_back({
-                {"type", "obj"},
-                {"bbox", Bbox(r.x, r.y, r.w, r.h, cols, rows)},
-                {"desc", Sentence(say("structure", "door", DOOR_TEXT), kExactS)}});
-        }
-
         // 4b. Windows. Like doors: few, load-bearing, and invented anywhere the
         //     renderer likes unless it is told exactly where they belong.
         for (const Rect& r : MergeRuns(g, Tile::Window, cols, rows)) {
@@ -333,6 +378,7 @@ public:
         bool organic = map.meta.layout == "cavern" || map.meta.layout == "forest" ||
                        map.meta.layout == "swamp";
         std::vector<Rect> buildings;
+        std::vector<std::string> buildingNames;
         if (!organic) {
             std::vector<Rect> hulls;
             for (const auto& st : map.structures)
@@ -374,7 +420,7 @@ public:
                 // Match a name to a footprint by where it sits, not by list
                 // order - the areas include things that are not buildings, which
                 // is how a warehouse came to be called "the Moored Ship".
-                std::string label = "a building";
+                std::string label;
                 std::string inside;
                 for (const Area& ar : map.areas) {
                     if (ar.label.empty()) continue;
@@ -388,6 +434,21 @@ public:
                         break;
                     }
                 }
+                if (label.empty()) {
+                    // Nothing named it, so name it by where it stands. Five
+                    // buildings all called "a building" read as one building
+                    // drawn five times.
+                    double fx = (b.rect.x + b.rect.w / 2.0) / std::max(1, cols);
+                    double fy = (b.rect.y + b.rect.h / 2.0) / std::max(1, rows);
+                    std::string band = fy < 0.38 ? "north" : (fy > 0.62 ? "south" : "");
+                    std::string side = fx < 0.38 ? "west" : (fx > 0.62 ? "east" : "");
+                    std::string where = band;
+                    if (!band.empty() && !side.empty()) where += "-";
+                    where += side;
+                    label = where.empty() ? "the middle building"
+                                          : "the " + where + " building";
+                }
+                buildingNames.push_back(label);
                 walls.push_back({
                     {"type", "obj"},
                     {"bbox", Bbox(b.rect.x, b.rect.y, b.rect.w, b.rect.h, cols, rows)},
@@ -400,6 +461,17 @@ public:
                              doorNote + ". The ground immediately outside it on every "
                              "side is open and free of any wall. " + kExactS}});
             }
+        }
+
+        // 4. Doors. Few in number and load-bearing for how the map plays, so each
+        //    gets its own box - without this the renderer put openings where it
+        //    liked, or left a plain gap where a door belongs.
+        for (const Rect& r : MergeRuns(g, Tile::Door, cols, rows)) {
+            structure.push_back({
+                {"type", "obj"},
+                {"bbox", Bbox(r.x, r.y, r.w, r.h, cols, rows)},
+                {"desc", WhichWall(r, buildings, buildingNames, cols, rows) + ": " +
+                         LowerFirst(say("structure", "door", DOOR_TEXT)) + ". " + kExactS}});
         }
 
         // 4c. Walls that stand on their own. Anything already inside a building
@@ -421,7 +493,7 @@ public:
             }
             int considered = 0;
             for (const Rect& r : MergeRuns(solid, Tile::Wall, cols, rows)) {
-                if (considered++ >= kMaxWallRuns) break;
+                if (considered++ >= (organic ? 4 : kMaxWallRuns)) break;
                 // Only genuinely elongated runs. The rest are stubs, or one lump
                 // of an irregular mass, and read as noise either way.
                 if (std::max(r.w, r.h) < 3 || r.w * r.h < 2) continue;
@@ -473,7 +545,7 @@ public:
                         if (x >= 0 && y >= 0 && x < cols && y < rows)
                             free_[(size_t)y * cols + x] = 0;
             int given = 0;
-            for (const Rect& r : LargestRects(free_, cols, rows, 8,
+            for (const Rect& r : LargestRects(free_, cols, rows, 4,
                                               std::max(6, (int)(cols * rows * 0.012)))) {
                 (void)given;
                 walls.push_back({
@@ -539,8 +611,14 @@ public:
 
         // 7. Pinned props get a box; clutter is only described.
         std::map<std::string, int> loose;
+        std::map<std::string, int> pinned;
         for (const auto& f : map.features) {
-            if (!f.structural) {
+            // "Structural" says whether a kind of thing is load-bearing enough
+            // to pin. It was also deciding whether something asked for by name
+            // got a position at all, so a vault with twelve chests came out as
+            // one sentence with no chest anywhere in particular.
+            bool askedFor = !f.filler;
+            if (!f.structural && !askedFor) {
                 std::string pretty = f.kind;
                 std::replace(pretty.begin(), pretty.end(), '_', ' ');
                 loose[pretty]++;
@@ -559,7 +637,26 @@ public:
                                     {"desc", text}});
                 continue;
             }
+            if (f.filler) {
+                // Past a few, identical filler elements stop saying "there are
+                // several of these" and start saying "this map is a repeating
+                // pattern", which the renderer obliges by mirroring the layout.
+                if (++pinned[f.kind] > kMaxSameProp) {
+                    std::string pretty = f.kind;
+                    std::replace(pretty.begin(), pretty.end(), '_', ' ');
+                    ++loose[pretty];
+                    continue;
+                }
+            }
             std::string phrase = say("props", f.kind.c_str(), PropPhrase(f.kind).c_str());
+            if (phrase.empty()) {
+                if (!askedFor) continue;
+                // Asked for by name but nobody wrote a description for it. Its
+                // own name is a poor description, and still better than silence.
+                std::string pretty = f.kind;
+                std::replace(pretty.begin(), pretty.end(), '_', ' ');
+                phrase = "a " + pretty;
+            }
             if (phrase.empty()) continue;
             filler.push_back({{"type", "obj"},
                               {"bbox", Bbox(f.x, f.y, 1, 1, cols, rows)},

@@ -30,6 +30,14 @@ MAX_ELEMENTS = 24
 # Walls are merged into the longest runs the grid allows, so this is generous.
 MAX_WALL_RUNS = 8
 
+# How many of one kind of *filler* object get their own rectangle before the
+# rest join the clutter sentence. Filler is what the architect sprinkles in to
+# fill a floor; past a few, identical elements stop saying "there are several of
+# these" and start saying "this map is a repeating pattern", which the renderer
+# obliges by mirroring the layout. Props that were actually asked for are never
+# folded away - a room with twelve chests in it is a plan, not noise.
+MAX_SAME_PROP = 3
+
 _TERRAIN_WORDS = {
     A.WATER: "dark green water",
     A.PIT: "an open pit dropping into darkness",
@@ -189,6 +197,11 @@ def _merge_runs(grid, kind):
             rects.append((x, y, w, h))
     rects.sort(key=lambda r: (-(r[2] * r[3]), r[1], r[0]))
     return rects
+
+
+def _upper_first(text):
+    """Capitalise the first letter and leave every other one alone."""
+    return text[:1].upper() + text[1:] if text else text
 
 
 def _plural(word, count):
@@ -386,11 +399,13 @@ def build_caption(map_data, style=None, base=None):
     # row of invented archways, which changes how the map plays.
     door_count = sum(w * h for (x, y, w, h) in _merge_runs(grid, A.DOOR))
     window_count = sum(w * h for (x, y, w, h) in _merge_runs(grid, A.WINDOW))
+    # Diffusion text encoders handle negation badly, so the rule is stated as
+    # what the walls are rather than as what they lack.
     opening_note = (
-        f"Every wall in this map is solid from end to end. There are exactly {door_count} "
-        f"doors and {window_count} windows in the whole picture, each one listed below with "
-        f"its own rectangle, and no other door, doorway, archway, gate, gap or window exists "
-        f"anywhere in any wall.")
+        f"Every wall in this picture is one continuous face of plain masonry from corner to "
+        f"corner, interrupted only by {door_count} doorways and {window_count} windows, each "
+        f"of which is listed below with its own rectangle. Everywhere else the masonry runs "
+        f"straight on.")
     named_areas = [a for a in (map_data.get("areas") or [])
                    if str(a.get("label", "")).strip()]
     if len(named_areas) == 1:
@@ -509,10 +524,6 @@ def build_caption(map_data, style=None, base=None):
         "It is drawn flat, straight on and level with everything around it, with no "
         "perspective, no tilt, no arch or vault above it, no door frame standing "
         "proud, no steps and no visible handle")
-    for (x, y, w, h) in _merge_runs(grid, A.DOOR):
-        structure.append({"type": "obj", "bbox": _bbox(x, y, w, h, cols, rows),
-                         "desc": f"{door_word}. {exact}"})
-
     # 4b. Windows. Like doors, few and load-bearing: they say where the wall is
     #     broken by an opening, and the renderer will invent them anywhere if it
     #     is not told exactly where they belong.
@@ -551,6 +562,7 @@ def build_caption(map_data, style=None, base=None):
                    for (hx, hy, hw, hh) in hulls)
 
     building_rects = []
+    building_names = []
     if not organic:
         footprints = [r for r in _components(grid, (A.WALL, A.DOOR, A.WINDOW))
                       if r[4] >= 6 and not _in_hull(r[0], r[1], r[2], r[3])]
@@ -561,6 +573,17 @@ def build_caption(map_data, style=None, base=None):
             size_word = ("large" if bw * bh > cols * rows * 0.12 else
                          "small" if bw * bh < cols * rows * 0.05 else "mid-sized")
             named, inside = _name_for(bx, by, bw, bh)
+            if named == "a building":
+                # Nothing named it, so name it by where it stands. Five
+                # buildings all called "a building" read as one building drawn
+                # five times.
+                fx = (bx + bw / 2.0) / max(1, cols)
+                fy = (by + bh / 2.0) / max(1, rows)
+                band = ("north" if fy < 0.38 else "south" if fy > 0.62 else "middle")
+                side = ("west" if fx < 0.38 else "east" if fx > 0.62 else "centre")
+                where = (band if band != "middle" else "") +                         ("-" if band != "middle" and side != "centre" else "") +                         (side if side != "centre" else "")
+                named = f"the {where} building" if where else "the middle building"
+            building_names.append(named)
             # A count attached to the wall it belongs to holds far better than
             # one stated once for the whole map.
             doors_here = sum(1 for yy in range(by, by + bh) for xx in range(bx, bx + bw)
@@ -588,6 +611,30 @@ def build_caption(map_data, style=None, base=None):
                          + f" {door_note}. The ground immediately outside it on every "
                          f"side is open and free of any wall. {exact}")})
 
+    def _which_wall(x, y, w, h):
+        """Which wall of which building - so no two doors read the same."""
+        host = None
+        host_name = ""
+        for j, (bx, by, bw, bh) in enumerate(building_rects):
+            if bx - 1 <= x and by - 1 <= y and x + w <= bx + bw + 1 and y + h <= by + bh + 1:
+                host = (bx, by, bw, bh)
+                host_name = building_names[j] if j < len(building_names) else ""
+                break
+        rx, ry, rw, rh = host if host else (0, 0, cols, rows)
+        cxm, cym = x + w / 2.0, y + h / 2.0
+        dx = (cxm - (rx + rw / 2.0)) / max(1.0, rw / 2.0)
+        dy = (cym - (ry + rh / 2.0)) / max(1.0, rh / 2.0)
+        side = ("east" if dx > 0 else "west") if abs(dx) > abs(dy) else                ("south" if dy > 0 else "north")
+        where = f"in the {side} wall"
+        if host_name and host_name != "a building":
+            return f"{where} of {host_name}"
+        return where + (" of this building" if host else " of the map")
+
+    for (x, y, w, h) in _merge_runs(grid, A.DOOR):
+        structure.append({"type": "obj", "bbox": _bbox(x, y, w, h, cols, rows),
+                         "desc": f"{_upper_first(_which_wall(x, y, w, h))}: "
+                                 f"{door_word[0].lower()}{door_word[1:]}. {exact}"})
+
     # 4c. Walls. Until now the renderer was handed room rectangles and left to
     #     invent every wall line itself, which is exactly where the layout came
     #     apart. The architect knows each run, so each run is given.
@@ -604,7 +651,7 @@ def build_caption(map_data, style=None, base=None):
             solid.set(xx, yy, A.WALL if k in (A.WALL, A.DOOR, A.WINDOW) else k)
     wall_word = style.get("wall") or (wording["wall_organic"] if organic else wording["wall"])
     wall_runs = _merge_runs(solid, A.WALL)
-    for (x, y, w, h) in wall_runs[:MAX_WALL_RUNS]:
+    for (x, y, w, h) in wall_runs[:(4 if organic else MAX_WALL_RUNS)]:
         # Only genuinely elongated runs. Everything else is a stub or, in a cave,
         # one lump of an irregular mass, and describing it as a wall adds noise.
         if max(w, h) < 3 or w * h < 2:
@@ -646,7 +693,7 @@ def build_caption(map_data, style=None, base=None):
             for x in range(bx, bx + bw):
                 if 0 <= y < rows and 0 <= x < cols:
                     outside[y][x] = False
-    for (x, y, w, h) in _largest_rects(outside, cols, rows, 8,
+    for (x, y, w, h) in _largest_rects(outside, cols, rows, 4,
                                        max(6, int(cols * rows * 0.012))):
         walls.append({
             "type": "obj",
@@ -701,9 +748,11 @@ def build_caption(map_data, style=None, base=None):
     # 7. Load-bearing props get their own box; clutter is described without one
     #    so the renderer can place it naturally.
     loose = []
+    pinned = {}
     for f in map_data.get("features", []) or []:
         kind = str(f.get("kind", "")).lower()
-        if not f.get("structural", True):
+        asked_for = not f.get("filler", False)
+        if not f.get("structural", True) and not asked_for:
             loose.append(kind.replace("_", " "))
             continue
         label = str(f.get("label", "")).strip()
@@ -719,7 +768,16 @@ def build_caption(map_data, style=None, base=None):
             continue
         phrase = phrases["props"].get(kind)
         if not phrase:
-            continue
+            if not asked_for:
+                continue
+            # Asked for by name but nobody wrote a description for it. Its own
+            # name is a poor description, and still better than silence.
+            phrase = "a " + kind.replace("_", " ")
+        if f.get("filler"):
+            pinned[kind] = pinned.get(kind, 0) + 1
+            if pinned[kind] > MAX_SAME_PROP:
+                loose.append(kind.replace("_", " "))
+                continue
         filler.append({"type": "obj",
                        "bbox": _bbox(f["x"], f["y"], 1, 1, cols, rows),
                        "desc": phrase if "from directly above" in phrase

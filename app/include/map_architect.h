@@ -1172,7 +1172,8 @@ inline std::vector<Feature> PlaceProps(const TileGrid& g, const RoomList& rooms,
 
     std::set<std::pair<int, int>> used;
     std::vector<Feature> features;
-    auto commit = [&](const std::string& kind, std::pair<int, int> cell) {
+    auto commit = [&](const std::string& kind, std::pair<int, int> cell,
+                      bool filler = false) {
         if (used.count(cell)) return false;
         for (int dy = -1; dy <= 1; ++dy)      // keep props readable at table scale
             for (int dx = -1; dx <= 1; ++dx)
@@ -1183,6 +1184,7 @@ inline std::vector<Feature> PlaceProps(const TileGrid& g, const RoomList& rooms,
         f.x = cell.first;
         f.y = cell.second;
         f.structural = IsStructuralProp(kind);
+        f.filler = filler;
         features.push_back(f);
         return true;
     };
@@ -1195,6 +1197,7 @@ inline std::vector<Feature> PlaceProps(const TileGrid& g, const RoomList& rooms,
             if (!k.empty()) wanted.push_back(k);
         }
         int budget = (int)std::lround(std::max(1, r.w * r.h) / 22.0f * density);
+        size_t askedFor = wanted.size();
         for (int i = 0; i < budget && !pool.empty(); ++i) wanted.push_back(rng.Pick(pool));
 
         auto wallSlots = PropSlots(g, r, true);
@@ -1208,7 +1211,9 @@ inline std::vector<Feature> PlaceProps(const TileGrid& g, const RoomList& rooms,
         });
 
         int placed = 0;
+        size_t slot = 0;
         for (const auto& kind : wanted) {
+            bool isFiller = slot++ >= askedFor;
             if (++placed > 14) break;
             bool prefersWall = IsWallProp(kind);
             std::vector<std::pair<int, int>>* pools[2] = {
@@ -1216,7 +1221,11 @@ inline std::vector<Feature> PlaceProps(const TileGrid& g, const RoomList& rooms,
             for (auto* p : pools) {
                 bool done = false;
                 for (size_t i = 0; i < p->size(); ++i) {
-                    if (commit(kind, (*p)[i])) { p->erase(p->begin() + i); done = true; break; }
+                    if (commit(kind, (*p)[i], isFiller)) {
+                        p->erase(p->begin() + i);
+                        done = true;
+                        break;
+                    }
                 }
                 if (done) break;
             }
@@ -1237,7 +1246,7 @@ inline std::vector<Feature> PlaceProps(const TileGrid& g, const RoomList& rooms,
         rng.Shuffle(walkable);
         for (const auto& cell : walkable) {
             if ((int)features.size() >= target) break;
-            commit(rng.Pick(pool), cell);
+            commit(rng.Pick(pool), cell, /*filler=*/true);
         }
     }
     return features;

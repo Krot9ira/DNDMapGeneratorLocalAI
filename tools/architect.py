@@ -1329,7 +1329,7 @@ def _place_props(grid, rooms, spec, rng, style_props=None):
     used = set()
     features = []
 
-    def commit(kind, cell):
+    def commit(kind, cell, filler=False):
         if cell in used:
             return False
         # Keep a one-cell breathing gap so props stay readable at table scale.
@@ -1338,7 +1338,7 @@ def _place_props(grid, rooms, spec, rng, style_props=None):
             return False
         used.add(cell)
         features.append({"kind": kind, "x": cell[0], "y": cell[1],
-                         "structural": is_structural_prop(kind)})
+                         "structural": is_structural_prop(kind), "filler": bool(filler)})
         return True
 
     pool = style_props or _DEFAULT_FILLER["dungeon"]
@@ -1350,7 +1350,11 @@ def _place_props(grid, rooms, spec, rng, style_props=None):
         area = max(1, rect[2] * rect[3])
         filler_budget = int(round(area / 22.0 * density))
         if pool and filler_budget > 0:
-            wanted = wanted + [rng.choice(pool) for _ in range(filler_budget)]
+            filler_kinds = [rng.choice(pool) for _ in range(filler_budget)]
+            wanted = wanted + filler_kinds
+        else:
+            filler_kinds = []
+        asked_for = len(wanted) - len(filler_kinds)
 
         wall_slots = _prop_slots(grid, rect, want_wall=True)
         open_slots = _prop_slots(grid, rect, want_wall=False)
@@ -1359,14 +1363,15 @@ def _place_props(grid, rooms, spec, rng, style_props=None):
         centre = _rect_center(rect)
         open_slots.sort(key=lambda c: abs(c[0] - centre[0]) + abs(c[1] - centre[1]))
 
-        for kind in wanted[:14]:
+        for slot, kind in enumerate(wanted[:14]):
+            is_filler = slot >= asked_for
             prefers_wall = kind in WALL_PROPS
             primary = wall_slots if prefers_wall else open_slots
             secondary = open_slots if prefers_wall else wall_slots
             placed = False
             for slots in (primary, secondary):
                 for cell in list(slots):
-                    if commit(kind, cell):
+                    if commit(kind, cell, filler=is_filler):
                         slots.remove(cell)
                         placed = True
                         break
@@ -1388,7 +1393,7 @@ def _place_props(grid, rooms, spec, rng, style_props=None):
         for cell in walkable_cells:
             if len(features) >= target:
                 break
-            commit(rng.choice(pool), cell)
+            commit(rng.choice(pool), cell, filler=True)
 
     # Explicit features from the caller always win.
     for f in spec.get("features") or []:
@@ -1401,7 +1406,8 @@ def _place_props(grid, rooms, spec, rng, style_props=None):
             kind = str(f.get("kind", "pillar"))
             features.append({"kind": kind, "x": cell[0], "y": cell[1],
                              "structural": bool(f.get("structural",
-                                                     is_structural_prop(kind)))})
+                                                     is_structural_prop(kind))),
+                             "filler": False})
     return features
 
 
