@@ -227,6 +227,11 @@ public:
         return s;
     }
 
+    static std::string UpperFirst(std::string s) {
+        if (!s.empty()) s[0] = (char)toupper((unsigned char)s[0]);
+        return s;
+    }
+
     static std::string Sentence(std::string head, const std::string& tail) {
         while (!head.empty() && (head.back() == ' ' || head.back() == '.')) head.pop_back();
         if (head.empty()) return tail;
@@ -243,6 +248,44 @@ public:
         const std::string kExactS = say("phrasing", "exact", kExact);
         TileGrid g = arch::ZonesToGrid(map);
         const int cols = g.cols, rows = g.rows;
+
+        // What closes this site in decides what its edge is called, whether the
+        // map may be described as a building at all, and what a way in is.
+        const std::string enclosure = arch::EnclosureOf(
+            style ? style->enclosure : std::string(), style ? style->category : std::string(),
+            map.meta.layout, style ? style->default_layout : std::string());
+        std::string encWall = "solid stone wall with visible courses";
+        std::string encFace = "plain masonry";
+        std::string encBoundary = "a thick stone wall of plain masonry closing the site in "
+                                  "on all four sides";
+        if (enclosure == "rock") {
+            encWall = "solid rough rock wall";
+            encFace = "raw rock";
+            encBoundary = "sheer natural rock closing the site in on all four sides, its "
+                          "face broken and irregular, and nowhere a course of laid stone";
+        } else if (enclosure == "timber") {
+            encWall = "solid timber bulwark of close-fitted planking";
+            encFace = "close-fitted planking";
+            encBoundary = "a continuous timber bulwark of close-fitted planking running "
+                          "right round the outside";
+        } else if (enclosure == "open") {
+            encWall = "solid rough rock wall";
+            encFace = "raw rock";
+            encBoundary = "a continuous natural edge closing the site in on all four sides "
+                          "- rising ground, rock, earth and dense growth, whatever the "
+                          "surroundings are - every part of it natural and unbuilt, with no "
+                          "course of laid stone, no brickwork and no doorway anywhere along "
+                          "it";
+        }
+        encWall = ph.Get("enclosure", (enclosure + "_wall").c_str(), encWall.c_str());
+        encFace = ph.Get("enclosure", (enclosure + "_face").c_str(), encFace.c_str());
+        encBoundary = ph.Get("enclosure", (enclosure + "_boundary").c_str(),
+                             encBoundary.c_str());
+        if (style) {
+            if (!Trim(style->wall).empty()) encWall = Trim(style->wall);
+            if (!Trim(style->face).empty()) encFace = Trim(style->face);
+            if (!Trim(style->boundary).empty()) encBoundary = Trim(style->boundary);
+        }
 
         nlohmann::json cap;
         int div = std::gcd(cols, rows);
@@ -285,21 +328,17 @@ public:
         }
         cap["high_level_description"] =
             CapWords(head, 44) + ". " + base.forbidden_suffix + "." + onlyRoom +
-            " Every wall in this picture is one continuous face of plain masonry from "
+            " Every wall in this picture is one continuous face of " + encFace + " from "
             "corner to corner, interrupted only by " + std::to_string(doorCells) +
             " doorways and " + std::to_string(windowCells) +
             " windows, each of which is listed below with its own rectangle. Everywhere "
-            "else the masonry runs straight on.";
+            "else that face runs straight on.";
         // Nothing in the contract forbade perspective, so a scene that happened
         // to mention a ceiling came back drawn from the corner of the room.
         if (!base.viewpoint_note.empty())
             cap["high_level_description"] =
                 cap["high_level_description"].get<std::string>() + " " +
                 Trim(base.viewpoint_note) + ".";
-        cap["high_level_description"] =
-            cap["high_level_description"].get<std::string>() +
-            " The buildings are of different sizes and stand in an irregular arrangement; "
-            "the layout is not symmetrical, not mirrored and not a repeating pattern.";
 
         nlohmann::json sd;
         sd["aesthetics"] = (style && !style->aesthetics.empty()) ? style->aesthetics
@@ -407,15 +446,34 @@ public:
         // 4b-2. Buildings as whole objects. A dozen wall runs that all read
         //       alike invite a symmetrical building of the renderer's own
         //       invention; three named footprints of different sizes do not.
-        bool organic = map.meta.layout == "cavern" || map.meta.layout == "forest" ||
+        bool organic = enclosure == "rock" || map.meta.layout == "forest" ||
                        map.meta.layout == "swamp";
         std::vector<Rect> buildings;
         std::vector<std::string> buildingNames;
+        // A building holding exactly one room is described once, at one
+        // rectangle. Handed over as a shell and an interior inset inside it by
+        // the thickness of the wall, it leaves a ring between the two that the
+        // renderer fills with alcoves it invented - which is what lined the
+        // walls of every single-room map with little booths.
+        std::map<size_t, std::pair<std::string, std::string>> singleRoomShell;
+        bool haveSiteEdge = false;
+        Rect siteEdge{0, 0, 0, 0};
         if (!organic) {
             std::vector<Rect> hulls;
             for (const auto& st : map.structures)
                 if (st.kind == "ship") hulls.push_back({st.x, st.y, st.w, st.h});
-            for (const Blob& b : Components(g, {Tile::Wall, Tile::Door, Tile::Window})) {
+            std::vector<Blob> footprints = Components(g, {Tile::Wall, Tile::Door,
+                                                          Tile::Window});
+            // Put them in an order both ports agree on. Flood fill visits cells
+            // in whatever order each language happens to, and two buildings
+            // swapping places is two captions that are not the same caption.
+            std::stable_sort(footprints.begin(), footprints.end(),
+                             [](const Blob& a, const Blob& b) {
+                                 if (a.cells != b.cells) return a.cells > b.cells;
+                                 if (a.rect.y != b.rect.y) return a.rect.y < b.rect.y;
+                                 return a.rect.x < b.rect.x;
+                             });
+            for (const Blob& b : footprints) {
                 if (buildings.size() >= 5) break;
                 if (b.cells < 6 || b.rect.w < 3 || b.rect.h < 3) continue;
                 // A ship's hull is drawn out of wall tiles and has an element of
@@ -426,6 +484,23 @@ public:
                     if (cx >= hr.x && cx <= hr.x + hr.w && cy >= hr.y && cy <= hr.y + hr.h)
                         isHull = true;
                 if (isHull) continue;
+                // A ring of wall round the whole map is the boundary of the
+                // site. Anywhere but a building it is cliffs, treeline or
+                // fence, and calling it "one single large building with its
+                // roof removed" is how a gorge became a masonry hall with a
+                // timber door in it. Measured against the playable field, since
+                // every map carries an empty bleed margin around it.
+                int fb = arch::BorderOf(map);
+                int field = std::max(1, (cols - 2 * fb) * (rows - 2 * fb));
+                bool fillsMap = b.rect.w * b.rect.h >= field * 0.75 ||
+                                (b.rect.x <= fb + 1 && b.rect.y <= fb + 1 &&
+                                 b.rect.x + b.rect.w >= cols - fb - 1 &&
+                                 b.rect.y + b.rect.h >= rows - fb - 1);
+                if (fillsMap && enclosure != "masonry") {
+                    haveSiteEdge = true;
+                    siteEdge = b.rect;
+                    continue;
+                }
                 buildings.push_back(b.rect);
                 double share = (double)b.rect.w * b.rect.h / std::max(1, cols * rows);
                 std::string sizeWord = share > 0.12 ? "large"
@@ -441,14 +516,14 @@ public:
                 std::string doorNote =
                     doorsHere == 1
                         ? "One single plank-filled gap sits in its wall and the rest of that "
-                          "wall is one continuous face of plain masonry running corner to "
+                          "wall is one continuous face of " + encFace + " running corner to "
                           "corner"
                   : doorsHere == 0
-                        ? "All four of its walls are one continuous face of plain masonry "
-                          "running corner to corner"
+                        ? "All four of its walls are one continuous face of " + encFace +
+                          " running corner to corner"
                         : std::to_string(doorsHere) +
                           " plank-filled gaps sit in its wall and the rest of that wall is "
-                          "one continuous face of plain masonry running corner to corner";
+                          "one continuous face of " + encFace + " running corner to corner";
                 // Match a name to a footprint by where it sits, not by list
                 // order - the areas include things that are not buildings, which
                 // is how a warehouse came to be called "the Moored Ship".
@@ -495,19 +570,61 @@ public:
                                           : "the " + where + " building";
                 }
                 buildingNames.push_back(label);
+                std::string shell = "One single " + sizeWord + " building" +
+                                    (label.empty() ? "" : ", " + label) +
+                                    ", standing alone inside this rectangle and nowhere "
+                                    "else: thick unbroken outer walls right on the edges of "
+                                    "the rectangle, its roof removed so the furnished floor "
+                                    "inside is fully visible from above.";
+                std::string outsideNote =
+                    doorNote + ". The inner face of those outer walls is flat and plain the "
+                    "whole way round, and the floor runs right up to it everywhere. The "
+                    "ground immediately outside the building on every side is open and free "
+                    "of any wall.";
+                if (held.size() == 1) {
+                    singleRoomShell[buildings.size() - 1] = {shell, outsideNote};
+                    continue;
+                }
                 walls.push_back({
                     {"type", "obj"},
                     {"bbox", Bbox(b.rect.x, b.rect.y, b.rect.w, b.rect.h, cols, rows)},
-                    {"desc", "One single " + sizeWord + " building" +
-                             (label.empty() ? "" : ", " + label) +
-                             ", standing alone inside this rectangle and nowhere else: thick "
-                             "unbroken outer walls right on the edges of the rectangle, its "
-                             "roof removed so the furnished floor inside is fully visible "
-                             "from above." + (inside.empty() ? std::string()
-                                                             : " " + TrimStop(inside) + ".") +
-                             " " + doorNote + ". The ground immediately outside it on every "
-                             "side is open and free of any wall. " + kExactS}});
+                    {"desc", shell + (inside.empty() ? std::string()
+                                                     : " " + TrimStop(inside) + ".") +
+                             " " + outsideNote + " " + kExactS}});
             }
+        }
+
+        if (haveSiteEdge) {
+            // If the plan already says what the edge of this place is - cliffs
+            // down both sides, a treeline along the top - then it has been
+            // said, and saying it again in general terms gives the renderer two
+            // answers to one question.
+            std::set<std::pair<int, int>> band;
+            for (int yy = siteEdge.y; yy < siteEdge.y + siteEdge.h; ++yy) {
+                for (int xx = siteEdge.x; xx < siteEdge.x + siteEdge.w; ++xx) {
+                    Tile k = g.Get(xx, yy);
+                    if (xx == siteEdge.x || xx == siteEdge.x + siteEdge.w - 1 ||
+                        yy == siteEdge.y || yy == siteEdge.y + siteEdge.h - 1 ||
+                        k == Tile::Wall || k == Tile::Door || k == Tile::Window)
+                        band.insert({xx, yy});
+                }
+            }
+            std::set<std::pair<int, int>> spoken;
+            for (const auto& note : map.annotations)
+                for (int yy = note.y; yy < note.y + std::max(1, note.h); ++yy)
+                    for (int xx = note.x; xx < note.x + std::max(1, note.w); ++xx)
+                        if (band.count({xx, yy})) spoken.insert({xx, yy});
+            if (!band.empty() && spoken.size() >= 0.4 * band.size()) haveSiteEdge = false;
+        }
+        if (haveSiteEdge) {
+            walls.push_back({
+                {"type", "obj"},
+                {"bbox", Bbox(siteEdge.x, siteEdge.y, siteEdge.w, siteEdge.h, cols, rows)},
+                {"desc", "The outer edge of the site, drawn as a continuous band right round "
+                         "the four sides of this rectangle and nowhere else: " + encBoundary +
+                         ". It is the far limit of the map, not a building: nothing stands "
+                         "on it and nothing is built into it. Everything inside it is open "
+                         "ground. " + kExactS}});
         }
 
         // 4. Doors. Few in number and load-bearing for how the map plays, so each
@@ -550,7 +667,10 @@ public:
                 // and the next begins, and dropping it left a keep as one empty
                 // shell for the renderer to subdivide however it liked.
                 bool onOutline = false;
-                for (const Rect& b : buildings) {
+                std::vector<Rect> outlines;
+                if (haveSiteEdge) outlines.push_back(siteEdge);
+                outlines.insert(outlines.end(), buildings.begin(), buildings.end());
+                for (const Rect& b : outlines) {
                     bool inside = r.x >= b.x - 1 && r.y >= b.y - 1 &&
                                   r.x + r.w <= b.x + b.w + 1 && r.y + r.h <= b.y + b.h + 1;
                     if (!inside) continue;
@@ -564,7 +684,7 @@ public:
                     walls.push_back({
                         {"type", "obj"},
                         {"bbox", Bbox(r.x, r.y, r.w, r.h, cols, rows)},
-                        {"desc", std::string("A mass of " + say("structure", "wall_organic", "solid rough rock wall") + " filling this "
+                        {"desc", std::string("A mass of " + encWall + " filling this "
                                  "whole rectangle solidly, its face irregular and broken but "
                                  "with no passage, gap or opening through it anywhere. ") +
                                  kExactS}});
@@ -588,10 +708,10 @@ public:
                 walls.push_back({
                     {"type", "obj"},
                     {"bbox", Bbox(r.x, r.y, r.w, r.h, cols, rows)},
-                    {"desc", "A run of " + say("structure", "wall", "solid stone wall with visible courses") + ": " + shape +
+                    {"desc", "A run of " + encWall + ": " + shape +
                              ", filling it completely and keeping the same thickness along "
-                             "its entire length, with square ends and solid masonry "
-                             "everywhere except at the doors listed separately below. " +
+                             "its entire length, with square ends and solid " + encFace +
+                             " everywhere except at the doors listed separately below. " +
                              kExactS}});
             }
         }
@@ -606,7 +726,12 @@ public:
             for (int y = 0; y < rows; ++y)
                 for (int x = 0; x < cols; ++x)
                     free_[(size_t)y * cols + x] = (g.Get(x, y) == Tile::Floor) ? 1 : 0;
-            for (const Rect& b : buildings)
+            std::vector<Rect> claimed = buildings;
+            // Two elements over one rectangle spend the budget twice and read
+            // as two different places stacked on top of each other.
+            for (const Area& ar : map.areas)
+                if (!Trim(ar.label).empty()) claimed.push_back({ar.x, ar.y, ar.w, ar.h});
+            for (const Rect& b : claimed)
                 for (int y = b.y; y < b.y + b.h; ++y)
                     for (int x = b.x; x < b.x + b.w; ++x)
                         if (x >= 0 && y >= 0 && x < cols && y < rows)
@@ -644,9 +769,14 @@ public:
             if (label.empty() || lower == "moored ship" || lower == "quay") continue;
             double rcx = a.x + a.w / 2.0, rcy = a.y + a.h / 2.0;
             const Rect* host = nullptr;
-            for (const Rect& b : buildings)
-                if (rcx >= b.x && rcx <= b.x + b.w && rcy >= b.y && rcy <= b.y + b.h)
+            size_t hostIndex = 0;
+            for (size_t bi = 0; bi < buildings.size(); ++bi) {
+                const Rect& b = buildings[bi];
+                if (rcx >= b.x && rcx <= b.x + b.w && rcy >= b.y && rcy <= b.y + b.h) {
                     host = &b;
+                    hostIndex = bi;
+                }
+            }
             bool single = false;
             if (host) {
                 int others = 0;
@@ -662,19 +792,46 @@ public:
                 // to invent the inside.
                 single = (others == 0);
             }
-            std::string oneRoom =
-                single ? ". This building holds this one room and nothing else: it is a "
-                         "single undivided space filling the whole rectangle, with no "
-                         "interior wall, no partition, no screen and no smaller room "
-                         "anywhere inside it"
-                       : "";
+            // The one thing the renderer gets wrong on every single-room map: it
+            // lines the inside of the outer wall with little alcoves. Said as
+            // what the wall is rather than as what it lacks, and said here,
+            // against the room itself, not once at the top of the caption.
+            const std::string undivided =
+                "It is a single undivided space filling the whole of this rectangle from "
+                "side to side: one unbroken floor, with the four walls around it and "
+                "nothing else. The inner face of every one of those walls is flat and plain "
+                "along its whole length, and the open floor runs right up to it on all four "
+                "sides, so there is no interior wall, no partition, no screen, no alcove, no "
+                "niche, no recess, no booth and no smaller room anywhere inside it";
+            auto shellIt = host ? singleRoomShell.find(hostIndex) : singleRoomShell.end();
+            if (host && shellIt != singleRoomShell.end()) {
+                const Rect& b = buildings[hostIndex];
+                normal.push_back({
+                    {"type", "obj"},
+                    {"bbox", Bbox(b.x, b.y, b.w, b.h, cols, rows)},
+                    {"desc", shellIt->second.first + " Inside those walls is " +
+                             LowerFirst(TheLabel(label)) + " and nothing else, seen from "
+                             "directly above with its floor and furniture fully visible and "
+                             "no roof, no ceiling and nothing overhanging it. " + undivided +
+                             "." +
+                             (a.description.empty()
+                                  ? std::string()
+                                  : " " + UpperFirst(TrimStop(Trim(a.description))) + ".") +
+                             " " + shellIt->second.second + " " + kExactS}});
+                continue;
+            }
+            std::string oneRoom = single ? ". " + undivided : "";
+            std::string opening =
+                (haveSiteEdge && !host)
+                    ? "the open ground of this place seen from directly above, filling this "
+                      "rectangle, with nothing above it and nothing overhanging it"
+                    : "the roofless interior of a room seen from directly above, its floor "
+                      "and furniture fully visible and filling this rectangle, with no roof, "
+                      "no ceiling and nothing overhanging it";
             normal.push_back({
                 {"type", "obj"},
                 {"bbox", Bbox(a.x, a.y, a.w, a.h, cols, rows)},
-                {"desc", TheLabel(label) + ": the roofless interior of a room seen from "
-                         "directly above, its floor and furniture fully visible and filling "
-                         "this rectangle, with no roof, no ceiling and nothing overhanging "
-                         "it" + oneRoom +
+                {"desc", TheLabel(label) + ": " + opening + oneRoom +
                          (a.description.empty() ? std::string()
                                                 : ". " + TrimStop(Trim(a.description)))}});
         }
@@ -775,7 +932,16 @@ public:
         if (style && !style->materials.empty()) {
             std::string mats = style->materials;
             while (!mats.empty() && mats.back() == '.') mats.pop_back();
-            ground += ". " + mats;
+            // A style describes a whole imagined scene - tents in a ring round
+            // a fire, stalls along a street - and that description is the
+            // strongest text in the caption, so it used to quietly overrule the
+            // plan it was meant to be painting. It is kept for its materials
+            // and colour and told, in as many words, that it does not decide
+            // where anything goes.
+            ground += ". The following names the kinds of thing this place is made of, for "
+                      "texture, material and colour only; it does not say where anything "
+                      "stands, and wherever it disagrees with the rectangles listed below, "
+                      "the rectangles are right and this is ignored: " + mats;
         }
         std::string background = ground + " " + base.background_suffix;
 
@@ -799,6 +965,22 @@ public:
         cap["compositional_deconstruction"] = {
             {"background", background},
             {"elements", elements}};
+        // Said last, because until the elements are built nobody knows how many
+        // buildings there are - and this sentence used to claim several of them
+        // on a map with one room in it, which is an instruction, not a caveat.
+        // It is how a single tavern hall came back ringed with timber bays.
+        cap["high_level_description"] =
+            cap["high_level_description"].get<std::string>() +
+            (buildings.size() > 1
+                 ? " The buildings are of different sizes and stand in an irregular "
+                   "arrangement; the layout is not symmetrical, not mirrored and not a "
+                   "repeating pattern."
+             : buildings.size() == 1
+                 ? " There is exactly one building in this picture and no second building "
+                   "anywhere; the layout is not symmetrical, not mirrored and not a "
+                   "repeating pattern."
+                 : " The layout is not symmetrical, not mirrored and not a repeating "
+                   "pattern.");
         return cap;
     }
 

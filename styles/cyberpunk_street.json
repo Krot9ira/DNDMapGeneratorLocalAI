@@ -30,5 +30,6 @@
     "#E08A2E"
   ],
   "ground": "rain-slick cracked asphalt with reflective puddles and painted road markings",
-  "materials": "A rain-slick cyberpunk back alley. Cracked wet asphalt with reflective puddles, graffiti-tagged concrete walls, dense holographic neon signage in magenta and cyan, tangled cabling and air-conditioning units, steaming street vents, overflowing dumpsters and stacked plastic crates, corrugated shutters."
+  "materials": "A rain-slick cyberpunk back alley. Cracked wet asphalt with reflective puddles, graffiti-tagged concrete walls, dense holographic neon signage in magenta and cyan, tangled cabling and air-conditioning units, steaming street vents, overflowing dumpsters and stacked plastic crates, corrugated shutters.",
+  "boundary": "the sheer windowless flanks of tower blocks rising on every side, wet with rain"
 }

@@ -35,5 +35,6 @@
     "#9AA0A6"
   ],
   "ground": "uneven rock floor of loose spoil and ore chippings, timber sleepers laid for rails",
-  "materials": "An abandoned fantasy mine seen from above. Rough-hewn rock galleries with heavy timber props and cross-beams shoring the walls, narrow-gauge rails laid on sleepers with a tipped ore cart spilling rock, picks and shovels leaning against the stone, oil lanterns hung on iron hooks, a windlass over a black vertical shaft, spoil heaps and loose scree, dark water flooding the lowest gallery, a partly collapsed side tunnel choked with fallen rock and splintered timber."
+  "materials": "An abandoned fantasy mine seen from above. Rough-hewn rock galleries with heavy timber props and cross-beams shoring the walls, narrow-gauge rails laid on sleepers with a tipped ore cart spilling rock, picks and shovels leaning against the stone, oil lanterns hung on iron hooks, a windlass over a black vertical shaft, spoil heaps and loose scree, dark water flooding the lowest gallery, a partly collapsed side tunnel choked with fallen rock and splintered timber.",
+  "boundary": "raw hewn rock, pick-marked and irregular, shored here and there with rough timber"
 }

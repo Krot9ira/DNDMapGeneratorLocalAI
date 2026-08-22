@@ -293,6 +293,51 @@ into rooms" - correct for a townhouse, fatal for a single hall, and no amount of
 `build_map` now warns when a style written for divided interiors is used on a map that is
 one room filling the field. Read `result["problems"]` before spending GPU time on it.
 
+### A sentence that describes the map is a sentence that commands it
+
+The caption used to finish with "the buildings are of different sizes and stand in an
+irregular arrangement" on every map ever built, including maps with one room in them. It
+was written as a caveat against symmetry. It reads as an instruction to draw several
+buildings, and it is the last sentence in the description, which is the strongest place in
+the whole caption. A tavern that is one hall came back ringed with a dozen little timber
+bays round its walls, over and over, and nothing said anywhere else about "one undivided
+space" could beat it.
+
+Nothing in the caption may now describe something the plan does not contain. The
+arrangement sentence is written after the elements are built, when the number of buildings
+is actually known, and says one, several or nothing accordingly.
+
+### A gorge is not a building
+
+Every map used to be described as though it were a walled house: the ring of wall round the
+playing field became "one single large building with its roof removed", its cliffs became
+"one continuous face of plain masonry", and the way in became "a plain timber panel with
+dark iron bands". A goblin camp in a rock gorge is not any of those things.
+
+What closes a site in is now a property of the site. A style may state it outright with
+`"enclosure": "masonry" | "rock" | "timber" | "open"`; otherwise the layout decides, and for
+`custom` - which is what every agent-written scene uses - the style's category does. It
+changes four things at once, in the app and the tools alike:
+
+- what the boundary is called (`"boundary"` in the style file, or a neutral default),
+- what its face is made of, everywhere the caption mentions a wall,
+- whether a wall ring filling the field may be called a building at all,
+- and whether a sealed area gets a door cut into it or a passage carried off the edge of
+  the map. Caves do not have doors in them, and you walk into a clearing rather than
+  knocking.
+
+If your scene has already pinned what the edge is - cliffs down both sides, a treeline
+along the top - the generic boundary sentence is dropped, because two answers to one
+question is worse than none.
+
+### Say a thing once, at one rectangle
+
+A building and the room inside it are two true rectangles, the second inset by the
+thickness of the wall. Handed over as two elements they leave a ring between them, and a
+ring is a place, so the renderer furnishes it. A building holding exactly one room is now
+described once, at the outer rectangle, and the same rule kills the duplicate "open ground"
+element that used to sit under every named area.
+
 ### Negations are weak, positive statements are strong
 
 "No arch, no gap" is close to useless: the text encoder handles negation badly. State what

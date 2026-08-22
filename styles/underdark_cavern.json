@@ -29,5 +29,6 @@
     "#12111A"
   ],
   "ground": "uneven black rock shot through with pale mineral veins",
-  "materials": "A vast underdark cavern of rough black stone. Uneven rock floor with mineral veins, jagged stalagmites, clusters of glowing violet and cyan crystal growing from the walls, luminescent mushrooms in soft blue and green, still black subterranean pools reflecting the glow, chalky mineral deposits and scattered scree."
+  "materials": "A vast underdark cavern of rough black stone. Uneven rock floor with mineral veins, jagged stalagmites, clusters of glowing violet and cyan crystal growing from the walls, luminescent mushrooms in soft blue and green, still black subterranean pools reflecting the glow, chalky mineral deposits and scattered scree.",
+  "boundary": "sheer natural rock closing the cave in, its face broken and irregular, streaked pale with mineral"
 }

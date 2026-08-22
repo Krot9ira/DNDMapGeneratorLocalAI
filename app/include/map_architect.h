@@ -1104,10 +1104,40 @@ inline void ApplyTerrain(TileGrid& g, const RoomList& rooms, const DesignSpec& s
     }
 }
 
+// --- What closes a site in -------------------------------------------------
+// A gorge is not a building and a clearing has no masonry, but until this
+// existed every map was described to the renderer as though it were a walled
+// house: cliffs became courses of dressed stone and the way in became a timber
+// door with iron bands. Mirrors architect.enclosure_of exactly.
+inline std::string EnclosureOf(const std::string& declared, const std::string& category,
+                               const std::string& layout, const std::string& defaultLayout) {
+    auto low = [](std::string v) {
+        for (auto& c : v) c = (char)std::tolower((unsigned char)c);
+        while (!v.empty() && (v.front() == ' ')) v.erase(v.begin());
+        while (!v.empty() && (v.back() == ' ')) v.pop_back();
+        return v;
+    };
+    std::string d = low(declared);
+    if (d == "masonry" || d == "rock" || d == "timber" || d == "open") return d;
+    std::string L = low(layout);
+    if (L.empty()) L = low(defaultLayout);
+    if (L == "building" || L == "dungeon" || L == "arena") return "masonry";
+    if (L == "cavern") return "rock";
+    if (L == "deck") return "timber";
+    if (L == "open" || L == "forest" || L == "swamp" || L == "ruins" ||
+        L == "street" || L == "district" || L == "harbour") return "open";
+    std::string C = low(category);
+    if (C == "cavern" || C == "underground") return "rock";
+    if (C == "nautical") return "timber";
+    if (C == "wilderness" || C == "settlement" || C == "urban") return "open";
+    return "masonry";
+}
+
 // A battle map you cannot walk across is a bug, not a feature.
 // Walkable regions with no door and no way off the edge of the map. A cave
 // that runs off the frame needs nothing; a walled room does.
-inline std::vector<std::vector<std::pair<int, int>>> SealedRegions(const TileGrid& g) {
+inline std::vector<std::vector<std::pair<int, int>>> SealedRegions(const TileGrid& g,
+                                                                  int margin = 0) {
     std::vector<char> seen((size_t)g.cols * g.rows, 0);
     std::vector<std::vector<std::pair<int, int>>> sealed;
     for (int sy = 0; sy < g.rows; ++sy) {
@@ -1120,7 +1150,11 @@ inline std::vector<std::vector<std::pair<int, int>>> SealedRegions(const TileGri
                 auto [x, y] = stack.back();
                 stack.pop_back();
                 cells.push_back({x, y});
-                if (x == 0 || y == 0 || x == g.cols - 1 || y == g.rows - 1) touchesEdge = true;
+                // The playable field, not the stored grid: every map carries an
+                // empty bleed margin, so ground running off the field is ground
+                // running off the map.
+                if (x <= margin || y <= margin || x >= g.cols - 1 - margin ||
+                    y >= g.rows - 1 - margin) touchesEdge = true;
                 Tile here = g.Get(x, y);
                 if (here == Tile::Door || here == Tile::Window) hasOpening = true;
                 const int d[4][2] = {{1, 0}, {-1, 0}, {0, 1}, {0, -1}};
@@ -1138,13 +1172,13 @@ inline std::vector<std::vector<std::pair<int, int>>> SealedRegions(const TileGri
     return sealed;
 }
 
-inline void EnsureAWayIn(TileGrid& g, bool organic) {
+inline void EnsureAWayIn(TileGrid& g, const std::string& enclosure) {
     for (int attempt = 0; attempt < 12; ++attempt) {
         auto sealed = SealedRegions(g);
         if (sealed.empty()) return;
         const auto& cells = sealed.front();
         std::set<std::pair<int, int>> inside(cells.begin(), cells.end());
-        int bestScore = 99, bwx = -1, bwy = -1, box = -1, boy = -1;
+        int bestScore = 99, bwx = -1, bwy = -1, box = -1, boy = -1, bgx = 0, bgy = 0;
         for (auto& c : cells) {
             const int d[4][2] = {{1, 0}, {-1, 0}, {0, 1}, {0, -1}};
             for (auto& o : d) {
@@ -1160,13 +1194,30 @@ inline void EnsureAWayIn(TileGrid& g, bool organic) {
                 if (score < bestScore) {
                     bestScore = score;
                     bwx = wx; bwy = wy; box = ox; boy = oy;
+                    bgx = o[0]; bgy = o[1];
                 }
             }
         }
         if (bwx < 0) return;
-        // Rock does not have doors in it; a cave opens by a passage.
-        g.Set(bwx, bwy, organic ? Tile::Floor : Tile::Door);
-        if (g.Inside(box, boy) && g.Get(box, boy) == Tile::Void) g.Set(box, boy, Tile::Floor);
+        // Does this region span the whole site, or is it a room inside it?
+        int minX = g.cols, minY = g.rows, maxX = -1, maxY = -1;
+        for (auto& c : cells) {
+            minX = std::min(minX, c.first);  maxX = std::max(maxX, c.first);
+            minY = std::min(minY, c.second); maxY = std::max(maxY, c.second);
+        }
+        bool wholeSite = minX <= 2 && minY <= 2 && maxX >= g.cols - 3 && maxY >= g.rows - 3;
+        bool cutOpen = enclosure == "rock" || (enclosure == "open" && wholeSite);
+        if (!cutOpen) {
+            // Rock does not have doors in it; a built wall does.
+            g.Set(bwx, bwy, Tile::Door);
+            if (g.Inside(box, boy) && g.Get(box, boy) == Tile::Void) g.Set(box, boy, Tile::Floor);
+            continue;
+        }
+        // A gap that stops inside the cliff is a gap to nowhere: outdoor maps
+        // are entered from off the page, so the passage runs right off the edge.
+        for (int cx = bwx, cy = bwy; g.Inside(cx, cy); cx += bgx, cy += bgy) {
+            if (!IsWalkable(g.Get(cx, cy))) g.Set(cx, cy, Tile::Floor);
+        }
     }
 }
 
@@ -1263,7 +1314,18 @@ inline std::vector<Feature> PlaceProps(const TileGrid& g, const RoomList& rooms,
         }
         int budget = (int)std::lround(std::max(1, r.w * r.h) / 22.0f * density);
         size_t askedFor = wanted.size();
-        for (int i = 0; i < budget && !pool.empty(); ++i) wanted.push_back(rng.Pick(pool));
+        // A room that named its own props has said what belongs in it. The
+        // style's list says what belongs in this kind of place in general, and
+        // using it here is how an abandoned tavern common room came back with a
+        // bed and three bookshelves in it - each of which the renderer then
+        // built a little side room around.
+        std::vector<std::string> roomPool;
+        for (const std::string& k : wanted)
+            if (std::find(roomPool.begin(), roomPool.end(), k) == roomPool.end())
+                roomPool.push_back(k);
+        if (roomPool.empty()) roomPool = pool;
+        for (int i = 0; i < budget && !roomPool.empty(); ++i)
+            wanted.push_back(rng.Pick(roomPool));
 
         auto wallSlots = PropSlots(g, r, true);
         auto openSlots = PropSlots(g, r, false);
@@ -1307,11 +1369,20 @@ inline std::vector<Feature> PlaceProps(const TileGrid& g, const RoomList& rooms,
                 t == Tile::Rubble) walkable.push_back({x, y});
         }
     int target = Clampi((int)(walkable.size() / 26.0 * density), 0, 260);
-    if (!pool.empty() && (int)features.size() < target) {
+    std::vector<std::string> askedKinds;
+    for (const auto& rp : rooms)
+        for (const auto& p : rp.first.props) {
+            std::string k = NormalizeProp(p);
+            if (!k.empty() &&
+                std::find(askedKinds.begin(), askedKinds.end(), k) == askedKinds.end())
+                askedKinds.push_back(k);
+        }
+    const std::vector<std::string>& topPool = askedKinds.empty() ? pool : askedKinds;
+    if (!topPool.empty() && (int)features.size() < target) {
         rng.Shuffle(walkable);
         for (const auto& cell : walkable) {
             if ((int)features.size() >= target) break;
-            commit(rng.Pick(pool), cell, /*filler=*/true);
+            commit(rng.Pick(topPool), cell, /*filler=*/true);
         }
     }
     return features;
@@ -1432,8 +1503,7 @@ inline MapData Build(DesignSpec spec, uint32_t seed) {
     EnsureConnected(g, rng);
     DeriveWalls(g);
     if (!spec.edge_walls) OpenEdges(g);
-    EnsureAWayIn(g, L == "cavern" || L == "forest" || L == "swamp" || L == "open" ||
-                        L == "ruins" || L == "deck");
+    EnsureAWayIn(g, EnclosureOf(spec.style_enclosure, spec.style_category, L, ""));
     FixDoors(g);
 
     MapData map;

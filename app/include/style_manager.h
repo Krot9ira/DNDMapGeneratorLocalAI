@@ -181,6 +181,10 @@ public:
                 for (const auto& c : j["hex_palette"])
                     out.hex_palette.push_back(c.get<std::string>());
             out.default_layout = j.value("default_layout", std::string("dungeon"));
+            out.enclosure = j.value("enclosure", std::string());
+            out.wall = j.value("wall", std::string());
+            out.face = j.value("face", std::string());
+            out.boundary = j.value("boundary", std::string());
             out.props.clear();
             if (j.contains("props") && j["props"].is_array())
                 for (const auto& p : j["props"]) out.props.push_back(p.get<std::string>());

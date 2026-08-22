@@ -36,5 +36,6 @@
     "#2A2622"
   ],
   "ground": "salt-bleached oak deck planking running fore and aft, caulked with black pitch",
-  "materials": "A sailing ship's weather deck seen from directly above, open ocean on every side. Salt-bleached oak planking running fore and aft with black pitch in the seams, a raised quarterdeck aft reached by short stairs, a square cargo hatch amidships with its grating off, the round bases of two masts ringed by belaying pins and coiled rigging, a timber capstan with its bars shipped, lashed barrels and crates, a rack of boarding axes, netting rigged along the rail, deep blue water with white wake beyond the hull."
+  "materials": "A sailing ship's weather deck seen from directly above, open ocean on every side. Salt-bleached oak planking running fore and aft with black pitch in the seams, a raised quarterdeck aft reached by short stairs, a square cargo hatch amidships with its grating off, the round bases of two masts ringed by belaying pins and coiled rigging, a timber capstan with its bars shipped, lashed barrels and crates, a rack of boarding axes, netting rigged along the rail, deep blue water with white wake beyond the hull.",
+  "boundary": "a continuous timber bulwark of close-fitted planking running right round the outside, with open sea beyond it"
 }

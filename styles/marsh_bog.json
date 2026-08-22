@@ -35,5 +35,6 @@
     "#22261F"
   ],
   "ground": "black peat water broken by tussocks of sodden moss and matted reed",
-  "materials": "A fantasy peat bog seen from above. Sheets of black standing water reflecting a pale sky, broken by tussocks of sodden moss and dense beds of matted reed, sagging plank walkways on rotten posts threading between islands of firmer ground, drowned trees standing bare and grey with their roots in the water, a half-sunk flat-bottomed boat, clumps of pale fungus on the dead wood, mist lying low over the surface, bones and antlers caught in the reeds."
+  "materials": "A fantasy peat bog seen from above. Sheets of black standing water reflecting a pale sky, broken by tussocks of sodden moss and dense beds of matted reed, sagging plank walkways on rotten posts threading between islands of firmer ground, drowned trees standing bare and grey with their roots in the water, a half-sunk flat-bottomed boat, clumps of pale fungus on the dead wood, mist lying low over the surface, bones and antlers caught in the reeds.",
+  "boundary": "standing black water and thick reed beds with dead half-drowned trees among them"
 }

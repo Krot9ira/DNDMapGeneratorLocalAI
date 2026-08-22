@@ -35,5 +35,6 @@
     "#6E7A80"
   ],
   "ground": "wind-scoured snow over black rock, sheets of clear blue ice in the hollows",
-  "materials": "A frozen mountain pass seen from above. Wind-scoured snow lying in drifts and streaks over wet black rock, sheets of clear blue ice filling the hollows with cracks running through them, boulders capped with snow pillows, stunted pines bent away from the wind, a trail of trodden footprints winding between the crags, a wrecked supply sled with its load spilled and frozen, frost-shattered scree, a cairn of stacked stones, spindrift blowing across everything."
+  "materials": "A frozen mountain pass seen from above. Wind-scoured snow lying in drifts and streaks over wet black rock, sheets of clear blue ice filling the hollows with cracks running through them, boulders capped with snow pillows, stunted pines bent away from the wind, a trail of trodden footprints winding between the crags, a wrecked supply sled with its load spilled and frozen, frost-shattered scree, a cairn of stacked stones, spindrift blowing across everything.",
+  "boundary": "sheer walls of ice-glazed grey rock, with deep drifted snow banked against their feet"
 }

@@ -34,33 +34,46 @@ CASES = [
     ("deck", "pirate_deck"),
     ("swamp", "marsh_bog"),
     ("arena", "grand_temple"),
+    # "custom" is the layout every agent-written scene uses, and the one where
+    # the style alone decides whether the site is walled, hewn or open air.
+    ("custom", "bandit_camp"),
+    ("custom", "cozy_tavern"),
+    ("open", "mountain_pass"),
+    ("ruins", "desert_ruins"),
 ]
 
 planner = MapPlanner()
 problems = []
 
 for layout, style in CASES:
-    m = A.build({"name": "parity", "style": style, "layout": layout,
-                 "grid": {"cols": 34, "rows": 26}, "scene_summary": "a place to fight in",
-                 "prop_density": "medium"}, seed=5)
-    map_path = TMP / f"{layout}.json"
+    case = f"{layout}-{style}"
+    spec = {"name": "parity", "style": style, "layout": layout,
+            "grid": {"cols": 34, "rows": 26}, "scene_summary": "a place to fight in",
+            "prop_density": "medium"}
+    if layout == "custom":
+        # A custom layout carries its own rooms; without one there is nothing
+        # for the generator to place.
+        spec["rooms"] = [{"label": "The Ground", "description": "One open space.",
+                          "x": 1, "y": 1, "w": 32, "h": 24, "props": ["crate", "barrel"]}]
+    m = A.build(spec, seed=5)
+    map_path = TMP / f"{case}.json"
     map_path.write_text(json.dumps(m, indent=2, ensure_ascii=False), encoding="utf-8")
 
     py = IP.build_caption(m, planner.load_style(style), planner.load_base())
 
-    out = TMP / f"{layout}.app.json"
+    out = TMP / f"{case}.app.json"
     if out.exists():
         out.unlink()
     rc = subprocess.run([str(EXE), "--caption", str(map_path), str(out)],
                         capture_output=True).returncode
     if rc != 0 or not out.exists():
-        problems.append(f"{layout}: the app could not produce a caption (exit {rc})")
+        problems.append(f"{case}: the app could not produce a caption (exit {rc})")
         continue
     app = json.loads(out.read_text(encoding="utf-8"))
 
     for key in ("aspect_ratio", "high_level_description"):
         if py.get(key) != app.get(key):
-            problems.append(f"{layout}: {key} differs")
+            problems.append(f"{case}: {key} differs")
             if key == "high_level_description":
                 a, b = str(py.get(key)), str(app.get(key))
                 for i, (ca, cb) in enumerate(zip(a, b)):
@@ -77,12 +90,12 @@ for layout, style in CASES:
     as_ = app["style_description"]
     for key in ("aesthetics", "lighting", "medium"):
         if ps.get(key) != as_.get(key):
-            problems.append(f"{layout}: style_description.{key} differs")
+            problems.append(f"{case}: style_description.{key} differs")
 
     pd = py["compositional_deconstruction"]
     ad = app["compositional_deconstruction"]
     if pd["background"] != ad["background"]:
-        problems.append(f"{layout}: background differs")
+        problems.append(f"{case}: background differs")
         a, b = pd["background"], ad["background"]
         for i, (ca, cb) in enumerate(zip(a, b)):
             if ca != cb:
@@ -92,13 +105,13 @@ for layout, style in CASES:
 
     pe, ae = pd["elements"], ad["elements"]
     if len(pe) != len(ae):
-        problems.append(f"{layout}: {len(pe)} elements from the tools, {len(ae)} from the app")
+        problems.append(f"{case}: {len(pe)} elements from the tools, {len(ae)} from the app")
     for i, (x, y) in enumerate(zip(pe, ae)):
         if x.get("bbox") != y.get("bbox"):
-            problems.append(f"{layout}: element {i} bbox {x.get('bbox')} vs {y.get('bbox')}")
+            problems.append(f"{case}: element {i} bbox {x.get('bbox')} vs {y.get('bbox')}")
             break
         if x.get("desc") != y.get("desc"):
-            problems.append(f"{layout}: element {i} desc differs")
+            problems.append(f"{case}: element {i} desc differs")
             problems.append(f"    tools: {str(x.get('desc'))[:110]}")
             problems.append(f"    app  : {str(y.get('desc'))[:110]}")
             break

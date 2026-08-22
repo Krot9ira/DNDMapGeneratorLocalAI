@@ -282,6 +282,16 @@ static std::string OutputDir(const std::string& name) {
     return dir.string();
 }
 
+// The architect needs to know whether this site is walled, hewn or open air,
+// and only the style knows. Called at every point a map is built, so the tools
+// and the app cannot drift apart on it.
+static void AttachStyle(DesignSpec& spec) {
+    const StyleDef* s = g_app.styles.Find(spec.style);
+    if (!s) return;
+    spec.style_category = s->category;
+    spec.style_enclosure = s->enclosure;
+}
+
 static DesignSpec SpecFromUi() {
     DesignSpec spec;
     spec.title = "Battle Map";
@@ -525,6 +535,7 @@ static void RequestRebuild(Rebuild what) {
 static void StartQuickBlueprint() {
     if (!BeginJob("Building blueprint...")) return;
     DesignSpec spec = SpecFromUi();
+    AttachStyle(spec);
     uint32_t seed = PickSeed();
     std::thread([spec, seed]() {
         Job& job = g_app.job;
@@ -566,9 +577,13 @@ static void StartPlanAndRender(bool alsoRender) {
         catalogue += "- " + kv.first + ": " + kv.second.name + " - " + kv.second.description + "\n";
     }
     std::map<std::string, std::vector<std::string>> styleProps;
+    // Snapshotted here, on the UI thread, like the props above: the worker must
+    // not reach into g_app.styles.
+    std::map<std::string, std::pair<std::string, std::string>> styleShape;
     std::map<std::string, std::string> styleLayout;
     for (const auto& kv : g_app.styles.styles) {
         styleProps[kv.first] = kv.second.props;
+        styleShape[kv.first] = {kv.second.category, kv.second.enclosure};
         styleLayout[kv.first] = kv.second.default_layout;
     }
 
@@ -596,6 +611,11 @@ static void StartPlanAndRender(bool alsoRender) {
         if (spec.style.empty()) spec.style = styleId;
         auto propIt = styleProps.find(spec.style);
         if (propIt != styleProps.end()) spec.style_props = propIt->second;
+        auto shapeIt = styleShape.find(spec.style);
+        if (shapeIt != styleShape.end()) {
+            spec.style_category = shapeIt->second.first;
+            spec.style_enclosure = shapeIt->second.second;
+        }
         job.Log("Layout: " + spec.layout + " | areas: " + std::to_string(spec.rooms.size()));
         if (!spec.scene_summary.empty()) job.Log("Scene: " + spec.scene_summary);
 
@@ -3336,6 +3356,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int nCmdShow) {
     // Start with a real map so the app is never a blank window.
     {
         DesignSpec spec = SpecFromUi();
+        AttachStyle(spec);
         g_app.map = arch::Build(spec, 7u);
         g_app.map.meta.style = g_app.selectedStyle;
         g_app.SyncGridFromMap();

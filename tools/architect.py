@@ -1290,12 +1290,89 @@ def _apply_terrain(grid, rooms, spec, rng):
               rk, rng, only_on={FLOOR}, squish=rw / max(1.0, float(rh)))
 
 
-def _ensure_a_way_in(grid, rng, organic=False):
-    """Every enclosed room gets a door.
+# --- What closes a site in -------------------------------------------------
+# A gorge is not a building and a clearing has no masonry, but until this
+# existed every map was described to the renderer as though it were a walled
+# house: cliffs became courses of dressed stone and the way in became a timber
+# door with iron bands. One rule, used by the architect and by the caption, so
+# the plan and the words for it can never disagree.
+
+_ENCLOSURE_KINDS = ("masonry", "rock", "timber", "open")
+
+# Layout decides first, because it is what actually got carved.
+_MASONRY_LAYOUTS = ("building", "dungeon", "arena")
+_ROCK_LAYOUTS = ("cavern",)
+_TIMBER_LAYOUTS = ("deck",)
+_OPEN_LAYOUTS = ("open", "forest", "swamp", "ruins", "street", "district", "harbour")
+# Then the style, for layouts that could be either - "custom" above all.
+_ROCK_CATEGORIES = ("cavern", "underground")
+_TIMBER_CATEGORIES = ("nautical",)
+_OPEN_CATEGORIES = ("wilderness", "settlement", "urban")
+
+_STYLE_CACHE = {}
+
+
+def style_data(style_id):
+    """The style JSON by id, or an empty dict. Cached."""
+    key = str(style_id or "").strip().lower()
+    if not key:
+        return {}
+    if key in _STYLE_CACHE:
+        return _STYLE_CACHE[key]
+    data = {}
+    try:
+        from paths import ROOT as _ROOT
+        path = _ROOT / "styles" / f"{key}.json"
+        if path.exists():
+            data = json.loads(path.read_text(encoding="utf-8"))
+    except Exception:
+        data = {}
+    _STYLE_CACHE[key] = data
+    return data
+
+
+def enclosure_of(style, layout=""):
+    """masonry | rock | timber | open - what the outer edge of this site is.
+
+    A style may say so outright with an "enclosure" field. Otherwise the layout
+    decides, and for layouts that could be either - "custom" most of all - the
+    style's category does.
+    """
+    if isinstance(style, str) or style is None:
+        style = style_data(style)
+    named = str(style.get("enclosure", "")).strip().lower()
+    if named in _ENCLOSURE_KINDS:
+        return named
+    layout = str(layout or style.get("default_layout") or "").strip().lower()
+    if layout in _MASONRY_LAYOUTS:
+        return "masonry"
+    if layout in _ROCK_LAYOUTS:
+        return "rock"
+    if layout in _TIMBER_LAYOUTS:
+        return "timber"
+    if layout in _OPEN_LAYOUTS:
+        return "open"
+    category = str(style.get("category", "")).strip().lower()
+    if category in _ROCK_CATEGORIES:
+        return "rock"
+    if category in _TIMBER_CATEGORIES:
+        return "timber"
+    if category in _OPEN_CATEGORIES:
+        return "open"
+    return "masonry"
+
+
+def _ensure_a_way_in(grid, rng, enclosure="masonry"):
+    """Every enclosed room gets a way in.
 
     Connectivity does not catch a sealed room - it is perfectly connected to
     itself. A room nobody can enter is a bug by the same rule that says a map
     must be walkable, so the wall is opened rather than merely complained about.
+
+    What gets cut depends on what the wall is made of. Rock gets a passage,
+    because caves have no doors in them; so does the outer edge of an open-air
+    site, because you walk into a clearing rather than knocking. A hut standing
+    in that clearing still gets a door, since a hut is built.
     """
     for _ in range(12):
         sealed = _enclosed_without_a_door(grid, want_cells=True)
@@ -1323,13 +1400,29 @@ def _ensure_a_way_in(grid, rng, organic=False):
                 else:
                     continue
                 if best is None or score < best[0]:
-                    best = (score, wx, wy, ox, oy)
+                    best = (score, wx, wy, ox, oy, dx, dy)
         if best is None:
             return
-        _, wx, wy, ox, oy = best
-        grid.set(wx, wy, FLOOR if organic else DOOR)
-        if grid.inside(ox, oy) and grid.get(ox, oy) == VOID:
-            grid.set(ox, oy, FLOOR)
+        _, wx, wy, ox, oy, gx, gy = best
+        # Does this region span the whole site, or is it a room inside it?
+        xs = [c[0] for c in cells]
+        ys = [c[1] for c in cells]
+        whole_site = (min(xs) <= 2 and min(ys) <= 2 and
+                      max(xs) >= grid.cols - 3 and max(ys) >= grid.rows - 3)
+        cut_open = enclosure == "rock" or (enclosure == "open" and whole_site)
+        if not cut_open:
+            grid.set(wx, wy, DOOR)
+            if grid.inside(ox, oy) and grid.get(ox, oy) == VOID:
+                grid.set(ox, oy, FLOOR)
+            continue
+        # Rock and open ground get a passage rather than a door, and the passage
+        # is carried right off the edge of the map. A gap that stops inside the
+        # cliff is a gap to nowhere: outdoor maps are entered from off the page.
+        cx, cy = wx, wy
+        while grid.inside(cx, cy):
+            if grid.get(cx, cy) not in WALKABLE:
+                grid.set(cx, cy, FLOOR)
+            cx, cy = cx + gx, cy + gy
 
 
 def _ensure_connected(grid, rng):
@@ -1413,8 +1506,14 @@ def _place_props(grid, rooms, spec, rng, style_props=None):
         wanted = [w for w in wanted if w]
         area = max(1, rect[2] * rect[3])
         filler_budget = int(round(area / 22.0 * density))
-        if pool and filler_budget > 0:
-            filler_kinds = [rng.choice(pool) for _ in range(filler_budget)]
+        # A room that named its own props has said what belongs in it. The
+        # style's list says what belongs in this kind of place in general, and
+        # using it here is how an abandoned tavern common room came back with a
+        # bed and three bookshelves in it - each of which the renderer then
+        # built a little side room around.
+        room_pool = list(dict.fromkeys(wanted)) or pool
+        if room_pool and filler_budget > 0:
+            filler_kinds = [rng.choice(room_pool) for _ in range(filler_budget)]
             wanted = wanted + filler_kinds
         else:
             filler_kinds = []
@@ -1452,12 +1551,16 @@ def _place_props(grid, rooms, spec, rng, style_props=None):
                 walkable_cells.append((x, y))
     target = int(len(walkable_cells) / 26.0 * density)
     target = _clamp(target, 0, 260)
-    if pool and len(features) < target:
+    asked_kinds = list(dict.fromkeys(
+        k for room in rooms
+        for k in (normalize_prop(p) for p in (room["spec"].get("props") or [])) if k))
+    top_pool = asked_kinds or pool
+    if top_pool and len(features) < target:
         rng.shuffle(walkable_cells)
         for cell in walkable_cells:
             if len(features) >= target:
                 break
-            commit(rng.choice(pool), cell, filler=True)
+            commit(rng.choice(top_pool), cell, filler=True)
 
     # Explicit features from the caller always win.
     for f in spec.get("features") or []:
@@ -1717,8 +1820,7 @@ def build(spec, seed=None):
         _open_edges(grid)
     # After the walls are final, or the opening would be walled up again.
     _ensure_a_way_in(grid, rng,
-                     organic=str(spec.get("layout", "")).lower()
-                     in ("cavern", "forest", "swamp", "open", "ruins", "deck"))
+                     enclosure=enclosure_of(spec.get("style"), spec.get("layout")))
     _fix_doors(grid)
 
     filler = spec.get("style_props") or _DEFAULT_FILLER.get(spec["layout"])
@@ -1773,7 +1875,7 @@ def build(spec, seed=None):
     return map_data
 
 
-def _enclosed_without_a_door(grid, want_cells=False):
+def _enclosed_without_a_door(grid, want_cells=False, margin=0):
     """Rooms you cannot get into, because nothing opens through their wall.
 
     Connectivity does not catch this: a sealed room is perfectly connected to
@@ -1794,7 +1896,11 @@ def _enclosed_without_a_door(grid, want_cells=False):
             while stack:
                 x, y = stack.pop()
                 cells.append((x, y))
-                if x == 0 or y == 0 or x == grid.cols - 1 or y == grid.rows - 1:
+                # The playable field, not the stored grid: a map carries an
+                # empty bleed margin around it, so ground that runs off the
+                # field is ground that runs off the map.
+                if (x <= margin or y <= margin or x >= grid.cols - 1 - margin
+                        or y >= grid.rows - 1 - margin):
                     touches_edge = True
                 if grid.get(x, y) in (DOOR, WINDOW):
                     has_opening = True
@@ -1961,7 +2067,7 @@ def validate_map(map_data, repair=True):
     if repair:
         grid = zones_to_grid(data)
 
-    for size in _enclosed_without_a_door(grid):
+    for size in _enclosed_without_a_door(grid, margin=border_of(data)):
         problems.append(f"a walled area of {size} squares has no door or window anywhere in "
                         f"its wall, so there is no way into it")
         walkable = sum(grid.count(k) for k in WALKABLE)

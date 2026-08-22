@@ -242,6 +242,10 @@ struct DesignSpec {
     std::string prop_density = "medium";
     std::vector<RoomSpec> rooms;
     std::vector<std::string> style_props;
+    // Filled in from the chosen style so the architect can tell a walled house
+    // from a gorge: see EnclosureOf.
+    std::string style_category;
+    std::string style_enclosure;
     bool edge_walls = true;
     float water_fraction = 0.32f;
     // Width of the blank ring added around the finished map, in cells.
@@ -261,6 +265,10 @@ struct StyleDef {
     std::string ground;                     // Ideogram caption: background surface
     std::vector<std::string> hex_palette;   // Ideogram caption: committed colours
     std::string default_layout = "dungeon";
+    std::string enclosure;                  // masonry | rock | timber | open
+    std::string wall;                       // overrides for what the edge is
+    std::string face;
+    std::string boundary;
     std::vector<std::string> props;
     std::vector<std::string> tags;
 };

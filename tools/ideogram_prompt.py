@@ -116,6 +116,38 @@ _SHIP_TEXT = (
     "single mast with coiled rigging, and mooring ropes running to the dock. No sails and no "
     "lower decks.")
 
+# What the outer edge of a site is made of, in words. architect.enclosure_of
+# picks the kind; a style can override any of these three for itself with a
+# "wall", "face" or "boundary" field of its own.
+_ENCLOSURE_WORDS = {
+    "masonry": {
+        "wall": "solid stone wall with visible courses",
+        "face": "plain masonry",
+        "boundary": ("a thick stone wall of plain masonry closing the site in on all four "
+                     "sides"),
+    },
+    "rock": {
+        "wall": "solid rough rock wall",
+        "face": "raw rock",
+        "boundary": ("sheer natural rock closing the site in on all four sides, its face "
+                     "broken and irregular, and nowhere a course of laid stone"),
+    },
+    "timber": {
+        "wall": "solid timber bulwark of close-fitted planking",
+        "face": "close-fitted planking",
+        "boundary": ("a continuous timber bulwark of close-fitted planking running right "
+                     "round the outside"),
+    },
+    "open": {
+        "wall": "solid rough rock wall",
+        "face": "raw rock",
+        "boundary": ("a continuous natural edge closing the site in on all four sides - "
+                     "rising ground, rock, earth and dense growth, whatever the surroundings "
+                     "are - every part of it natural and unbuilt, with no course of laid "
+                     "stone, no brickwork and no doorway anywhere along it"),
+    },
+}
+
 _ELABORATION = {
     "exact": "Render this exactly as described and add nothing to it",
     "some": "Render this as described, filling in fitting detail",
@@ -148,6 +180,9 @@ def load_phrases():
             "wall_organic": _WALL_ORGANIC_TEXT, "open_ground": "open paved ground",
             "ship": _SHIP_TEXT,
         },
+        "enclosure": {f"{kind}_{part}": text
+                      for kind, parts in _ENCLOSURE_WORDS.items()
+                      for part, text in parts.items()},
         "phrasing": {
             "exact": _EXACT,
             "elaboration_exact": _ELABORATION["exact"],
@@ -399,6 +434,18 @@ def build_caption(map_data, style=None, base=None):
     saying = phrases["phrasing"]
     exact = saying["exact"]
 
+    layout_name = str(meta.get("layout", "")).lower()
+    # What closes this site in decides what its edge is called, whether the map
+    # may be described as a building at all, and what a way in looks like.
+    enclosure = A.enclosure_of(style, layout_name)
+    enc = dict(_ENCLOSURE_WORDS.get(enclosure) or _ENCLOSURE_WORDS["masonry"])
+    for part in ("wall", "face", "boundary"):
+        edited = (phrases.get("enclosure") or {}).get(f"{enclosure}_{part}")
+        if edited:
+            enc[part] = edited
+        if str(style.get(part, "")).strip():
+            enc[part] = str(style[part]).strip()
+
     caption = {"aspect_ratio": _aspect_ratio(cols, rows)}
 
     title = meta.get("title") or "battle map"
@@ -427,9 +474,9 @@ def build_caption(map_data, style=None, base=None):
     # Diffusion text encoders handle negation badly, so the rule is stated as
     # what the walls are rather than as what they lack.
     opening_note = (
-        f"Every wall in this picture is one continuous face of plain masonry from corner to "
+        f"Every wall in this picture is one continuous face of {enc['face']} from corner to "
         f"corner, interrupted only by {door_count} doorways and {window_count} windows, each "
-        f"of which is listed below with its own rectangle. Everywhere else the masonry runs "
+        f"of which is listed below with its own rectangle. Everywhere else that face runs "
         f"straight on.")
     named_areas = [a for a in (map_data.get("areas") or [])
                    if str(a.get("label", "")).strip()]
@@ -449,9 +496,6 @@ def build_caption(map_data, style=None, base=None):
     viewpoint = base.get("viewpoint_note")
     if viewpoint:
         caption["high_level_description"] += " " + viewpoint.rstrip(".") + "."
-    caption["high_level_description"] += (
-        " The buildings are of different sizes and stand in an irregular arrangement; the "
-        "layout is not symmetrical, not mirrored and not a repeating pattern.")
 
     caption["style_description"] = {
         "aesthetics": style.get("aesthetics") or base.get("aesthetics", ""),
@@ -587,7 +631,7 @@ def build_caption(map_data, style=None, base=None):
                     f"described separately with its own rectangle")
         return "a building", ""
 
-    organic = str(meta.get("layout", "")).lower() in ("cavern", "forest", "swamp")
+    organic = enclosure == "rock" or layout_name in ("forest", "swamp")
     hulls = [(int(st.get("x", 0)), int(st.get("y", 0)), int(st.get("w", 1)),
               int(st.get("h", 1)))
              for st in (map_data.get("structures") or []) if st.get("kind") == "ship"]
@@ -599,11 +643,32 @@ def build_caption(map_data, style=None, base=None):
 
     building_rects = []
     building_names = []
+    single_room_shell = {}   # building index -> the words its one room needs
+    site_edge = None         # the walled ring that is the map itself, not a house
     if not organic:
         footprints = [r for r in _components(grid, (A.WALL, A.DOOR, A.WINDOW))
                       if r[4] >= 6 and not _in_hull(r[0], r[1], r[2], r[3])]
+        # Put them in an order both ports agree on. Flood fill visits cells in
+        # whatever order each language happens to, and two buildings swapping
+        # places in the list is two captions that are not the same caption.
+        footprints.sort(key=lambda r: (-r[4], r[1], r[0]))
         for i, (bx, by, bw, bh, _n) in enumerate(footprints[:5]):
             if bw < 3 or bh < 3:
+                continue
+            # A ring of wall round the whole map is the boundary of the site. On
+            # anything but a building it is cliffs, treeline or fence, and
+            # calling it "one single large building with its roof removed" is
+            # how a gorge ended up as a masonry hall with a timber door in it.
+            # Measured against the playable field, not the stored grid: every
+            # map carries an empty bleed margin, so a ring drawn right round
+            # the field starts two cells in from the corner of the picture.
+            fb = A.border_of(map_data)
+            field = max(1, (cols - 2 * fb) * (rows - 2 * fb))
+            fills_map = (bw * bh >= field * 0.75 or
+                         (bx <= fb + 1 and by <= fb + 1 and
+                          bx + bw >= cols - fb - 1 and by + bh >= rows - fb - 1))
+            if fills_map and enclosure != "masonry":
+                site_edge = (bx, by, bw, bh)
                 continue
             building_rects.append((bx, by, bw, bh))
             size_word = ("large" if bw * bh > cols * rows * 0.12 else
@@ -628,25 +693,71 @@ def build_caption(map_data, style=None, base=None):
             # encoders handle negation badly, and a count attached to the wall
             # it belongs to holds far better than one stated for the whole map.
             door_note = (
-                "One single plank-filled gap sits in its wall and the rest of that wall is "
-                "one continuous face of plain masonry running corner to corner"
+                f"One single plank-filled gap sits in its wall and the rest of that wall is "
+                f"one continuous face of {enc['face']} running corner to corner"
                 if doors_here == 1 else
                 f"{doors_here} plank-filled gaps sit in its wall and the rest of that wall "
-                f"is one continuous face of plain masonry running corner to corner"
+                f"is one continuous face of {enc['face']} running corner to corner"
                 if doors_here else
-                "All four of its walls are one continuous face of plain masonry running "
-                "corner to corner")
+                f"All four of its walls are one continuous face of {enc['face']} running "
+                f"corner to corner")
+            shell = (f"One single {size_word} building{', ' + named if named else ''}"
+                     f", standing alone inside "
+                     f"this rectangle and nowhere else: thick unbroken outer walls right "
+                     f"on the edges of the rectangle, its roof removed so the furnished "
+                     f"floor inside is fully visible from above.")
+            outside_note = (f"{door_note}. The inner face of those outer walls is flat and "
+                            f"plain the whole way round, and the floor runs right up to it "
+                            f"everywhere. The ground immediately outside the building on "
+                            f"every side is open and free of any wall.")
+            # Handing over the shell and the room as two rectangles, one inset
+            # inside the other by the thickness of the wall, leaves a ring
+            # between them that the renderer fills with alcoves it invented.
+            # A building with one room in it is described once, at one rectangle.
+            held_here = [a for a in (map_data.get("areas") or [])
+                         if str(a.get("label", "")).strip()
+                         and bx <= a["x"] + a["w"] / 2.0 <= bx + bw
+                         and by <= a["y"] + a["h"] / 2.0 <= by + bh]
+            if len(held_here) == 1:
+                single_room_shell[len(building_rects) - 1] = (shell, outside_note)
+                continue
             walls.append({
                 "type": "obj",
                 "bbox": _bbox(bx, by, bw, bh, cols, rows),
-                "desc": (f"One single {size_word} building{', ' + named if named else ''}"
-                         f", standing alone inside "
-                         f"this rectangle and nowhere else: thick unbroken outer walls right "
-                         f"on the edges of the rectangle, its roof removed so the furnished "
-                         f"floor inside is fully visible from above."
+                "desc": (shell
                          + (f" {inside.rstrip('.')}." if inside else "")
-                         + f" {door_note}. The ground immediately outside it on every "
-                         f"side is open and free of any wall. {exact}")})
+                         + f" {outside_note} {exact}")})
+
+    if site_edge is not None:
+        # If the plan already says what the edge of this place is - cliffs down
+        # both sides, a treeline along the top - then it has been said, and
+        # saying it again in general terms only gives the renderer two answers.
+        (sx, sy, sw, sh) = site_edge
+        band = set()
+        for yy in range(sy, sy + sh):
+            for xx in range(sx, sx + sw):
+                if xx in (sx, sx + sw - 1) or yy in (sy, sy + sh - 1) or                    grid.get(xx, yy) in (A.WALL, A.DOOR, A.WINDOW):
+                    band.add((xx, yy))
+        spoken = set()
+        for note in (map_data.get("annotations") or []):
+            nx, ny = int(note.get("x", 0)), int(note.get("y", 0))
+            nw, nh = int(note.get("w", 1)), int(note.get("h", 1))
+            for yy in range(ny, ny + nh):
+                for xx in range(nx, nx + nw):
+                    if (xx, yy) in band:
+                        spoken.add((xx, yy))
+        if band and len(spoken) >= 0.4 * len(band):
+            site_edge = None
+    if site_edge is not None:
+        (sx, sy, sw, sh) = site_edge
+        walls.append({
+            "type": "obj",
+            "bbox": _bbox(sx, sy, sw, sh, cols, rows),
+            "desc": (f"The outer edge of the site, drawn as a continuous band right round "
+                     f"the four sides of this rectangle and nowhere else: {enc['boundary']}. "
+                     f"It is the far limit of the map, not a building: nothing stands on it "
+                     f"and nothing is built into it. Everything inside it is open ground. "
+                     f"{exact}")})
 
     def _which_wall(x, y, w, h):
         """Which wall of which building - so no two doors read the same."""
@@ -686,7 +797,7 @@ def build_caption(map_data, style=None, base=None):
         for xx in range(grid.cols):
             k = grid.get(xx, yy)
             solid.set(xx, yy, A.WALL if k in (A.WALL, A.DOOR, A.WINDOW) else k)
-    wall_word = style.get("wall") or (wording["wall_organic"] if organic else wording["wall"])
+    wall_word = enc["wall"]
     wall_runs = _merge_runs(solid, A.WALL)
     for (x, y, w, h) in wall_runs[:(4 if organic else MAX_WALL_RUNS)]:
         # Only genuinely elongated runs. Everything else is a stub or, in a cave,
@@ -694,7 +805,7 @@ def build_caption(map_data, style=None, base=None):
         if max(w, h) < 3 or w * h < 2:
             continue
         on_outline = False
-        for (bx, by, bw, bh) in building_rects:
+        for (bx, by, bw, bh) in ([site_edge] if site_edge else []) + building_rects:
             inside = (bx - 1 <= x and by - 1 <= y and
                       x + w <= bx + bw + 1 and y + h <= by + bh + 1)
             if not inside:
@@ -731,14 +842,17 @@ def build_caption(map_data, style=None, base=None):
             "bbox": _bbox(x, y, w, h, cols, rows),
             "desc": (f"A run of {wall_word}: {shape}, filling it completely and keeping the "
                      f"same thickness along its entire length, with square ends and solid "
-                     f"masonry everywhere except at the doors listed separately below. "
+                     f"{enc['face']} everywhere except at the doors listed separately below. "
                      f"{exact}")})
 
     # 4d. The open ground. Without it the renderer treats every empty square as
     #     somewhere a building could go, and fills the map with invented rooms.
     open_word = style.get("ground") or wording["open_ground"]
     outside = [[grid.get(x, y) == A.FLOOR for x in range(cols)] for y in range(rows)]
-    for (bx, by, bw, bh) in building_rects:
+    named_rects = [(int(a["x"]), int(a["y"]), int(a["w"]), int(a["h"]))
+                   for a in (map_data.get("areas") or [])
+                   if str(a.get("label", "")).strip()]
+    for (bx, by, bw, bh) in building_rects + named_rects:
         for y in range(by, by + bh):
             for x in range(bx, bx + bw):
                 if 0 <= y < rows and 0 <= x < cols:
@@ -768,8 +882,9 @@ def build_caption(map_data, style=None, base=None):
         if not label or label.lower() in ("moored ship", "quay"):
             continue
         cx0, cy0 = area["x"] + area["w"] / 2.0, area["y"] + area["h"] / 2.0
-        host = [(bx, by, bw, bh) for (bx, by, bw, bh) in building_rects
-                if bx <= cx0 <= bx + bw and by <= cy0 <= by + bh]
+        host_i = [j for j, (bx, by, bw, bh) in enumerate(building_rects)
+                  if bx <= cx0 <= bx + bw and by <= cy0 <= by + bh]
+        host = [building_rects[j] for j in host_i]
         if host:
             others = sum(1 for a2 in (map_data.get("areas", []) or [])
                          if a2 is not area and (a2.get("label") or "").strip()
@@ -782,16 +897,50 @@ def build_caption(map_data, style=None, base=None):
         else:
             single = False
         detail = str(area.get("description", "")).strip()
-        one_room = ("" if not single else
-                    ". This building holds this one room and nothing else: it is a single "
-                    "undivided space filling the whole rectangle, with no interior wall, no "
-                    "partition, no screen and no smaller room anywhere inside it")
+        # The one thing the renderer gets wrong on every single-room map: it
+        # lines the inside of the outer wall with little alcoves. Said as what
+        # the wall is rather than as what it lacks, and said here, against the
+        # room itself, rather than once at the top of the caption.
+        undivided = (
+            "It is a single undivided space filling the whole of this rectangle from side "
+            "to side: one unbroken floor, with the four walls around it and nothing else. "
+            "The inner face of every one of those walls is flat and plain along its whole "
+            "length, and the open floor runs right up to it on all four sides, so there is "
+            "no interior wall, no partition, no screen, no alcove, no niche, no recess, no "
+            "booth and no smaller room anywhere inside it")
+        shell_here = None
+        for j in host_i:
+            if j in single_room_shell:
+                shell_here = single_room_shell[j]
+                break
+        if shell_here is not None:
+            # Described once, at the outer rectangle, so no ring is left over
+            # between the shell and its interior for the renderer to fill in.
+            bx, by, bw, bh = building_rects[host_i[0]]
+            shell, outside_note = shell_here
+            normal.append({
+                "type": "obj",
+                "bbox": _bbox(bx, by, bw, bh, cols, rows),
+                "desc": (f"{shell} Inside those walls is {_the(label)[0].lower()}"
+                         f"{_the(label)[1:]} and nothing else, "
+                         f"seen from directly above with its floor and furniture fully "
+                         f"visible and no roof, no ceiling and nothing overhanging it. "
+                         f"{undivided}."
+                         + (" " + _upper_first(detail.rstrip(".")) + "." if detail else "")
+                         + f" {outside_note} {exact}"),
+            })
+            continue
+        one_room = "" if not single else ". " + undivided
         normal.append({
             "type": "obj",
             "bbox": _bbox(area["x"], area["y"], area["w"], area["h"], cols, rows),
-            "desc": (f"{_the(label)}: the roofless interior of a room seen from directly "
-                     f"above, its floor and furniture fully visible and filling this "
-                     f"rectangle, with no roof, no ceiling and nothing overhanging it"
+            "desc": (f"{_the(label)}: "
+                     + ("the open ground of this place seen from directly above, filling "
+                        "this rectangle, with nothing above it and nothing overhanging it"
+                        if site_edge is not None and not host else
+                        "the roofless interior of a room seen from directly "
+                        "above, its floor and furniture fully visible and filling this "
+                        "rectangle, with no roof, no ceiling and nothing overhanging it")
                      + one_room
                      + (". " + detail.rstrip(".") if detail else "")),
         })
@@ -861,7 +1010,15 @@ def build_caption(map_data, style=None, base=None):
     # richest source of theme detail we have, so it belongs in the background.
     materials = (style.get("materials") or "").strip()
     if materials:
-        ground = f"{ground}. {materials.rstrip('.')}"
+        # A style describes a whole imagined scene - tents in a ring round a
+        # fire, stalls along a street - and that description is the strongest
+        # text in the caption, so it used to quietly overrule the plan it was
+        # supposed to be painting. It is kept for its materials and colour and
+        # told, in as many words, that it does not decide where anything goes.
+        ground = (f"{ground}. The following names the kinds of thing this place is made of, "
+                  f"for texture, material and colour only; it does not say where anything "
+                  f"stands, and wherever it disagrees with the rectangles listed below, the "
+                  f"rectangles are right and this is ignored: {materials.rstrip('.')}")
     suffix = base.get("background_suffix") or (
         "painted with visible brushwork, every part of the ground fully painted with no "
         "blank patches inside the map area")
@@ -884,6 +1041,20 @@ def build_caption(map_data, style=None, base=None):
     # carries weight too. Two human figures once appeared in a map whose opening
     # sentence forbade them.
     background += ". " + forbidden
+
+    # Said last, because until the elements are built nobody knows how many
+    # buildings there are - and this sentence used to claim several of them on
+    # a map with one room in it, which is an instruction, not a caveat. It is
+    # how a single tavern hall came back ringed with little timber bays.
+    count = len(building_rects)
+    caption["high_level_description"] += (
+        " The buildings are of different sizes and stand in an irregular arrangement; the "
+        "layout is not symmetrical, not mirrored and not a repeating pattern."
+        if count > 1 else
+        " There is exactly one building in this picture and no second building anywhere; "
+        "the layout is not symmetrical, not mirrored and not a repeating pattern."
+        if count == 1 else
+        " The layout is not symmetrical, not mirrored and not a repeating pattern.")
 
     caption["compositional_deconstruction"] = {
         "background": background,
