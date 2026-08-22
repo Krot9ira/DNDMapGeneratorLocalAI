@@ -353,6 +353,72 @@ would see looking straight down. The same trap catches ceilings - mention a ceil
 chandelier or cornice moulding and the whole map tips into perspective, because a ceiling
 can only be shown from the side. The shared contract now forbids all of that outright.
 
+### Nothing is on a wall and nothing hangs
+
+A wall is a vertical surface. If something is on one, the only way to show it is
+from the side, so the renderer turns the map on its edge to fit it in and the
+whole picture comes back in perspective. Three cave renders in a row were drawn
+with the top of the map as a wall face in elevation, alcoves and all, because the
+style said its crystals grew "from the walls" - four separate sentences saying
+the view is straight down could not undo one phrase that needed a side view.
+
+Eleven of the shipped styles were doing some version of it: wall-mounted torches,
+hanging lanterns and banners, lamp brackets on the walls, floor-to-ceiling
+bookcases, barrel-vaulted tunnels, gratings overhead. All of them now say where
+the thing stands on the floor. `style_warnings` flags anything on a wall,
+hanging, suspended or under a ceiling, and `check_captions.py` fails on it, so a
+style written later cannot quietly bring it back. "Against the walls" and "along
+the walls" are fine - those things are standing on the ground.
+
+### Say what a thing is, not what it is not - including about the whole picture
+
+Every caption used to end with "the layout is not symmetrical, not mirrored and
+not a repeating pattern", and two cave renders came back with their left half a
+perfect mirror of their right. The word being acted on there is "mirrored". It
+now says the left half and the right half are different from each other, that so
+are the top and the bottom, and that each thing in the picture appears once, in
+one place, at its own angle.
+
+The same trap, one level down: "thick unbroken outer walls right on the edges of
+the rectangle" is an invitation, and a wall one square deep out of thirty came
+back as a band a sixth of the map wide - and a band that wide is a place, so it
+got furnished with alcoves. The building element now works the thickness out
+from the plan and says it: a narrow line about three percent of the width of this
+rectangle and no wider, a line, not a band.
+
+### Small boxes round the inside of a room become compartments
+
+Twelve of a tavern's twenty-four elements were filler props, each pinned with its
+own rectangle, and almost all of them stood against a wall. A ring of small boxes
+inside a room reads as a row of compartments, and the renderer drew one - a dozen
+little timber bays, through four rounds of trying to talk it out of them. Filler
+standing against a wall is no longer pinned; it goes into the clutter sentence,
+which says what there is without saying where each piece stands. Filler is also
+never pinned on top of something the scene has already described, which is how
+five heaps of rubble ended up inside "a round stone well head standing alone".
+
+Things you asked for by name keep their rectangles. This only applies to what the
+generator added on its own.
+
+### The edge of the site is not the walls inside it
+
+What closes a site in decides what its boundary is made of and nothing else. A
+stone house on a burning street is built of masonry even though the street it
+stands on is open air, and for a while it was being told its walls were raw rock.
+Whether one area is a room is likewise asked of that area - is a reasonable part
+of its outline wall of its own? - and not of the map it sits on, with the
+boundary itself not counting, or every cave would be a room: the architect rings
+the whole playing field whatever is on it.
+
+### Atmosphere goes in the background, not in a rectangle
+
+An effect covering most of the map came back as six identical elements saying the
+same sentence over six boxes: a quarter of the element budget, spent on exactly
+the repetition the rest of the caption argues against. Anything covering a
+quarter of the map or more is atmosphere and goes into the background text, where
+it costs no slots and cannot repeat itself. Smaller effects are still tiled so
+the renderer covers them properly, four tiles at most.
+
 ### The caption has a budget, and spending it costs adherence
 
 Past roughly forty elements everything degrades at once: the layout comes back mirrored,
