@@ -1163,6 +1163,71 @@ inline void OpenUpOutdoorRooms(TileGrid& g,
                 g.Set(xx, yy, Tile::Floor);
 }
 
+// What a named region is made of, when its name says so plainly. An annotation
+// used to be caption text and nothing else, so a plan could have open floor
+// where the words said there was a colonnade, a stair, a lake or a cliff - and
+// the renderer, handed both, had to choose. Keyed on the label, because a
+// description mentions the cliff a tent is pitched against without being one.
+// Mirrors architect._annotation_ground.
+inline bool AnnotationGround(const std::string& label, Tile& tile, bool& sparse) {
+    struct Group { Tile tile; std::vector<std::string> words; };
+    static const std::vector<Group> groups = {
+        {Tile::Wall, {"cliff", "rock face", "curtain wall", "sea wall", "rampart",
+                      "palisade", "stockade", "bulwark", "mirror wall", "forest wall"}},
+        {Tile::Stairs, {"stair", "steps", "stairway"}},
+        {Tile::Bridge, {"bridge", "boardwalk", "walkway", "causeway", "gangway", "span",
+                        "decking", "jetty", "pier", "catwalk"}},
+        {Tile::Water, {"lake", "pool", "river", "stream", "brook", "water", "flood",
+                       "fountain", "moat", "canal", "shallows", "ford"}},
+        {Tile::Pit, {"pit", "chasm", "shaft", "abyss", "sinkhole", "crevasse",
+                     "collapsed floor", "fallen floor", "broken floor", "missing floor",
+                     "weightless"}},
+        {Tile::Rubble, {"rubble", "debris", "scree", "wreckage", "spoil", "barricade",
+                        "breastwork", "collapse", "cave-in", "spill"}},
+        {Tile::Vegetation, {"thicket", "undergrowth", "bushes", "hedge", "treeline",
+                            "brambles", "reeds", "scrub", "briars"}},
+    };
+    static const std::vector<std::string> sparseWords = {
+        "colonnade", "columns", "column", "pillars", "pillar", "obelisk", "boulder",
+        "stalagmite", "menhir", "stump"};
+    static const std::vector<std::string> solidWords = {
+        "altar", "dais", "plinth", "pedestal", "throne", "sarcophagus", "tomb", "statue",
+        "anvil", "forge", "brazier stand", "monolith", "idol", "shrine stone"};
+
+    std::string low = " " + Lower(label) + " ";
+    auto has = [&low](const std::vector<std::string>& words) {
+        for (const std::string& w : words)
+            if (low.find(w) != std::string::npos) return true;
+        return false;
+    };
+    for (const Group& gset : groups)
+        if (has(gset.words)) { tile = gset.tile; sparse = false; return true; }
+    if (has(sparseWords)) { tile = Tile::Wall; sparse = true; return true; }
+    if (has(solidWords)) { tile = Tile::Wall; sparse = false; return true; }
+    return false;
+}
+
+// Lay the ground a region's own name asks for, where nothing else has. Only
+// plain floor is written over, so an explicit terrain zone, a room wall and
+// anything the generator meant always win.
+inline void ApplyAnnotationGround(TileGrid& g, const std::vector<Annotation>& notes) {
+    for (const Annotation& note : notes) {
+        Tile tile = Tile::Floor;
+        bool sparse = false;
+        if (!AnnotationGround(note.label, tile, sparse)) continue;
+        int nw = std::max(1, note.w), nh = std::max(1, note.h);
+        // A solid thing that was given half the map is not a solid thing; it is
+        // a region that happens to have one in it.
+        if (tile == Tile::Wall && !sparse && nw * nh > 30) sparse = true;
+        for (int yy = note.y; yy < note.y + nh; ++yy)
+            for (int xx = note.x; xx < note.x + nw; ++xx) {
+                if (g.Get(xx, yy) != Tile::Floor) continue;
+                if (sparse && ((xx % 2) || (yy % 2))) continue;
+                g.Set(xx, yy, tile);
+            }
+    }
+}
+
 // Terrain the caller placed itself. Mirrors architect._apply_terrain_zones.
 inline void ApplyTerrainZones(TileGrid& g, const DesignSpec& spec) {
     for (const TerrainZone& z : spec.terrain_zones) {
@@ -1651,6 +1716,10 @@ inline MapData Build(DesignSpec spec, uint32_t seed) {
                                              L, ""));
 
     ApplyTerrain(g, rooms, spec, rng);
+    // Derived first, explicit second: a scene that carved a stone rib across
+    // its lake means it, and the lake annotation lying over the same rectangle
+    // must not fill the rib back in.
+    ApplyAnnotationGround(g, spec.annotations);
     ApplyTerrainZones(g, spec);
     DeriveWalls(g);
     if (!paths.empty()) PlaceDoors(g, rooms, paths);

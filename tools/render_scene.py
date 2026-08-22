@@ -29,26 +29,11 @@ def build_scene(spec, seed=7):
     one each, a scene could pass the check and render as a different map.
     """
     spec = dict(spec)
-    pinned = spec.pop("annotations", [])
-    layered = spec.pop("effects", [])
+    spec["effects"] = [{"kind": fx["kind"], "intensity": fx.get("strength", "medium"),
+                        "x": fx["x"], "y": fx["y"], "w": fx["w"], "h": fx["h"]}
+                       for fx in (spec.get("effects") or [])]
     built = agent_api.build_map(spec, seed=seed)
-    m = built["map_json"]
-    b = A.border_of(m)
-    for note in pinned:
-        m.setdefault("annotations", []).append({
-            "label": note["label"],
-            "description": note["description"],
-            "elaboration": note.get("elaboration", "exact"),
-            "x": note["x"] + b, "y": note["y"] + b,
-            "w": note["w"], "h": note["h"],
-        })
-    for fx in layered:
-        m.setdefault("effects", []).append({
-            "kind": fx["kind"], "strength": fx.get("strength", "medium"),
-            "x": fx["x"] + b, "y": fx["y"] + b,
-            "w": fx["w"], "h": fx["h"],
-        })
-    return m, spec, built.get("problems", [])
+    return built["map_json"], spec, built.get("problems", [])
 
 
 def run_one(path, args):

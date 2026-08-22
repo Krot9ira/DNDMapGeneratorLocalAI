@@ -1294,6 +1294,76 @@ _DEFAULT_FILLER = {
 }
 
 
+# What a named region is made of, when its name says so plainly. An annotation
+# used to be caption text and nothing else, so a plan could have open floor
+# where the words said there was a colonnade, a stair, a lake or a cliff - and
+# the renderer, handed both, had to choose. Keyed on the label, because a
+# description mentions the cliff a tent is pitched against without being one.
+_ANNOTATION_GROUND = (
+    (("cliff", "rock face", "curtain wall", "sea wall", "rampart", "palisade",
+      "stockade", "bulwark", "mirror wall", "forest wall"), WALL),
+    (("stair", "steps", "stairway"), STAIRS),
+    (("bridge", "boardwalk", "walkway", "causeway", "gangway", "span",
+      "decking", "jetty", "pier", "catwalk"), BRIDGE),
+    (("lake", "pool", "river", "stream", "brook", "water", "flood", "fountain",
+      "moat", "canal", "shallows", "ford"), WATER),
+    (("pit", "chasm", "shaft", "abyss", "sinkhole", "crevasse", "collapsed floor",
+      "fallen floor", "broken floor", "missing floor", "weightless"), PIT),
+    (("rubble", "debris", "scree", "wreckage", "spoil", "barricade",
+      "breastwork", "collapse", "cave-in", "spill"), RUBBLE),
+    (("thicket", "undergrowth", "bushes", "hedge", "treeline", "brambles",
+      "reeds", "scrub", "briars"), VEGETATION),
+)
+# Things that stand in a field with room to walk between them.
+_ANNOTATION_SPARSE = ("colonnade", "columns", "column", "pillars", "pillar",
+                      "obelisk", "boulder", "stalagmite", "menhir", "stump")
+# One solid object, small enough to fill the rectangle it was given.
+_ANNOTATION_SOLID = ("altar", "dais", "plinth", "pedestal", "throne",
+                     "sarcophagus", "tomb", "statue", "anvil", "forge",
+                     "brazier stand", "monolith", "idol", "shrine stone")
+
+
+def _annotation_ground(label):
+    """(tile, sparse) for a named region, or (None, False)."""
+    low = " " + str(label or "").lower() + " "
+    for words, tile in _ANNOTATION_GROUND:
+        if any(w in low for w in words):
+            return tile, False
+    if any(w in low for w in _ANNOTATION_SPARSE):
+        return WALL, True
+    if any(w in low for w in _ANNOTATION_SOLID):
+        return WALL, False
+    return None, False
+
+
+def _apply_annotation_ground(grid, annotations):
+    """Lay the ground a region's own name asks for, where nothing else has.
+
+    Only plain floor is written over, so an explicit terrain_zone, a room wall
+    and anything the generator meant always win.
+    """
+    for note in annotations or []:
+        try:
+            nx, ny = int(note["x"]), int(note["y"])
+            nw, nh = max(1, int(note.get("w", 1))), max(1, int(note.get("h", 1)))
+        except (KeyError, TypeError, ValueError):
+            continue
+        tile, sparse = _annotation_ground(note.get("label"))
+        if tile is None:
+            continue
+        # A solid thing that was given half the map is not a solid thing; it is
+        # a region that happens to have one in it.
+        if tile == WALL and not sparse and nw * nh > 30:
+            sparse = True
+        for yy in range(ny, ny + nh):
+            for xx in range(nx, nx + nw):
+                if grid.get(xx, yy) != FLOOR:
+                    continue
+                if sparse and (xx % 2 or yy % 2):
+                    continue
+                grid.set(xx, yy, tile)
+
+
 def _apply_terrain_zones(grid, spec):
     """Terrain the caller placed itself: `terrain_zones: [{kind,x,y,w,h}]`.
 
@@ -1824,6 +1894,11 @@ def normalize_spec(spec):
     if isinstance(terrain, str):
         terrain = {"kind": terrain, "amount": "medium"}
     out["terrain"] = terrain or {"kind": "none"}
+    # Pinned notes and atmosphere travel with the spec so the bleed margin
+    # shifts them along with everything else on the map.
+    out["annotations"] = [dict(n) for n in (spec.get("annotations") or [])
+                          if isinstance(n, dict)]
+    out["effects"] = [dict(e) for e in (spec.get("effects") or []) if isinstance(e, dict)]
     out["terrain_zones"] = [z for z in (spec.get("terrain_zones") or [])
                             if isinstance(z, dict)]
 
@@ -1906,6 +1981,10 @@ def build(spec, seed=None):
                            enclosure_of(spec.get("style"), spec.get("layout")))
 
     _apply_terrain(grid, rooms, spec, rng)
+    # Derived first, explicit second: a scene that carved a stone rib across its
+    # lake means it, and the lake annotation lying over the same rectangle must
+    # not fill the rib back in.
+    _apply_annotation_ground(grid, spec.get("annotations"))
     _apply_terrain_zones(grid, spec)
     _derive_walls(grid)
     if paths:
@@ -1956,10 +2035,10 @@ def build(spec, seed=None):
         "areas": [],
         # Hand-written notes pinned to a rectangle. They outrank everything else
         # in the caption, because the user placed them deliberately.
-        "annotations": [],
+        "annotations": [dict(n) for n in (spec.get("annotations") or [])],
         # Atmospheric overlays. A separate top layer: they never alter the
         # ground or block movement.
-        "effects": [],
+        "effects": [dict(e) for e in (spec.get("effects") or [])],
     }
     for room in rooms:
         rx, ry, rw, rh = room["rect"]

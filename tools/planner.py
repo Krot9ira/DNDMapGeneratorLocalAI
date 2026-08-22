@@ -355,25 +355,50 @@ class MapPlanner:
         if cols and rows:
             spec["grid"] = {"cols": int(cols), "rows": int(rows)}
 
-        # Terrain the planner placed itself, turned into rectangles here. It
-        # names a direction; the arithmetic is not its job.
+        # A planner names a direction; an agent or a scene file gives a
+        # rectangle outright. Both end up in the spec as rectangles in field
+        # coordinates, and the architect places them, so the bleed margin shifts
+        # them along with everything else on the map.
         grid_cfg = spec.get("grid") or {}
         plan_cols = int(grid_cfg.get("cols") or 0)
         plan_rows = int(grid_cfg.get("rows") or 0)
         if not plan_cols or not plan_rows:
             plan_cols, plan_rows = A.SIZE_PRESETS.get(str(spec.get("size", "medium")),
                                                       A.SIZE_PRESETS["medium"])
+
+        def placed(item, extra=None):
+            out = dict(extra or {})
+            if "where" in item and "x" not in item:
+                x, y, w, h = place_in_field(item.get("where"), item.get("size"),
+                                            plan_cols, plan_rows, 0)
+            else:
+                x, y = int(item.get("x", 0)), int(item.get("y", 0))
+                w, h = max(1, int(item.get("w", 1))), max(1, int(item.get("h", 1)))
+            out.update({"x": x, "y": y, "w": w, "h": h})
+            return out
+
         zones = []
         for zone in (spec.get("terrain_zones") or []):
-            if isinstance(zone, dict) and "where" in zone:
-                zx, zy, zw, zh = place_in_field(zone.get("where"), zone.get("size"),
-                                                plan_cols, plan_rows, 0)
-                zones.append({"kind": zone.get("kind", "rubble"),
-                              "x": zx, "y": zy, "w": zw, "h": zh})
-            elif isinstance(zone, dict):
-                zones.append(zone)
-        if zones:
-            spec["terrain_zones"] = zones
+            if isinstance(zone, dict) and zone.get("kind"):
+                zones.append(placed(zone, {"kind": zone["kind"]}))
+        spec["terrain_zones"] = zones
+
+        notes = []
+        for note in (spec.get("annotations") or []):
+            if isinstance(note, dict) and str(note.get("label", "")).strip():
+                notes.append(placed(note, {
+                    "label": str(note["label"]).strip(),
+                    "description": str(note.get("description", "")).strip(),
+                    "elaboration": note.get("elaboration", "exact")}))
+        spec["annotations"] = notes
+
+        layers = []
+        for fx in (spec.get("effects") or []):
+            if isinstance(fx, dict) and str(fx.get("kind", "")).strip():
+                layers.append(placed(fx, {
+                    "kind": str(fx["kind"]).strip().lower(),
+                    "intensity": fx.get("intensity", fx.get("strength", "medium"))}))
+        spec["effects"] = layers
 
         map_data = A.build(spec, seed=seed)
         # `render_details` belongs to the map, not the spec: the caption builder
@@ -382,33 +407,6 @@ class MapPlanner:
             map_data["meta"]["render_details"] = spec["render_details"]
         if spec.get("lighting"):
             map_data["meta"]["lighting"] = spec["lighting"]
-
-        # Regions the planner described in its own words, and the atmosphere it
-        # laid over them. Both were things only a Python agent could reach; a
-        # language model can now ask for them by naming a direction.
-        border = A.border_of(map_data)
-        cols = int(map_data["grid"]["cols"]) - 2 * border
-        rows = int(map_data["grid"]["rows"]) - 2 * border
-        for note in (spec.get("annotations") or []):
-            if not isinstance(note, dict) or not str(note.get("label", "")).strip():
-                continue
-            nx, ny, nw, nh = place_in_field(note.get("where"), note.get("size"),
-                                            cols, rows, 0)
-            map_data.setdefault("annotations", []).append({
-                "label": str(note["label"]).strip(),
-                "description": str(note.get("description", "")).strip(),
-                "elaboration": note.get("elaboration", "exact"),
-                "x": nx + border, "y": ny + border, "w": nw, "h": nh,
-            })
-        for fx in (spec.get("effects") or []):
-            if not isinstance(fx, dict) or not str(fx.get("kind", "")).strip():
-                continue
-            ex, ey, ew, eh = place_in_field(fx.get("where"), fx.get("size"), cols, rows, 0)
-            map_data.setdefault("effects", []).append({
-                "kind": str(fx["kind"]).strip().lower(),
-                "intensity": fx.get("strength", "medium"),
-                "x": ex + border, "y": ey + border, "w": ew, "h": eh,
-            })
         map_data, _repairs = A.validate_map(map_data)
         return {
             "spec": spec,
