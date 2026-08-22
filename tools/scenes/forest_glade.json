@@ -31,7 +31,7 @@
   "annotations": [
     {
       "label": "Forest Wall",
-      "description": "A dense unbroken band of forest closing the clearing in on this side: mossy trunks standing shoulder to shoulder with their canopies meeting overhead, so nothing of the ground beyond them can be seen",
+      "description": "A dense unbroken band of forest closing the clearing in on every side: mossy trunks standing shoulder to shoulder, so nothing of the ground beyond them can be seen",
       "elaboration": "some",
       "x": 1,
       "y": 1,
@@ -89,6 +89,27 @@
       "kind": "wall",
       "x": 1,
       "y": 1,
+      "w": 28,
+      "h": 3
+    },
+    {
+      "kind": "wall",
+      "x": 1,
+      "y": 4,
+      "w": 2,
+      "h": 21
+    },
+    {
+      "kind": "wall",
+      "x": 27,
+      "y": 4,
+      "w": 2,
+      "h": 21
+    },
+    {
+      "kind": "wall",
+      "x": 1,
+      "y": 22,
       "w": 28,
       "h": 3
     },
