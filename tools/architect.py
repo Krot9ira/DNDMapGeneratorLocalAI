@@ -1216,24 +1216,46 @@ def _open_up_outdoor_rooms(grid, rooms, enclosure):
         return
     outdoor = [r for r in rooms if not _room_is_built(r.get("spec"))]
     built = [r for r in rooms if _room_is_built(r.get("spec"))]
-    if len(outdoor) < 2:
+    if not outdoor:
         return
-    x0 = min(r["rect"][0] for r in outdoor)
-    y0 = min(r["rect"][1] for r in outdoor)
-    x1 = max(r["rect"][0] + r["rect"][2] for r in outdoor)
-    y1 = max(r["rect"][1] + r["rect"][3] for r in outdoor)
     keep = set()
     for r in built:
         bx, by, bw, bh = r["rect"]
         for yy in range(by - 1, by + bh + 1):
             for xx in range(bx - 1, bx + bw + 1):
                 keep.add((xx, yy))
-    for yy in range(y0, y1):
-        for xx in range(x0, x1):
-            if (xx, yy) in keep:
+    # Right out to the edge of the field, not merely between the rooms. A wall
+    # is derived wherever floor meets nothing, so a street laid two squares in
+    # from the edge came out ringed by one - and dissolving the outermost row
+    # afterwards only took the outer half of it. Outdoors the ground does not
+    # stop at a wall; it runs off the map.
+    #
+    # Spread from the outdoor ground rather than filling everything, and stop
+    # at anything already placed. A clearing ringed by its own treeline should
+    # not grow a strip of walkable ground on the far side of the trees.
+    stack = []
+    for r in outdoor:
+        rx, ry, rw, rh = r["rect"]
+        for yy in range(ry, ry + rh):
+            for xx in range(rx, rx + rw):
+                # Only from ground you can actually stand on. Seeding from every
+                # square of the rectangle meant seeding from the treeline the
+                # scene had just laid across it, and the ground spread out
+                # through the trees to the far side of them.
+                if grid.get(xx, yy) in WALKABLE:
+                    stack.append((xx, yy))
+    seen = set(stack)
+    while stack:
+        x, y = stack.pop()
+        for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+            nx, ny = x + dx, y + dy
+            if not grid.inside(nx, ny) or (nx, ny) in seen or (nx, ny) in keep:
                 continue
-            if grid.get(xx, yy) == VOID:
-                grid.set(xx, yy, FLOOR)
+            if grid.get(nx, ny) != VOID:
+                continue
+            seen.add((nx, ny))
+            grid.set(nx, ny, FLOOR)
+            stack.append((nx, ny))
 
 
 def _gen_custom(grid, spec, rng):
@@ -1353,7 +1375,7 @@ def _apply_annotation_ground(grid, annotations):
             continue
         # A solid thing that was given half the map is not a solid thing; it is
         # a region that happens to have one in it.
-        if tile == WALL and not sparse and nw * nh > 30:
+        if tile == WALL and not sparse and nw * nh > 64:
             sparse = True
         for yy in range(ny, ny + nh):
             for xx in range(nx, nx + nw):
@@ -1977,15 +1999,15 @@ def build(spec, seed=None):
 
     grid = TileGrid(spec["cols"], spec["rows"], VOID)
     rooms, paths = _GENERATORS[spec["layout"]](grid, spec, rng)
-    _open_up_outdoor_rooms(grid, rooms,
-                           enclosure_of(spec.get("style"), spec.get("layout")))
-
-    _apply_terrain(grid, rooms, spec, rng)
     # Derived first, explicit second: a scene that carved a stone rib across its
     # lake means it, and the lake annotation lying over the same rectangle must
-    # not fill the rib back in.
+    # not fill the rib back in. Both before the outdoor ground is spread, so
+    # that spreading stops at whatever the scene has already put down.
     _apply_annotation_ground(grid, spec.get("annotations"))
     _apply_terrain_zones(grid, spec)
+    _open_up_outdoor_rooms(grid, rooms,
+                           enclosure_of(spec.get("style"), spec.get("layout")))
+    _apply_terrain(grid, rooms, spec, rng)
     _derive_walls(grid)
     if paths:
         _place_doors(grid, rooms, paths)

@@ -1147,20 +1147,40 @@ inline void OpenUpOutdoorRooms(TileGrid& g,
     std::vector<Rect> outdoor, built;
     for (const auto& rp : rooms)
         (RoomIsBuilt(rp.first) ? built : outdoor).push_back(rp.second);
-    if (outdoor.size() < 2) return;
-    int x0 = g.cols, y0 = g.rows, x1 = 0, y1 = 0;
-    for (const Rect& r : outdoor) {
-        x0 = std::min(x0, r.x);        y0 = std::min(y0, r.y);
-        x1 = std::max(x1, r.x + r.w);  y1 = std::max(y1, r.y + r.h);
-    }
+    if (outdoor.empty()) return;
     std::set<std::pair<int, int>> keep;
     for (const Rect& r : built)
         for (int yy = r.y - 1; yy <= r.y + r.h; ++yy)
             for (int xx = r.x - 1; xx <= r.x + r.w; ++xx) keep.insert({xx, yy});
-    for (int yy = y0; yy < y1; ++yy)
-        for (int xx = x0; xx < x1; ++xx)
-            if (!keep.count({xx, yy}) && g.Get(xx, yy) == Tile::Void)
-                g.Set(xx, yy, Tile::Floor);
+    // Right out to the edge of the field, not merely between the rooms. A wall
+    // is derived wherever floor meets nothing, so a street laid two squares in
+    // from the edge came out ringed by one - and dissolving the outermost row
+    // afterwards only took the outer half of it. Outdoors the ground does not
+    // stop at a wall; it runs off the map.
+    //
+    // Spread from the outdoor ground rather than filling everything, and stop
+    // at anything already placed, or a clearing ringed by its own treeline
+    // grows a strip of walkable ground on the far side of the trees.
+    std::vector<std::pair<int, int>> stack;
+    std::set<std::pair<int, int>> seen;
+    for (const Rect& r : outdoor)
+        for (int yy = r.y; yy < r.y + r.h; ++yy)
+            for (int xx = r.x; xx < r.x + r.w; ++xx)
+                if (g.Inside(xx, yy) && IsWalkable(g.Get(xx, yy)) && seen.insert({xx, yy}).second)
+                    stack.push_back({xx, yy});
+    while (!stack.empty()) {
+        auto [x, y] = stack.back();
+        stack.pop_back();
+        const int d[4][2] = {{1, 0}, {-1, 0}, {0, 1}, {0, -1}};
+        for (auto& o : d) {
+            int nx = x + o[0], ny = y + o[1];
+            if (!g.Inside(nx, ny) || keep.count({nx, ny})) continue;
+            if (g.Get(nx, ny) != Tile::Void) continue;
+            if (!seen.insert({nx, ny}).second) continue;
+            g.Set(nx, ny, Tile::Floor);
+            stack.push_back({nx, ny});
+        }
+    }
 }
 
 // What a named region is made of, when its name says so plainly. An annotation
@@ -1218,7 +1238,7 @@ inline void ApplyAnnotationGround(TileGrid& g, const std::vector<Annotation>& no
         int nw = std::max(1, note.w), nh = std::max(1, note.h);
         // A solid thing that was given half the map is not a solid thing; it is
         // a region that happens to have one in it.
-        if (tile == Tile::Wall && !sparse && nw * nh > 30) sparse = true;
+        if (tile == Tile::Wall && !sparse && nw * nh > 64) sparse = true;
         for (int yy = note.y; yy < note.y + nh; ++yy)
             for (int xx = note.x; xx < note.x + nw; ++xx) {
                 if (g.Get(xx, yy) != Tile::Floor) continue;
@@ -1712,15 +1732,15 @@ inline MapData Build(DesignSpec spec, uint32_t seed) {
     else if (L == "custom") rooms = GenCustom(g, spec, rng, paths);
     else rooms = GenDungeon(g, spec, rng, paths);
 
-    OpenUpOutdoorRooms(g, rooms, EnclosureOf(spec.style_enclosure, spec.style_category,
-                                             L, ""));
-
-    ApplyTerrain(g, rooms, spec, rng);
     // Derived first, explicit second: a scene that carved a stone rib across
     // its lake means it, and the lake annotation lying over the same rectangle
-    // must not fill the rib back in.
+    // must not fill the rib back in. Both before the outdoor ground is spread,
+    // so that spreading stops at whatever the scene has already put down.
     ApplyAnnotationGround(g, spec.annotations);
     ApplyTerrainZones(g, spec);
+    OpenUpOutdoorRooms(g, rooms, EnclosureOf(spec.style_enclosure, spec.style_category,
+                                             L, ""));
+    ApplyTerrain(g, rooms, spec, rng);
     DeriveWalls(g);
     if (!paths.empty()) PlaceDoors(g, rooms, paths);
     EnsureConnected(g, rng);
