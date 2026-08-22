@@ -1156,7 +1156,20 @@ inline std::vector<std::vector<std::pair<int, int>>> SealedRegions(const TileGri
                 if (x <= margin || y <= margin || x >= g.cols - 1 - margin ||
                     y >= g.rows - 1 - margin) touchesEdge = true;
                 Tile here = g.Get(x, y);
-                if (here == Tile::Door || here == Tile::Window) hasOpening = true;
+                // A door only counts as a way in if it leads out of this
+                // region. Every door in a fortress is a door, but if all of
+                // them are between one chamber and the next then the fortress
+                // has no entrance, and nothing used to notice.
+                if (here == Tile::Door || here == Tile::Window) {
+                    const int od[4][2] = {{1, 0}, {-1, 0}, {0, 1}, {0, -1}};
+                    for (auto& q : od) {
+                        int ax = x + q[0], ay = y + q[1];
+                        if (!g.Inside(ax, ay) || g.Get(ax, ay) == Tile::Void) {
+                            hasOpening = true;
+                            break;
+                        }
+                    }
+                }
                 const int d[4][2] = {{1, 0}, {-1, 0}, {0, 1}, {0, -1}};
                 for (auto& o : d) {
                     int nx = x + o[0], ny = y + o[1];

@@ -630,11 +630,48 @@ public:
         // 4. Doors. Few in number and load-bearing for how the map plays, so each
         //    gets its own box - without this the renderer put openings where it
         //    liked, or left a plain gap where a door belongs.
+        auto areaAt = [&map](int px, int py) -> std::string {
+            for (const Area& a : map.areas) {
+                if (Trim(a.label).empty()) continue;
+                if (px >= a.x && px < a.x + a.w && py >= a.y && py < a.y + a.h)
+                    return Trim(a.label);
+            }
+            return std::string();
+        };
+        // Every door used to be called "in the east wall of this building",
+        // which for a door between two chambers is simply false - and the
+        // renderer answered it by punching holes in the outer wall where none
+        // belong. Look both ways along both axes: a one-cell doorway gives no
+        // clue which wall it is in, and guessing from its shape put half of
+        // them in the wrong wall.
+        auto doorPlace = [&](const Rect& r) -> std::string {
+            std::vector<std::string> found;
+            const int dirs[4][2] = {{0, -1}, {0, 1}, {-1, 0}, {1, 0}};
+            for (auto& d : dirs) {
+                for (int step = 1; step <= 2; ++step) {
+                    int px = r.x + (d[0] > 0 ? r.w - 1 : 0) + d[0] * step;
+                    int py = r.y + (d[1] > 0 ? r.h - 1 : 0) + d[1] * step;
+                    std::string got = areaAt(px, py);
+                    if (!got.empty()) {
+                        if (std::find(found.begin(), found.end(), got) == found.end())
+                            found.push_back(got);
+                        break;
+                    }
+                }
+            }
+            if (found.size() > 1 && found[0] != found[1])
+                return "In the interior wall between " + LowerFirst(TheLabel(found[0])) +
+                       " and " + LowerFirst(TheLabel(found[1])) + ", and in no other wall";
+            if (found.size() == 1)
+                return "In the outer wall of the building, the way in and out of " +
+                       LowerFirst(TheLabel(found[0]));
+            return WhichWall(r, buildings, buildingNames, cols, rows);
+        };
         for (const Rect& r : MergeRuns(g, Tile::Door, cols, rows)) {
             structure.push_back({
                 {"type", "obj"},
                 {"bbox", Bbox(r.x, r.y, r.w, r.h, cols, rows)},
-                {"desc", WhichWall(r, buildings, buildingNames, cols, rows) + ": " +
+                {"desc", UpperFirst(doorPlace(r)) + ": " +
                          LowerFirst(say("structure", "door", DOOR_TEXT)) + ". " + kExactS}});
         }
 
@@ -867,6 +904,27 @@ public:
                 continue;
             }
             if (f.filler) {
+                // Filler standing against a wall does not get a rectangle of
+                // its own. A dozen small boxes ringing the inside of a room
+                // reads as a row of compartments, and the renderer duly built
+                // one: three renders of a single tavern hall came back lined
+                // with little timber bays, one for each crate and barrel
+                // pinned to the wall. It is still drawn - it goes into the
+                // clutter sentence, which says what there is without saying
+                // where each piece stands.
+                const int nd[4][2] = {{1, 0}, {-1, 0}, {0, 1}, {0, -1}};
+                bool hugsWall = false;
+                for (auto& q : nd) {
+                    Tile t = g.Get(f.x + q[0], f.y + q[1]);
+                    if (t == Tile::Wall || t == Tile::Door || t == Tile::Window)
+                        hugsWall = true;
+                }
+                if (hugsWall) {
+                    std::string pretty = f.kind;
+                    std::replace(pretty.begin(), pretty.end(), '_', ' ');
+                    ++loose[pretty];
+                    continue;
+                }
                 // Past a few, identical filler elements stop saying "there are
                 // several of these" and start saying "this map is a repeating
                 // pattern", which the renderer obliges by mirroring the layout.
@@ -923,7 +981,8 @@ public:
             elements.push_back({
                 {"type", "obj"},
                 {"desc", "Scattered clutter across the walkable ground: " + listed +
-                         ", arranged against walls and in corners, casting soft shadows"}});
+                         ", standing about the floor, some of it against the walls and some "
+                         "out in the open, casting soft shadows"}});
         }
 
         std::string ground = (style && !style->ground.empty()) ? style->ground
@@ -1035,12 +1094,21 @@ private:
     // Enough English to keep "3 torchs" out of the caption.
     static std::string Plural(const std::string& word, int count) {
         if (count <= 1 || word.empty()) return word;
+        // Things there is no plural of: you have three heaps of rubble, not
+        // three rubbles, and a scatter of bones is already as plural as it gets.
+        static const std::set<std::string> kUncounted = {
+            "rubble", "bones", "straw", "hay", "sand", "gravel", "moss", "water",
+            "scree", "debris", "wreckage", "grass", "ash", "mud", "ice", "snow",
+            "foliage", "undergrowth", "vegetation", "webbing", "rigging"};
+        std::string low = word;
+        for (char& c : low) c = (char)tolower((unsigned char)c);
+        if (kUncounted.count(low)) return word;
         auto endsWith = [&word](const char* suffix) {
             size_t n = std::strlen(suffix);
             return word.size() >= n && word.compare(word.size() - n, n, suffix) == 0;
         };
-        if (endsWith("s") || endsWith("x") || endsWith("z") || endsWith("ch") ||
-            endsWith("sh"))
+        if (endsWith("s")) return word;
+        if (endsWith("x") || endsWith("z") || endsWith("ch") || endsWith("sh"))
             return word + "es";
         if (endsWith("y") && word.size() > 1 &&
             std::string("aeiou").find(word[word.size() - 2]) == std::string::npos)

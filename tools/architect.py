@@ -1902,8 +1902,16 @@ def _enclosed_without_a_door(grid, want_cells=False, margin=0):
                 if (x <= margin or y <= margin or x >= grid.cols - 1 - margin
                         or y >= grid.rows - 1 - margin):
                     touches_edge = True
+                # A door only counts as a way in if it leads out of this
+                # region. Every door in a fortress is a door, but if all of
+                # them are between one chamber and the next then the fortress
+                # has no entrance, and nothing used to notice.
                 if grid.get(x, y) in (DOOR, WINDOW):
-                    has_opening = True
+                    for ddx, ddy in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+                        ax, ay = x + ddx, y + ddy
+                        if not grid.inside(ax, ay) or grid.get(ax, ay) == VOID:
+                            has_opening = True
+                            break
                 for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1)):
                     nx, ny = x + dx, y + dy
                     if (0 <= nx < grid.cols and 0 <= ny < grid.rows and not seen[ny][nx]

@@ -264,11 +264,20 @@ def _upper_first(text):
     return text[:1].upper() + text[1:] if text else text
 
 
+# Things there is no plural of: you have three heaps of rubble, not three
+# rubbles, and a scatter of bones is already as plural as it gets.
+_UNCOUNTED = {"rubble", "bones", "straw", "hay", "sand", "gravel", "moss", "water",
+              "scree", "debris", "wreckage", "grass", "ash", "mud", "ice", "snow",
+              "foliage", "undergrowth", "vegetation", "webbing", "rigging"}
+
+
 def _plural(word, count):
-    """Enough English to keep "3 torchs" out of the caption."""
-    if count <= 1:
+    """Enough English to keep "3 torchs" and "5 boneses" out of the caption."""
+    if count <= 1 or word.lower() in _UNCOUNTED:
         return word
-    if word.endswith(("s", "x", "z", "ch", "sh")):
+    if word.endswith("s"):
+        return word
+    if word.endswith(("x", "z", "ch", "sh")):
         return word + "es"
     if word.endswith("y") and len(word) > 1 and word[-2] not in "aeiou":
         return word[:-1] + "ies"
@@ -778,9 +787,55 @@ def build_caption(map_data, style=None, base=None):
             return f"{where} of {host_name}"
         return where + (" of this building" if host else " of the map")
 
+    def _area_at(px, py):
+        for a in (map_data.get("areas") or []):
+            label = str(a.get("label", "")).strip()
+            if not label:
+                continue
+            if (int(a["x"]) <= px < int(a["x"]) + int(a["w"]) and
+                    int(a["y"]) <= py < int(a["y"]) + int(a["h"])):
+                return label
+        return ""
+
+    def _door_place(x, y, w, h):
+        """Which two rooms this doorway joins.
+
+        Every door used to be called "in the east wall of this building", which
+        for a door between two chambers is simply false - and the renderer
+        answered it by punching holes in the outer wall where none belong.
+        """
+        # Look both ways along both axes: a one-cell doorway gives no clue which
+        # wall it is in, and guessing from its shape put half of them in the
+        # wrong wall.
+        found = []
+        for (dx, dy) in ((0, -1), (0, 1), (-1, 0), (1, 0)):
+            for step in (1, 2):
+                px = x + (w - 1 if dx > 0 else 0) + dx * step
+                py = y + (h - 1 if dy > 0 else 0) + dy * step
+                got = _area_at(px, py)
+                if got:
+                    if got not in found:
+                        found.append(got)
+                    break
+        a = found[0] if found else ""
+        b = found[1] if len(found) > 1 else ""
+        def _lower_article(label):
+            # Only the article, never the name: a room is called what it is
+            # called, and "the crypt" is a different thing from "the Crypt".
+            t = _the(label)
+            return t[0].lower() + t[1:] if t else t
+
+        if a and b and a != b:
+            return (f"In the interior wall between {_lower_article(a)} and "
+                    f"{_lower_article(b)}, and in no other wall")
+        if a or b:
+            return (f"In the outer wall of the building, the way in and out of "
+                    f"{_lower_article(a or b)}")
+        return _which_wall(x, y, w, h)
+
     for (x, y, w, h) in _merge_runs(grid, A.DOOR):
         structure.append({"type": "obj", "bbox": _bbox(x, y, w, h, cols, rows),
-                         "desc": f"{_upper_first(_which_wall(x, y, w, h))}: "
+                         "desc": f"{_upper_first(_door_place(x, y, w, h))}: "
                                  f"{door_word[0].lower()}{door_word[1:]}. {exact}"})
 
     # 4c. Walls. Until now the renderer was handed room rectangles and left to
@@ -978,6 +1033,18 @@ def build_caption(map_data, style=None, base=None):
             # name is a poor description, and still better than silence.
             phrase = "a " + kind.replace("_", " ")
         if f.get("filler"):
+            # Filler standing against a wall does not get a rectangle of its
+            # own. A dozen small boxes ringing the inside of a room reads as a
+            # row of compartments, and the renderer duly built one: three
+            # renders of a single tavern hall came back lined with little
+            # timber bays, one for each crate and barrel pinned to the wall.
+            # It is still drawn - it goes into the clutter sentence, which says
+            # what there is without saying where each piece stands.
+            fx, fy = int(f["x"]), int(f["y"])
+            if any(grid.get(fx + dx, fy + dy) in (A.WALL, A.DOOR, A.WINDOW)
+                   for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1))):
+                loose.append(kind.replace("_", " "))
+                continue
             pinned[kind] = pinned.get(kind, 0) + 1
             if pinned[kind] > MAX_SAME_PROP:
                 loose.append(kind.replace("_", " "))
@@ -1003,7 +1070,8 @@ def build_caption(map_data, style=None, base=None):
                                               key=lambda kv: (-kv[1], kv[0]))[:6])
         elements.append({"type": "obj",
                          "desc": f"Scattered clutter across the walkable ground: {listed}, "
-                                 f"arranged against walls and in corners, casting soft shadows"})
+                                 f"standing about the floor, some of it against the walls "
+                                 f"and some out in the open, casting soft shadows"})
 
     ground = style.get("ground") or "worn stone paving"
     # The style's material description used to be dropped entirely; it is the
