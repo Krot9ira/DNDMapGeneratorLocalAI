@@ -826,6 +826,7 @@ def build_caption(map_data, style=None, base=None):
     building_names = []
     single_room_shell = {}   # building index -> the words its one room needs
     site_edge = None         # the walled ring that is the map itself, not a house
+    site_spoken_for = False  # ...and whether the scene has already described it
     if True:
         footprints = [r for r in _components(grid, (A.WALL, A.DOOR, A.WINDOW))
                       if r[4] >= 6 and not _in_hull(r[0], r[1], r[2], r[3])]
@@ -959,8 +960,13 @@ def build_caption(map_data, style=None, base=None):
             if half and len(half & spoken) >= 0.35 * len(half):
                 sides += 1
         if near and (len(spoken) >= 0.4 * len(near) or sides >= 2):
-            site_edge = None
-    if site_edge is not None:
+            # Only the sentence is dropped. The rectangle is still the edge of
+            # the site, and the wall-run pass needs it to know that the four
+            # runs along it are that edge - without it they came back as four
+            # separate masonry walls, and a gorge with cliffs down both sides
+            # was drawn as a walled compound.
+            site_spoken_for = True
+    if site_edge is not None and not site_spoken_for:
         (sx, sy, sw, sh) = site_edge
         walls.append({
             "type": "obj",

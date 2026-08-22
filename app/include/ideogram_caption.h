@@ -554,6 +554,7 @@ public:
         // walls of every single-room map with little booths.
         std::map<size_t, std::pair<std::string, std::string>> singleRoomShell;
         bool haveSiteEdge = false;
+        bool siteSpokenFor = false;   // ...and whether the scene already described it
         Rect siteEdge{0, 0, 0, 0};
         {
             std::vector<Rect> hulls;
@@ -759,11 +760,16 @@ public:
                 }
                 if (total && said >= 0.35 * total) ++sidesSpoken;
             }
+            // Only the sentence is dropped. The rectangle is still the edge
+            // of the site, and the wall-run pass needs it to know that the four
+            // runs along it are that edge - without it they came back as four
+            // separate masonry walls, and a gorge with cliffs down both sides
+            // was drawn as a walled compound.
             if (!bandNear.empty() &&
                 (spoken.size() >= 0.4 * bandNear.size() || sidesSpoken >= 2))
-                haveSiteEdge = false;
+                siteSpokenFor = true;
         }
-        if (haveSiteEdge) {
+        if (haveSiteEdge && !siteSpokenFor) {
             walls.push_back({
                 {"type", "obj"},
                 {"bbox", Bbox(siteEdge.x, siteEdge.y, siteEdge.w, siteEdge.h, cols, rows)},
