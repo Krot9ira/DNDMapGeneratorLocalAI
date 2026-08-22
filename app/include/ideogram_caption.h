@@ -179,9 +179,15 @@ public:
             if (said.size() >= 4 || piece.area < 0.02 * field) break;
             std::string low = arch::Lower(piece.label);
             if (piece.area > 0.7 * field || seen.count(low)) continue;
+            std::string where = SpreadOf(piece.r.x, piece.r.y, piece.r.w, piece.r.h,
+                                         cols, rows);
+            // One place, one answer. Two landmarks both "across the north end"
+            // is a sentence that has stopped saying anything about the shape of
+            // the map.
+            if (seen.count(where)) continue;
             seen.insert(low);
-            said.push_back(LowerFirst(TheLabel(piece.label)) + " " +
-                           SpreadOf(piece.r.x, piece.r.y, piece.r.w, piece.r.h, cols, rows));
+            seen.insert(where);
+            said.push_back(LowerFirst(TheLabel(piece.label)) + " " + where);
         }
         if (said.size() < 2) return "";
         std::string out = "Laid out on the map, and in these places and no others: ";

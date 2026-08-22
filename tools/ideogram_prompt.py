@@ -366,9 +366,14 @@ def _shape_of_map(map_data, cols, rows):
             break
         if area > 0.7 * field or label.lower() in seen:
             continue                      # the whole field is not a landmark
+        where = _spread_of(int(a["x"]), int(a["y"]), int(a["w"]), int(a["h"]), cols, rows)
+        # One place, one answer. Two landmarks both "across the north end" is a
+        # sentence that has stopped saying anything about the shape of the map.
+        if where in seen:
+            continue
         seen.add(label.lower())
-        said.append(f"{_the(label)[0].lower()}{_the(label)[1:]} "
-                    f"{_spread_of(int(a['x']), int(a['y']), int(a['w']), int(a['h']), cols, rows)}")
+        seen.add(where)
+        said.append(f"{_the(label)[0].lower()}{_the(label)[1:]} {where}")
     if len(said) < 2:
         return ""
     return ("Laid out on the map, and in these places and no others: "
