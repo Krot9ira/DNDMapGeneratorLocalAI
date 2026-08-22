@@ -1161,7 +1161,10 @@ public:
                 "nothing else. The inner face of every one of those walls is flat and plain "
                 "along its whole length, and the open floor runs right up to it on all four "
                 "sides, so there is no interior wall, no partition, no screen, no alcove, no "
-                "niche, no recess, no booth and no smaller room anywhere inside it";
+                "niche, no recess, no booth and no smaller room anywhere inside it. Nothing "
+                "of the building's own structure stands on that floor either: no beam, no "
+                "joist, no tie, no brace and no timber frame crosses it or runs round the "
+                "inside of its walls, because the roof they would have carried is gone";
             auto shellIt = host ? singleRoomShell.find(hostIndex) : singleRoomShell.end();
             if (host && shellIt != singleRoomShell.end()) {
                 const Rect& b = buildings[hostIndex];
