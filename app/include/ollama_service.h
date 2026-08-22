@@ -106,6 +106,7 @@ public:
                          {"enum", std::vector<std::string>{"small", "medium", "large", "huge"}}};
         props["scene_summary"] = {{"type", "string"}};
         props["render_details"] = {{"type", "string"}};
+        props["lighting"] = {{"type", "string"}};
         props["prop_density"] = {{"type", "string"},
                                  {"enum", std::vector<std::string>{"low", "medium", "high"}}};
         if (!styleIds.empty()) props["style"] = {{"type", "string"}, {"enum", styleIds}};
@@ -225,6 +226,7 @@ public:
         spec.layout = j.value("layout", std::string("dungeon"));
         spec.scene_summary = j.value("scene_summary", std::string(""));
         spec.render_details = j.value("render_details", std::string(""));
+        spec.lighting = j.value("lighting", std::string(""));
         spec.prop_density = j.value("prop_density", std::string("medium"));
 
         std::string size = j.value("size", sizeFallback);

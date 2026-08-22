@@ -352,7 +352,12 @@ public:
         nlohmann::json sd;
         sd["aesthetics"] = (style && !style->aesthetics.empty()) ? style->aesthetics
                                                                  : base.aesthetics;
-        sd["lighting"] = (style && !style->lighting.empty()) ? style->lighting : base.lighting;
+        // A scene that says how it is lit outranks the style's general idea of
+        // how places like it are lit.
+        sd["lighting"] = !Trim(map.meta.lighting).empty()
+                             ? Trim(map.meta.lighting)
+                             : ((style && !style->lighting.empty()) ? style->lighting
+                                                                   : base.lighting);
         sd["medium"] = base.medium;
         nlohmann::json palette = nlohmann::json::array();
         const auto& colours = (style && !style->hex_palette.empty()) ? style->hex_palette

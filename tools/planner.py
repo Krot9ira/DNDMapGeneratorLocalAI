@@ -27,6 +27,7 @@ SPEC_SCHEMA = {
                  "enum": ["small", "medium", "large", "huge", "giant"]},
         "scene_summary": {"type": "string"},
         "render_details": {"type": "string"},
+        "lighting": {"type": "string"},
         "prop_density": {"type": "string", "enum": ["low", "medium", "high"]},
         "terrain": {
             "type": "object",
@@ -102,6 +103,9 @@ Rules:
 - `render_details` is a dense comma-separated list of concrete materials, surface finishes,
   colours, wear and damage, stains, and the quality of the light. Be specific: name the kind
   of stone, the kind of timber, what is chipped, damp, scorched or overgrown.
+- `lighting` is optional and says how this place is lit and nothing else - the colour and
+  quality of the light and where it falls off. Do not use it to say where anything stands:
+  a lighting line that mentions a central fire puts one on the map whatever the plan says.
 Answer with JSON only."""
 
 

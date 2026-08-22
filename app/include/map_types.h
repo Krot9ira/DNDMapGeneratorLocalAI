@@ -67,6 +67,7 @@ struct MetaConfig {
     std::string layout = "dungeon";
     std::string scene_summary;
     std::string render_details;
+    std::string lighting;          // the scene's own, overriding the style's
     // Kept so opening a plan restores the settings it was built with.
     std::string terrain_kind = "none";
     std::string terrain_amount = "medium";
@@ -235,6 +236,7 @@ struct DesignSpec {
     std::string layout = "dungeon";
     std::string scene_summary;
     std::string render_details;
+    std::string lighting;
     int cols = 25, rows = 19;
     std::string terrain_kind = "none";
     std::string terrain_amount = "medium";

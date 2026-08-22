@@ -1543,6 +1543,10 @@ inline MapData Build(DesignSpec spec, uint32_t seed) {
     map.meta.layout = spec.layout;
     map.meta.scene_summary = spec.scene_summary;
     map.meta.render_details = spec.render_details;
+    // The scene's own lighting. Carried this far and then dropped, so a
+    // description that said "lit only by the fire" was painted in whatever the
+    // style felt like.
+    map.meta.lighting = spec.lighting;
     map.meta.terrain_kind = spec.terrain_kind;
     map.meta.terrain_amount = spec.terrain_amount;
     map.meta.prop_density = spec.prop_density;

@@ -599,7 +599,10 @@ def build_caption(map_data, style=None, base=None):
 
     caption["style_description"] = {
         "aesthetics": style.get("aesthetics") or base.get("aesthetics", ""),
-        "lighting": style.get("lighting") or base.get("lighting", ""),
+        # A scene that says how it is lit outranks the style's general idea of
+        # how places like it are lit.
+        "lighting": (str(meta.get("lighting", "")).strip()
+                     or style.get("lighting") or base.get("lighting", "")),
         "medium": base.get("medium", "Inked line art with watercolour and gouache painting"),
         "color_palette": list(style.get("hex_palette") or base.get("default_palette") or
                               ["#C8B99A", "#8A7B63", "#4A4038", "#2E2A26", "#6E7A6B"]),

@@ -1846,6 +1846,11 @@ def build(spec, seed=None):
             "layout": spec["layout"],
             "scene_summary": spec["scene_summary"],
             "render_details": spec.get("render_details", ""),
+            # The scene's own lighting. Normalised into the spec since the
+            # beginning and then dropped on the floor here, so a description
+            # that said "lit only by the fire" was painted in whatever the
+            # style felt like.
+            "lighting": spec.get("lighting", ""),
             # Kept so opening a plan restores the settings it was built with.
             "terrain_kind": str((spec.get("terrain") or {}).get("kind", "none")).lower(),
             "terrain_amount": str((spec.get("terrain") or {}).get("amount", "medium")).lower(),
@@ -1974,6 +1979,7 @@ def validate_map(map_data, repair=True):
     meta.setdefault("layout", "dungeon")
     meta.setdefault("scene_summary", "")
     meta.setdefault("render_details", "")
+    meta.setdefault("lighting", "")
     meta.setdefault("terrain_kind", "none")
     meta.setdefault("terrain_amount", "medium")
     meta.setdefault("prop_density", "high")

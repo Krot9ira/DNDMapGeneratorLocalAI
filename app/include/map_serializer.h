@@ -22,6 +22,7 @@ public:
                      {"layout", map.meta.layout},
                      {"scene_summary", map.meta.scene_summary},
                      {"render_details", map.meta.render_details},
+                     {"lighting", map.meta.lighting},
                      {"terrain_kind", map.meta.terrain_kind},
                      {"terrain_amount", map.meta.terrain_amount},
                      {"prop_density", map.meta.prop_density},
@@ -94,6 +95,7 @@ public:
                 out.meta.layout = m.value("layout", "dungeon");
                 out.meta.scene_summary = m.value("scene_summary", "");
                 out.meta.render_details = m.value("render_details", "");
+                out.meta.lighting = m.value("lighting", "");
                 out.meta.terrain_kind = m.value("terrain_kind", std::string("none"));
                 out.meta.terrain_amount = m.value("terrain_amount", std::string("medium"));
                 out.meta.prop_density = m.value("prop_density", std::string("high"));
