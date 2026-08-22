@@ -33,7 +33,7 @@
   "annotations": [
     {
       "label": "West Cliff",
-      "description": "A sheer wall of raw rock rising the whole length of the gorge on this side, its face broken and irregular, with no way through it anywhere",
+      "description": "A band of raw rock running the whole length of the gorge on this side, seen from straight above as its broken irregular top, solid all the way with no way through it anywhere",
       "elaboration": "some",
       "x": 1,
       "y": 1,
@@ -42,7 +42,7 @@
     },
     {
       "label": "East Cliff",
-      "description": "A sheer wall of raw rock rising the whole length of the gorge on this side, its face broken and irregular, with no way through it anywhere",
+      "description": "A band of raw rock running the whole length of the gorge on this side, seen from straight above as its broken irregular top, solid all the way with no way through it anywhere",
       "elaboration": "some",
       "x": 21,
       "y": 1,

@@ -1388,7 +1388,14 @@ public:
             cap["high_level_description"].get<std::string>() +
             " The left half of this map and the right half are different from each other, "
             "and so are the top half and the bottom half: every part of the picture is its "
-            "own shape, and each thing in it appears once, in one place, at its own angle.";
+            "own shape, and each thing in it appears once, in one place, at its own angle."
+            // Last, because last is where this caption is strongest, and
+            // because a map drawn at a tilt cannot be played on: a wall drawn
+            // as a face covers squares a figure has to stand on. Said again in
+            // six words rather than trusting the long sentence higher up.
+            " Every single thing in this picture is drawn as seen from straight above it: "
+            "the top of the wall, the top of the tent, the top of the rock, the top of the "
+            "table. No side of anything is visible anywhere in the picture.";
         return cap;
     }
 

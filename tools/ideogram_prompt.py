@@ -553,6 +553,12 @@ _SIDE_ON_WORDS = (
     "hung from", "hung above", "from the ceiling", "on the ceiling",
     "floor-to-ceiling", "vaulted", "stalactite", "chandelier", "rafter",
     "suspended",
+    # Elevation, not plan. A map drawn at a tilt cannot be played on, so
+    # anything that can only be seen by standing beside it counts.
+    "its face", "their faces", "the face of", "facade", "frontage", "flank",
+    "rising the whole", "rising on either", "rises above", "towering",
+    "taller than a man", "seen from the side", "in profile", "silhouette",
+    "elevation",
 )
 
 
@@ -1502,7 +1508,14 @@ def build_caption(map_data, style=None, base=None):
     caption["high_level_description"] += (
         " The left half of this map and the right half are different from each other, and "
         "so are the top half and the bottom half: every part of the picture is its own "
-        "shape, and each thing in it appears once, in one place, at its own angle.")
+        "shape, and each thing in it appears once, in one place, at its own angle."
+        # Last, because last is where this caption is strongest, and because a
+        # map drawn at a tilt cannot be played on: a wall drawn as a face covers
+        # squares a figure has to stand on. Said again in six words rather than
+        # trusting the long sentence higher up.
+        " Every single thing in this picture is drawn as seen from straight above it: the "
+        "top of the wall, the top of the tent, the top of the rock, the top of the table. "
+        "No side of anything is visible anywhere in the picture.")
 
     caption["compositional_deconstruction"] = {
         "background": background,
