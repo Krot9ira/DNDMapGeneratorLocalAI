@@ -1215,6 +1215,28 @@ _DEFAULT_FILLER = {
 }
 
 
+def _apply_terrain_zones(grid, spec):
+    """Terrain the caller placed itself: `terrain_zones: [{kind,x,y,w,h}]`.
+
+    Scattering is fine for atmosphere, but a description that says "a river
+    runs down the middle" is giving a rectangle, and it should be able to say
+    so rather than hoping the scatter lands there.
+    """
+    kinds = {"water": WATER, "pit": PIT, "rubble": RUBBLE,
+             "vegetation": VEGETATION, "floor": FLOOR, "bridge": BRIDGE,
+             "stairs": STAIRS, "wall": WALL, "void": VOID}
+    for zone in (spec.get("terrain_zones") or []):
+        kind = kinds.get(str(zone.get("kind", "")).lower())
+        if kind is None:
+            continue
+        try:
+            x, y = int(zone["x"]), int(zone["y"])
+            w, h = int(zone.get("w", 1)), int(zone.get("h", 1))
+        except (KeyError, TypeError, ValueError):
+            continue
+        grid.fill_rect(x, y, w, h, kind)
+
+
 def _apply_terrain(grid, rooms, spec, rng):
     """Lay water/pits/rubble/undergrowth over already-carved floor."""
     terrain = spec.get("terrain") or {}
@@ -1266,6 +1288,48 @@ def _apply_terrain(grid, rooms, spec, rng):
         rx, ry, rw, rh = room["rect"]
         _blob(grid, rx + rw / 2.0, ry + rh / 2.0, min(rw, rh) * 0.42,
               rk, rng, only_on={FLOOR}, squish=rw / max(1.0, float(rh)))
+
+
+def _ensure_a_way_in(grid, rng, organic=False):
+    """Every enclosed room gets a door.
+
+    Connectivity does not catch a sealed room - it is perfectly connected to
+    itself. A room nobody can enter is a bug by the same rule that says a map
+    must be walkable, so the wall is opened rather than merely complained about.
+    """
+    for _ in range(12):
+        sealed = _enclosed_without_a_door(grid, want_cells=True)
+        if not sealed:
+            return
+        cells = sealed[0]
+        inside = set(cells)
+        # A wall cell with this room on one side and something else on the other
+        # is where a door belongs.
+        best = None
+        for (x, y) in cells:
+            for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+                wx, wy = x + dx, y + dy
+                if grid.get(wx, wy) != WALL:
+                    continue
+                ox, oy = wx + dx, wy + dy
+                if (ox, oy) in inside:
+                    continue
+                if not grid.inside(ox, oy):
+                    score = 2                      # opens off the edge of the map
+                elif grid.get(ox, oy) in WALKABLE:
+                    score = 0                      # opens onto somewhere to stand
+                elif grid.get(ox, oy) == VOID:
+                    score = 1
+                else:
+                    continue
+                if best is None or score < best[0]:
+                    best = (score, wx, wy, ox, oy)
+        if best is None:
+            return
+        _, wx, wy, ox, oy = best
+        grid.set(wx, wy, FLOOR if organic else DOOR)
+        if grid.inside(ox, oy) and grid.get(ox, oy) == VOID:
+            grid.set(ox, oy, FLOOR)
 
 
 def _ensure_connected(grid, rng):
@@ -1566,6 +1630,8 @@ def normalize_spec(spec):
     if isinstance(terrain, str):
         terrain = {"kind": terrain, "amount": "medium"}
     out["terrain"] = terrain or {"kind": "none"}
+    out["terrain_zones"] = [z for z in (spec.get("terrain_zones") or [])
+                            if isinstance(z, dict)]
 
     out["prop_density"] = str(spec.get("prop_density", "high")).lower()
     # Callers may widen or disable the blank ring; they may not make it huge.
@@ -1641,6 +1707,7 @@ def build(spec, seed=None):
     rooms, paths = _GENERATORS[spec["layout"]](grid, spec, rng)
 
     _apply_terrain(grid, rooms, spec, rng)
+    _apply_terrain_zones(grid, spec)
     _derive_walls(grid)
     if paths:
         _place_doors(grid, rooms, paths)
@@ -1648,6 +1715,10 @@ def build(spec, seed=None):
     _derive_walls(grid)
     if not spec["edge_walls"]:
         _open_edges(grid)
+    # After the walls are final, or the opening would be walled up again.
+    _ensure_a_way_in(grid, rng,
+                     organic=str(spec.get("layout", "")).lower()
+                     in ("cavern", "forest", "swamp", "open", "ruins", "deck"))
     _fix_doors(grid)
 
     filler = spec.get("style_props") or _DEFAULT_FILLER.get(spec["layout"])
@@ -1700,6 +1771,43 @@ def build(spec, seed=None):
     # plain 0..cols coordinates and knows nothing about it.
     add_border(map_data, int(spec.get("border", BORDER_CELLS)))
     return map_data
+
+
+def _enclosed_without_a_door(grid, want_cells=False):
+    """Rooms you cannot get into, because nothing opens through their wall.
+
+    Connectivity does not catch this: a sealed room is perfectly connected to
+    itself. A map whose only building has no door in it is a plan somebody
+    forgot to finish, and it is worth saying so before the GPU is spent.
+    """
+    seen = [[False] * grid.cols for _ in range(grid.rows)]
+    sealed = []
+    for sy in range(grid.rows):
+        for sx in range(grid.cols):
+            if seen[sy][sx] or grid.get(sx, sy) not in WALKABLE:
+                continue
+            stack = [(sx, sy)]
+            seen[sy][sx] = True
+            cells = []
+            touches_edge = False
+            has_opening = False
+            while stack:
+                x, y = stack.pop()
+                cells.append((x, y))
+                if x == 0 or y == 0 or x == grid.cols - 1 or y == grid.rows - 1:
+                    touches_edge = True
+                if grid.get(x, y) in (DOOR, WINDOW):
+                    has_opening = True
+                for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+                    nx, ny = x + dx, y + dy
+                    if (0 <= nx < grid.cols and 0 <= ny < grid.rows and not seen[ny][nx]
+                            and grid.get(nx, ny) in WALKABLE):
+                        seen[ny][nx] = True
+                        stack.append((nx, ny))
+            # An outdoor scene runs off the edge of the map and needs no door.
+            if not touches_edge and not has_opening and len(cells) >= 12:
+                sealed.append(cells if want_cells else len(cells))
+    return sealed
 
 
 def validate_map(map_data, repair=True):
@@ -1852,6 +1960,10 @@ def validate_map(map_data, repair=True):
 
     if repair:
         grid = zones_to_grid(data)
+
+    for size in _enclosed_without_a_door(grid):
+        problems.append(f"a walled area of {size} squares has no door or window anywhere in "
+                        f"its wall, so there is no way into it")
         walkable = sum(grid.count(k) for k in WALKABLE)
         if walkable < 12:
             problems.append("map has almost no walkable space")

@@ -1,0 +1,230 @@
+{
+  "title": "Flooded Palace Ruins",
+  "name": "scene_flooded_palace",
+  "style": "sunken_temple",
+  "layout": "custom",
+  "grid": {
+    "cols": 44,
+    "rows": 34
+  },
+  "scene_summary": "The ruins of an ancient palace half swallowed by cold murky water, its ceilings fallen in: a flooded vestibule, a library, a throne hall and a small round treasury, each deeper in the water than the last.",
+  "render_details": "Dark stone furred with green weed, cold murky green-brown water with a dull sheen, fallen ceiling slabs, drowned timber and swollen books floating, tarnished gold, mould-blackened red cloth, pale daylight falling through the broken roof",
+  "prop_density": "medium",
+  "rooms": [
+    {
+      "label": "Flooded Vestibule",
+      "description": "A vast entrance hall with half its floor under knee-deep water that catches the pale light falling through the broken ceiling, colossal stone kings standing along both side walls and two of them fallen full length into the water.",
+      "size": "l",
+      "props": [
+        "statue",
+        "statue",
+        "statue",
+        "rubble",
+        "crate"
+      ],
+      "x": 2,
+      "y": 2,
+      "w": 20,
+      "h": 15
+    },
+    {
+      "label": "Royal Library",
+      "description": "A huge library standing in waist-deep water, tall bookcases along the walls with their books ruined, several cases fallen over into the water and leaning against each other to make narrow passages between them.",
+      "size": "l",
+      "props": [
+        "bookshelf",
+        "bookshelf",
+        "bookshelf",
+        "table",
+        "chest"
+      ],
+      "x": 2,
+      "y": 19,
+      "w": 20,
+      "h": 13
+    },
+    {
+      "label": "Throne Hall",
+      "description": "An enormous hall in chest-deep water, tall columns down both sides with mould-blackened red banners hung between them, and deep pools either side of a raised stone causeway running up its length.",
+      "size": "l",
+      "props": [
+        "pillar",
+        "pillar",
+        "pillar",
+        "pillar",
+        "banner",
+        "banner"
+      ],
+      "x": 25,
+      "y": 2,
+      "w": 17,
+      "h": 20
+    },
+    {
+      "label": "Treasury",
+      "description": "A small round chamber with the water almost covering its floor, a stone pedestal standing at its centre and empty statue niches set around its wall.",
+      "size": "m",
+      "props": [
+        "chest",
+        "pillar",
+        "pillar"
+      ],
+      "x": 27,
+      "y": 24,
+      "w": 13,
+      "h": 8
+    }
+  ],
+  "annotations": [
+    {
+      "label": "Vestibule Water",
+      "description": "Cold murky water filling this whole rectangle from edge to edge, knee deep, its dull surface reflecting the pale daylight, with broken furniture and swollen books floating on it",
+      "elaboration": "exact",
+      "x": 2,
+      "y": 10,
+      "w": 20,
+      "h": 7
+    },
+    {
+      "label": "Fountain Island",
+      "description": "A round stone dais standing clear above the water in the middle of the vestibule with a broken fountain on it, water still seeping from a crack in its base and running down into the flood",
+      "elaboration": "exact",
+      "x": 9,
+      "y": 5,
+      "w": 6,
+      "h": 6
+    },
+    {
+      "label": "Grand Stair",
+      "description": "A broad stone stair rising out of the water towards the upper level, seen from directly above as straight pale bands, its lowest treads under water and slick with weed",
+      "elaboration": "exact",
+      "x": 2,
+      "y": 3,
+      "w": 6,
+      "h": 6
+    },
+    {
+      "label": "Golden Doors",
+      "description": "A pair of enormous gilded doors in the wall, one of them torn off its hinges and leaning into the water, leaving a wide opening between them",
+      "elaboration": "exact",
+      "x": 22,
+      "y": 8,
+      "w": 3,
+      "h": 6
+    },
+    {
+      "label": "Dry Reading Table",
+      "description": "A long stone table standing above the water down the middle of the library, one patch of its top still dry, a single book lying open on that dry patch",
+      "elaboration": "exact",
+      "x": 8,
+      "y": 24,
+      "w": 8,
+      "h": 3
+    },
+    {
+      "label": "Broken Balcony",
+      "description": "A ruined stone balcony along the library wall above the water, its rail collapsed, close enough to the tops of the bookcases to climb across to them, with a view over the whole room",
+      "elaboration": "exact",
+      "x": 2,
+      "y": 19,
+      "w": 20,
+      "h": 2
+    },
+    {
+      "label": "Small Iron Door",
+      "description": "A small rusted iron door low in the far corner of the library, closed, seen from straight above as a flat panel flush with the wall",
+      "elaboration": "exact",
+      "x": 20,
+      "y": 30,
+      "w": 2,
+      "h": 2
+    },
+    {
+      "label": "Throne Causeway",
+      "description": "A raised stone causeway running up the middle of the throne hall, its top standing just clear of the water, with deep dark pools on both sides of it",
+      "elaboration": "exact",
+      "x": 31,
+      "y": 6,
+      "w": 5,
+      "h": 16
+    },
+    {
+      "label": "The Throne",
+      "description": "A stone throne on a platform of three steps at the head of the causeway, with an enormous round window behind it, its glass gone, water pouring in through the opening",
+      "elaboration": "exact",
+      "x": 29,
+      "y": 2,
+      "w": 9,
+      "h": 5
+    },
+    {
+      "label": "Treasure Pedestal",
+      "description": "A massive stone pedestal standing in the middle of the round chamber with an open chest on top of it spilling gold coins, gems and old jewellery, four columns standing around it with heavy chains slung between them",
+      "elaboration": "exact",
+      "x": 30,
+      "y": 26,
+      "w": 7,
+      "h": 5
+    },
+    {
+      "label": "Flooded Grate",
+      "description": "A heavy iron grate set into the far wall with a dark water-filled tunnel behind it, the water passing between its bars",
+      "elaboration": "exact",
+      "x": 38,
+      "y": 27,
+      "w": 2,
+      "h": 4
+    }
+  ],
+  "terrain_zones": [
+    {
+      "kind": "water",
+      "x": 2,
+      "y": 10,
+      "w": 20,
+      "h": 7
+    },
+    {
+      "kind": "water",
+      "x": 2,
+      "y": 19,
+      "w": 20,
+      "h": 13
+    },
+    {
+      "kind": "water",
+      "x": 25,
+      "y": 2,
+      "w": 17,
+      "h": 20
+    },
+    {
+      "kind": "water",
+      "x": 27,
+      "y": 24,
+      "w": 13,
+      "h": 8
+    },
+    {
+      "kind": "floor",
+      "x": 9,
+      "y": 5,
+      "w": 6,
+      "h": 6
+    },
+    {
+      "kind": "floor",
+      "x": 31,
+      "y": 6,
+      "w": 5,
+      "h": 16
+    },
+    {
+      "kind": "floor",
+      "x": 30,
+      "y": 26,
+      "w": 7,
+      "h": 5
+    }
+  ]
+}

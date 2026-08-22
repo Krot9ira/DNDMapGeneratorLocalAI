@@ -1,0 +1,186 @@
+{
+  "title": "Broken Bridge over a Rushing River",
+  "name": "scene_broken_bridge",
+  "style": "mountain_pass",
+  "layout": "custom",
+  "grid": {
+    "cols": 40,
+    "rows": 28
+  },
+  "scene_summary": "A wild river tearing through a rock gorge from north to south, with a stone terrace on each bank and the broken remains of a great bridge crossing between them, several of its spans gone.",
+  "render_details": "White water breaking over dark boulders, wet grey stone, tumbled masonry blocks, old timber piles standing out of the water, moss-slick slabs, splintered cart wreckage, thick tree trunks, weathered carved symbols",
+  "prop_density": "medium",
+  "rooms": [
+    {
+      "label": "West Bank",
+      "description": "A small stone square on the western bank, its slabs cracked and grown with weeds, with large fallen masonry blocks lying about it to crouch behind.",
+      "size": "m",
+      "props": [
+        "boulder",
+        "boulder",
+        "crate",
+        "cart",
+        "rubble"
+      ],
+      "x": 2,
+      "y": 3,
+      "w": 12,
+      "h": 22
+    },
+    {
+      "label": "East Terrace",
+      "description": "A higher stone terrace on the eastern bank, standing well above the water, with a clear view along the whole length of the river.",
+      "size": "m",
+      "props": [
+        "boulder",
+        "boulder",
+        "altar",
+        "rubble"
+      ],
+      "x": 26,
+      "y": 3,
+      "w": 12,
+      "h": 22
+    }
+  ],
+  "annotations": [
+    {
+      "label": "The River",
+      "description": "A wide fast river filling this whole rectangle from top to bottom, its water white where it breaks over dark boulders and deep green-black between them, running hard enough to sweep a standing person off their feet",
+      "elaboration": "exact",
+      "x": 14,
+      "y": 1,
+      "w": 12,
+      "h": 26
+    },
+    {
+      "label": "West Bridge Span",
+      "description": "A wide stone span of the old bridge still standing, running out from the western bank over the water and ending in a broken jagged edge where the rest of it has fallen away",
+      "elaboration": "exact",
+      "x": 13,
+      "y": 12,
+      "w": 5,
+      "h": 5
+    },
+    {
+      "label": "East Bridge Span",
+      "description": "A wide stone span of the old bridge still standing, running out from the eastern terrace over the water and ending in a broken jagged edge where the rest of it has fallen away",
+      "elaboration": "exact",
+      "x": 22,
+      "y": 12,
+      "w": 5,
+      "h": 5
+    },
+    {
+      "label": "Stepping Slabs",
+      "description": "Three separate massive stone slabs standing up out of the rushing water between the two broken spans, each an island of its own with white water racing in the gaps between them, their tops green and slick with moss",
+      "elaboration": "exact",
+      "x": 18,
+      "y": 11,
+      "w": 4,
+      "h": 7
+    },
+    {
+      "label": "Watch Tower",
+      "description": "The lower storey of a round stone watch tower on the western bank, its upper part collapsed into a ring of broken wall, great masonry blocks lying around its foot",
+      "elaboration": "exact",
+      "x": 2,
+      "y": 4,
+      "w": 7,
+      "h": 7
+    },
+    {
+      "label": "Old Trees",
+      "description": "Several old trees with thick trunks standing on the western bank, wide enough to shelter behind, their roots gripping the cracked stone",
+      "elaboration": "some",
+      "x": 3,
+      "y": 17,
+      "w": 9,
+      "h": 7
+    },
+    {
+      "label": "Terrace Steps",
+      "description": "A broad flight of five stone steps rising from the riverside up onto the eastern terrace, seen from directly above as five straight bands",
+      "elaboration": "exact",
+      "x": 26,
+      "y": 12,
+      "w": 4,
+      "h": 5
+    },
+    {
+      "label": "Ruined Altar",
+      "description": "A broken stone altar standing in the middle of the eastern terrace with a tall carved wall rising behind it, faint ancient symbols still cut into the stone",
+      "elaboration": "exact",
+      "x": 30,
+      "y": 9,
+      "w": 6,
+      "h": 6
+    },
+    {
+      "label": "Timber Piles",
+      "description": "Thick weathered timber piles standing up out of the water at an angle, the last remains of older structures, water breaking white around them",
+      "elaboration": "some",
+      "x": 15,
+      "y": 20,
+      "w": 10,
+      "h": 5
+    },
+    {
+      "label": "Sagging Rope",
+      "description": "A single old rope strung across the river from bank to bank, sagging low over the water in the middle of its span",
+      "elaboration": "exact",
+      "x": 13,
+      "y": 6,
+      "w": 14,
+      "h": 2
+    },
+    {
+      "label": "North Path",
+      "description": "A narrow path climbing away between the rocks at the north end, bushes and small trees growing on the slope beside it",
+      "elaboration": "exact",
+      "x": 4,
+      "y": 1,
+      "w": 6,
+      "h": 3
+    },
+    {
+      "label": "Cave Mouth",
+      "description": "A dark opening in the gorge wall at the south end, its edges rough, nothing but blackness inside",
+      "elaboration": "exact",
+      "x": 30,
+      "y": 25,
+      "w": 5,
+      "h": 2
+    }
+  ],
+  "terrain_zones": [
+    {
+      "kind": "water",
+      "x": 14,
+      "y": 1,
+      "w": 12,
+      "h": 26
+    },
+    {
+      "kind": "bridge",
+      "x": 13,
+      "y": 12,
+      "w": 5,
+      "h": 5
+    },
+    {
+      "kind": "bridge",
+      "x": 22,
+      "y": 12,
+      "w": 5,
+      "h": 5
+    },
+    {
+      "kind": "rubble",
+      "x": 18,
+      "y": 11,
+      "w": 4,
+      "h": 7
+    }
+  ]
+}

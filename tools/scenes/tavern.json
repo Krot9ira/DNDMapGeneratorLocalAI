@@ -1,0 +1,51 @@
+{
+  "title": "The Abandoned Tavern",
+  "name": "scene_tavern",
+  "style": "cozy_tavern",
+  "layout": "custom",
+  "grid": { "cols": 30, "rows": 24 },
+  "scene_summary": "The common room of a tavern abandoned years ago, seen from above with the roof off: one single undivided hall, its board floor deep in dust, broken glass and splinters, with overturned tables in the middle, a long bar down the left side and a stone stair up the right side.",
+  "render_details": "Grey dust lying thick on dark board flooring, splinters and broken glass, heavy oak tables, some overturned and one split in half, scattered stools, tipped barrels, a long dark bar counter, shelves of broken bottles, a broad stone stair with cracked treads, a broken timber banister, two shattered windows, iron-bound chests, cold grey daylight falling through the windows",
+  "prop_density": "medium",
+  "rooms": [
+    {
+      "label": "Common Room",
+      "description": "One single undivided tavern hall with no interior walls anywhere inside it: a continuous board floor grey with dust, littered with broken glass and splinters, with heavy oak tables standing about the middle of it, several of them overturned, and stools and tipped barrels lying between them.",
+      "size": "l",
+      "props": ["table", "table", "table", "chair", "chair", "barrel", "barrel", "rubble"],
+      "x": 1, "y": 1, "w": 28, "h": 22
+    }
+  ],
+  "annotations": [
+    {
+      "label": "The Long Bar",
+      "description": "A long dark timber bar counter standing against the left wall down most of its length, its top bare and dusty, with shelves of broken bottles on the wall behind it; the near third of the counter has collapsed into a heap of broken boards, leaving a gap somebody could crouch behind",
+      "elaboration": "exact",
+      "x": 2, "y": 5, "w": 3, "h": 13
+    },
+    {
+      "label": "Stone Stair",
+      "description": "A broad stone stair rising against the right wall, seen from directly above so each tread reads as a straight pale band across the flight, three of the treads broken away into rubble, with a broken timber banister down its open side hanging from a single bracket",
+      "elaboration": "exact",
+      "x": 24, "y": 5, "w": 5, "h": 12
+    },
+    {
+      "label": "Split Table",
+      "description": "A heavy oak table split cleanly in half down its length, the two halves fallen apart on the floor with splinters scattered around them",
+      "elaboration": "exact",
+      "x": 13, "y": 11, "w": 4, "h": 3
+    },
+    {
+      "label": "Broken Windows",
+      "description": "Two tall windows in the far wall with every pane shattered, cold grey daylight falling through them across the dusty boards, a heavy iron-bound chest standing under each one",
+      "elaboration": "exact",
+      "x": 10, "y": 1, "w": 11, "h": 2
+    },
+    {
+      "label": "Fallen Chandelier",
+      "description": "The remains of an old iron chandelier lying on the boards where it fell, its arms bent and its chain trailing across the floor",
+      "elaboration": "exact",
+      "x": 14, "y": 6, "w": 3, "h": 3
+    }
+  ]
+}

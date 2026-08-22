@@ -1,0 +1,110 @@
+{
+  "title": "Abandoned Cultist Fortress",
+  "name": "scene_cultist_fortress",
+  "style": "gothic_crypt",
+  "layout": "custom",
+  "grid": { "cols": 46, "rows": 36 },
+  "scene_summary": "An underground fortress of dark stone with a main corridor running through it and five chambers opening off that corridor: an entry hall, an armoury, a chapel, a crypt and a ritual hall.",
+  "render_details": "Dark stone blocks with green moss in the joints, mud tracked across the flags, old bloodstains, deep gouges in the floor, iron torch brackets with live flame, worn timber, tarnished metal, dust and bone",
+  "prop_density": "medium",
+  "rooms": [
+    {
+      "label": "Main Corridor",
+      "description": "A long corridor of dark stone running through the fortress, its floor tracked with mud and scored with deep gouges, torches burning in iron brackets along its walls. Every chamber of the fortress opens off it.",
+      "size": "m", "props": ["torch", "torch", "rubble"],
+      "x": 21, "y": 2, "w": 5, "h": 32
+    },
+    {
+      "label": "Entry Hall",
+      "description": "A high square hall with massive stone columns down both sides and old timber chests and crates standing between them, its floor covered in the overlapping prints of many feet.",
+      "size": "l", "props": ["pillar", "pillar", "pillar", "pillar", "chest", "chest", "crate"],
+      "x": 2, "y": 2, "w": 18, "h": 14
+    },
+    {
+      "label": "Armoury",
+      "description": "A long rectangular room with weapon racks along both walls, most of them empty, a few still holding old swords, spears and shields, and heavy work tables down the middle.",
+      "size": "m", "props": ["weapon_rack", "weapon_rack", "table", "table", "chest"],
+      "x": 2, "y": 18, "w": 18, "h": 7
+    },
+    {
+      "label": "Underground Chapel",
+      "description": "A large dark chapel with ranks of stone benches facing an altar, many of the benches overturned or split, and dozens of small candles burning along the walls.",
+      "size": "l", "props": ["bench", "bench", "bench", "altar", "torch"],
+      "x": 27, "y": 2, "w": 17, "h": 13
+    },
+    {
+      "label": "The Crypt",
+      "description": "A cold square crypt with three stone sarcophagi standing against each wall, some lids closed and some pushed aside, old bones scattered on the floor between them.",
+      "size": "m", "props": ["sarcophagus", "sarcophagus", "sarcophagus", "bones", "bones"],
+      "x": 27, "y": 17, "w": 17, "h": 8
+    },
+    {
+      "label": "Ritual Hall",
+      "description": "The largest chamber, its floor dropping in wide steps into a great circular arena with a raised platform at its centre, narrow walkways running round the outside of the pit.",
+      "size": "l", "props": ["pillar", "pillar", "pillar", "brazier", "altar"],
+      "x": 2, "y": 27, "w": 42, "h": 7
+    }
+  ],
+  "annotations": [
+    {
+      "label": "Symbol Table",
+      "description": "A round stone table standing in the middle of the entry hall, its top carved with faded symbols worn almost smooth",
+      "elaboration": "exact", "x": 9, "y": 7, "w": 4, "h": 4
+    },
+    {
+      "label": "Descending Stair",
+      "description": "A flight of stone steps in the far corner of the entry hall going down out of sight, seen from directly above as straight bands narrowing into darkness",
+      "elaboration": "exact", "x": 15, "y": 12, "w": 5, "h": 4
+    },
+    {
+      "label": "Beast Door",
+      "description": "A wide timber door in the wall carved with the image of an unknown many-limbed creature, seen from straight above as a flat panel flush with the stone",
+      "elaboration": "exact", "x": 20, "y": 7, "w": 1, "h": 4
+    },
+    {
+      "label": "Armoury Gallery",
+      "description": "A timber gallery built along the end wall of the armoury above head height, reached by a narrow stair of plank treads, with a clear view down over the whole room",
+      "elaboration": "exact", "x": 15, "y": 18, "w": 5, "h": 7
+    },
+    {
+      "label": "Alarm Bell",
+      "description": "A large tarnished metal bell hanging from an iron bracket on the wall with a heavy rope hanging beside it",
+      "elaboration": "exact", "x": 3, "y": 18, "w": 3, "h": 2
+    },
+    {
+      "label": "Blood Circle",
+      "description": "A wide circle drawn on the chapel floor in dried dark liquid, its line unbroken, the flagstones inside it stained darker than those outside",
+      "elaboration": "exact", "x": 32, "y": 6, "w": 7, "h": 7
+    },
+    {
+      "label": "Many-Armed Statue",
+      "description": "A tall stone statue of a many-armed creature standing behind the chapel altar, its head turned to face the doorway, a narrow gap left between it and the altar wide enough to pass through in single file",
+      "elaboration": "exact", "x": 33, "y": 2, "w": 5, "h": 4
+    },
+    {
+      "label": "Crypt Well",
+      "description": "A deep round well sunk into the middle of the crypt floor, its shaft black, with four stone columns standing around it joined to each other by heavy hanging chains",
+      "elaboration": "exact", "x": 33, "y": 19, "w": 6, "h": 5
+    },
+    {
+      "label": "Iron Door",
+      "description": "A heavy metal door set in the far wall of the crypt, closed, its surface pitted with rust, seen from straight above as a flat panel flush with the stone",
+      "elaboration": "exact", "x": 43, "y": 20, "w": 1, "h": 3
+    },
+    {
+      "label": "Ritual Platform",
+      "description": "A raised circular stone platform at the centre of the arena floor, its surface marked with fresh ritual traces, with six massive columns standing in a ring around it and chains strung from one column to the next",
+      "elaboration": "exact", "x": 17, "y": 28, "w": 12, "h": 6
+    },
+    {
+      "label": "Balcony and Spiral Stair",
+      "description": "A stone balcony built out from the north wall high above the ritual floor, reached by a spiral stair seen from directly above as a ring of wedge-shaped treads, with a full view of the chamber below",
+      "elaboration": "exact", "x": 3, "y": 27, "w": 7, "h": 5
+    },
+    {
+      "label": "Great Iron Door",
+      "description": "An enormous closed iron door in the south wall with a low stone altar standing directly in front of it, the altar top wet with fresh blood",
+      "elaboration": "exact", "x": 33, "y": 31, "w": 8, "h": 3
+    }
+  ]
+}

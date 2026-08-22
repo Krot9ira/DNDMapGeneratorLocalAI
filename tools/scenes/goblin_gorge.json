@@ -1,0 +1,81 @@
+{
+  "title": "Goblin Camp in a Gorge",
+  "name": "scene_goblin_gorge",
+  "style": "bandit_camp",
+  "layout": "custom",
+  "grid": { "cols": 26, "rows": 30 },
+  "scene_summary": "A narrow rock gorge running the length of the map with a war camp pitched along its floor: a fire burning in the middle, tents against the walls, timber platforms above, and a barricade across the far end.",
+  "render_details": "Dry gravel and trodden dirt underfoot, sheer rock walls, a big open fire with a blackened cooking pot on it, crates and sacks, rough plank tables, filthy canvas tents, timber platforms on posts, rope ladders, drying hides strung on lines, scattered shields, spears and animal bones",
+  "prop_density": "high",
+  "rooms": [
+    {
+      "label": "Gorge Floor",
+      "description": "The floor of the gorge: dry gravel and trodden dirt running the whole length between sheer rock walls, littered with shields, spears, empty bottles and animal bones. It is one continuous open floor with nothing built across it except what is described separately.",
+      "size": "l",
+      "props": ["crate", "crate", "barrel", "table", "bones", "bones", "rubble"],
+      "x": 1, "y": 1, "w": 24, "h": 28
+    }
+  ],
+  "annotations": [
+    {
+      "label": "West Cliff",
+      "description": "A sheer wall of raw rock rising the whole length of the gorge on this side, its face broken and irregular, with no way through it anywhere",
+      "elaboration": "some",
+      "x": 1, "y": 1, "w": 4, "h": 28
+    },
+    {
+      "label": "East Cliff",
+      "description": "A sheer wall of raw rock rising the whole length of the gorge on this side, its face broken and irregular, with no way through it anywhere",
+      "elaboration": "some",
+      "x": 21, "y": 1, "w": 4, "h": 28
+    },
+    {
+      "label": "The Fire",
+      "description": "A big open fire burning on the gravel, ringed with blackened stones, a heavy iron cooking pot hanging over it with thick steam rising from the pot",
+      "elaboration": "exact",
+      "x": 11, "y": 13, "w": 4, "h": 4
+    },
+    {
+      "label": "Crate Barricade",
+      "description": "A short stack of crates and sacks heaped beside the fire to make a chest-high breastwork somebody could crouch behind",
+      "elaboration": "exact",
+      "x": 15, "y": 12, "w": 4, "h": 3
+    },
+    {
+      "label": "West Tents",
+      "description": "Three low tents of filthy patched canvas pitched hard against the cliff, their guy ropes pegged into the gravel and their flaps hanging open",
+      "elaboration": "exact",
+      "x": 5, "y": 5, "w": 5, "h": 9
+    },
+    {
+      "label": "East Platform",
+      "description": "A timber platform built out from the cliff on rough posts, standing well above the gorge floor, with a rickety ladder of lashed poles leading up to it and a clear view along the gorge from its deck",
+      "elaboration": "exact",
+      "x": 16, "y": 5, "w": 5, "h": 6
+    },
+    {
+      "label": "West Platform",
+      "description": "A timber platform built out from the cliff on rough posts, standing well above the gorge floor, with a rickety ladder of lashed poles leading up to it and a clear view along the gorge from its deck",
+      "elaboration": "exact",
+      "x": 5, "y": 19, "w": 5, "h": 6
+    },
+    {
+      "label": "Drying Lines",
+      "description": "Ropes strung across the gorge from one cliff to the other, hung with stretched hides and rags that block the view of what is beneath them",
+      "elaboration": "some",
+      "x": 5, "y": 16, "w": 16, "h": 2
+    },
+    {
+      "label": "Log Barricade",
+      "description": "A heavy barricade of lashed logs and planks thrown right across the gorge from wall to wall, blocking it completely except for a narrow gap at one side",
+      "elaboration": "exact",
+      "x": 5, "y": 26, "w": 16, "h": 2
+    },
+    {
+      "label": "Cave Mouth",
+      "description": "A dark opening in the rock behind the barricade, its edges rough, nothing but blackness inside it",
+      "elaboration": "exact",
+      "x": 10, "y": 28, "w": 6, "h": 1
+    }
+  ]
+}

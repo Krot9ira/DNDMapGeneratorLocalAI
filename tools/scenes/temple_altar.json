@@ -1,0 +1,69 @@
+{
+  "title": "Temple with a Ruined Altar",
+  "name": "scene_temple_altar",
+  "style": "grand_temple",
+  "layout": "custom",
+  "grid": { "cols": 30, "rows": 28 },
+  "scene_summary": "The great hall of an ancient temple seen from above with the roof gone: one enormous undivided hall, a broad processional aisle running its length to a ruined altar on a stepped platform, with rows of benches either side.",
+  "render_details": "Worn grey flagstones, a paler processional aisle down the middle, broken column drums lying across the floor, rows of dark stone benches, a cracked altar slab, a colossal broken statue, iron braziers with live coals, dust and grit",
+  "prop_density": "low",
+  "rooms": [
+    {
+      "label": "Temple Hall",
+      "description": "One single enormous undivided hall of worn grey flagstone. There are no interior walls anywhere inside it: no partition, no screen and no smaller room - it is one continuous floor from one outer wall to the other, broken only by free-standing columns and by the fallen drums of the columns that no longer stand.",
+      "size": "l",
+      "props": ["pillar", "pillar", "pillar", "pillar", "brazier", "brazier", "rubble"],
+      "x": 1, "y": 1, "w": 28, "h": 26
+    }
+  ],
+  "annotations": [
+    {
+      "label": "Processional Aisle",
+      "description": "A broad straight aisle of paler stone running the length of the hall from the entrance to the foot of the altar steps, worn smooth and clear of everything",
+      "elaboration": "exact",
+      "x": 12, "y": 6, "w": 6, "h": 20
+    },
+    {
+      "label": "The Altar",
+      "description": "A ruined altar of pale stone standing on a platform of three broad steps, its slab cracked across the middle, the steps running the full width of the platform and seen from directly above as three straight bands",
+      "elaboration": "exact",
+      "x": 10, "y": 2, "w": 10, "h": 5
+    },
+    {
+      "label": "Broken Statue",
+      "description": "A colossal seated statue of a forgotten god behind the altar, its face smashed away and one arm broken off and lying in pieces at its foot",
+      "elaboration": "exact",
+      "x": 12, "y": 1, "w": 6, "h": 3
+    },
+    {
+      "label": "West Benches",
+      "description": "Rows of long low stone benches standing in ranks facing the aisle, several of them overturned and two cracked across",
+      "elaboration": "some",
+      "x": 4, "y": 9, "w": 7, "h": 14
+    },
+    {
+      "label": "East Benches",
+      "description": "Rows of long low stone benches standing in ranks facing the aisle, several of them overturned and two cracked across",
+      "elaboration": "some",
+      "x": 19, "y": 9, "w": 7, "h": 14
+    },
+    {
+      "label": "Collapsed Floor",
+      "description": "A ragged hole where the floor has fallen away into darkness, its edges broken flagstone, with one narrow ledge of intact floor left along one side wide enough to cross in single file",
+      "elaboration": "exact",
+      "x": 8, "y": 23, "w": 14, "h": 4
+    },
+    {
+      "label": "Side Chapel",
+      "description": "A small side chapel opening off the hall through a half-collapsed wall, a dark passage leading away at the back of it",
+      "elaboration": "exact",
+      "x": 1, "y": 4, "w": 6, "h": 6
+    },
+    {
+      "label": "Bronze Doors",
+      "description": "A pair of massive closed bronze doors set in the wall, seen from directly above as two flat panels flush with the stone",
+      "elaboration": "exact",
+      "x": 27, "y": 12, "w": 2, "h": 6
+    }
+  ]
+}

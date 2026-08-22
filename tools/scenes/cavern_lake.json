@@ -1,0 +1,109 @@
+{
+  "title": "Cavern with an Underground Lake",
+  "name": "scene_cavern_lake",
+  "style": "underdark_cavern",
+  "layout": "custom",
+  "grid": {
+    "cols": 32,
+    "rows": 26
+  },
+  "scene_summary": "One enormous natural cave with the rock cut away above, its floor wet stone, half of it filled by a still black underground lake crossed by a natural stone rib.",
+  "render_details": "Wet grey limestone floor with dark pooled water in the hollows, a wide sheet of still water so black it reflects nothing, stumps of broken stalagmites, thick natural rock columns, a huge rounded boulder, loose scree, pale mineral streaking on the rock",
+  "prop_density": "low",
+  "rooms": [
+    {
+      "label": "Cavern Floor",
+      "description": "One continuous cave floor of wet grey rock, uneven and streaked with pale mineral, with broken stalagmite stumps standing out of it. It is one open space with no built walls anywhere: the only edges are natural rock.",
+      "size": "l",
+      "props": [
+        "stalagmite",
+        "stalagmite",
+        "boulder",
+        "rubble"
+      ],
+      "x": 1,
+      "y": 1,
+      "w": 30,
+      "h": 24
+    }
+  ],
+  "annotations": [
+    {
+      "label": "Black Lake",
+      "description": "A wide sheet of absolutely still black water filling this whole rectangle from edge to edge, so dark it reflects nothing, its edge meeting the wet rock in a clean irregular line, with a few faint rings spreading on it where water drips from above",
+      "elaboration": "exact",
+      "x": 1,
+      "y": 13,
+      "w": 30,
+      "h": 12
+    },
+    {
+      "label": "Stone Rib",
+      "description": "A narrow natural rib of pale rock crossing the black water from one shore to the other, uneven along its length and barely a stride wide at its narrowest, standing just clear of the surface with water on both sides of it",
+      "elaboration": "exact",
+      "x": 14,
+      "y": 13,
+      "w": 3,
+      "h": 12
+    },
+    {
+      "label": "Far Shore",
+      "description": "A wide flat shelf of dry pale rock on the far side of the water, ringed by fallen rock blocks",
+      "elaboration": "exact",
+      "x": 6,
+      "y": 21,
+      "w": 20,
+      "h": 4
+    },
+    {
+      "label": "Great Boulder",
+      "description": "One enormous rounded boulder standing alone on the cave floor, taller than a man, with loose scree heaped around its foot",
+      "elaboration": "exact",
+      "x": 14,
+      "y": 6,
+      "w": 4,
+      "h": 4
+    },
+    {
+      "label": "Pillar Maze",
+      "description": "A close-set group of thick natural rock columns rising from floor to roof, leaving narrow winding gaps between them wide enough for one person",
+      "elaboration": "exact",
+      "x": 24,
+      "y": 3,
+      "w": 7,
+      "h": 9
+    },
+    {
+      "label": "Rock Ledge",
+      "description": "A raised shelf of rock standing above the water level, its edge a clean drop to the floor below, with a clear view out across the cave",
+      "elaboration": "exact",
+      "x": 1,
+      "y": 4,
+      "w": 6,
+      "h": 7
+    }
+  ],
+  "terrain_zones": [
+    {
+      "kind": "water",
+      "x": 1,
+      "y": 13,
+      "w": 30,
+      "h": 12
+    },
+    {
+      "kind": "floor",
+      "x": 14,
+      "y": 13,
+      "w": 3,
+      "h": 12
+    },
+    {
+      "kind": "floor",
+      "x": 6,
+      "y": 21,
+      "w": 20,
+      "h": 4
+    }
+  ]
+}

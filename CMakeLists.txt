@@ -80,6 +80,8 @@ add_custom_command(TARGET DndBattlemapGenerator POST_BUILD
             "${CMAKE_CURRENT_SOURCE_DIR}/tools/check_layouts.py"
             "${CMAKE_CURRENT_SOURCE_DIR}/tools/check_caption_parity.py"
             "${CMAKE_CURRENT_SOURCE_DIR}/tools/check_captions.py"
+            "${CMAKE_CURRENT_SOURCE_DIR}/tools/check_scenes.py"
+            "${CMAKE_CURRENT_SOURCE_DIR}/tools/render_scene.py"
             "${CMAKE_CURRENT_SOURCE_DIR}/tools/comfy.py"
             "${CMAKE_CURRENT_SOURCE_DIR}/tools/ideogram_prompt.py"
             "${CMAKE_CURRENT_SOURCE_DIR}/tools/ollama_client.py"

@@ -26,7 +26,15 @@ from math import gcd
 import architect as A
 
 # Cap so no single caption drowns the model in elements.
-MAX_ELEMENTS = 24
+MAX_ELEMENTS = 24               # a one-room scene; see element_budget()
+MAX_ELEMENTS_CEILING = 40       # past this they drown each other out whatever they say
+
+
+def element_budget(map_data):
+    """How many elements this map can carry without them blurring together."""
+    rooms = sum(1 for a in (map_data.get("areas") or [])
+                if str(a.get("label", "")).strip())
+    return max(MAX_ELEMENTS, min(MAX_ELEMENTS_CEILING, 16 + 3 * rooms))
 # Walls are merged into the longest runs the grid allows, so this is generous.
 MAX_WALL_RUNS = 8
 
@@ -197,6 +205,23 @@ def _merge_runs(grid, kind):
             rects.append((x, y, w, h))
     rects.sort(key=lambda r: (-(r[2] * r[3]), r[1], r[0]))
     return rects
+
+
+def _where_on_map(x, y, cols, rows):
+    """A short phrase for where something stands, to tell two alike things apart."""
+    fx, fy = (x + 0.5) / max(1, cols), (y + 0.5) / max(1, rows)
+    band = "north" if fy < 0.34 else "south" if fy > 0.66 else ""
+    side = "west" if fx < 0.34 else "east" if fx > 0.66 else ""
+    if band and side:
+        return f"In the {band}-{side} of the map"
+    if band or side:
+        return f"In the {band or side} of the map"
+    return "Near the middle of the map"
+
+
+def _the(label):
+    """"The Crypt" already has its article; do not give it a second one."""
+    return label if label[:4].lower() == "the " else "The " + label
 
 
 def _upper_first(text):
@@ -764,7 +789,7 @@ def build_caption(map_data, style=None, base=None):
         normal.append({
             "type": "obj",
             "bbox": _bbox(area["x"], area["y"], area["w"], area["h"], cols, rows),
-            "desc": (f"The {label}: the roofless interior of a room seen from directly "
+            "desc": (f"{_the(label)}: the roofless interior of a room seen from directly "
                      f"above, its floor and furniture fully visible and filling this "
                      f"rectangle, with no roof, no ceiling and nothing overhanging it"
                      + one_room
@@ -775,6 +800,10 @@ def build_caption(map_data, style=None, base=None):
     #    so the renderer can place it naturally.
     loose = []
     pinned = {}
+    kind_counts = {}
+    for f in map_data.get("features", []) or []:
+        k = str(f.get("kind", "")).lower()
+        kind_counts[k] = kind_counts.get(k, 0) + 1
     for f in map_data.get("features", []) or []:
         kind = str(f.get("kind", "")).lower()
         asked_for = not f.get("filler", False)
@@ -804,14 +833,17 @@ def build_caption(map_data, style=None, base=None):
             if pinned[kind] > MAX_SAME_PROP:
                 loose.append(kind.replace("_", " "))
                 continue
+        body = phrase if "from directly above" in phrase             else phrase + ", seen from directly above"
+        if kind_counts.get(kind, 0) > 1:
+            body = f"{_where_on_map(f['x'], f['y'], cols, rows)}, {body}"
         filler.append({"type": "obj",
                        "bbox": _bbox(f["x"], f["y"], 1, 1, cols, rows),
-                       "desc": phrase if "from directly above" in phrase
-                               else phrase + ", seen from directly above"})
+                       "desc": body})
 
     elements = critical + walls + structure + normal + filler
-    if len(elements) > MAX_ELEMENTS:
-        elements = elements[:MAX_ELEMENTS]
+    budget = element_budget(map_data)
+    if len(elements) > budget:
+        elements = elements[:budget]
 
     if loose:
         counts = {}

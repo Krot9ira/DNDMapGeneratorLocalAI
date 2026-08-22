@@ -1,0 +1,110 @@
+{
+  "title": "Forest Glade",
+  "name": "scene_forest_glade",
+  "style": "lush_forest",
+  "layout": "custom",
+  "grid": {
+    "cols": 30,
+    "rows": 26
+  },
+  "scene_summary": "A wide round clearing opened in dense forest, its floor uneven with roots, stones and wet leaves, ringed by a solid wall of mossy trunks, with a shallow stream crossing the east side and rising ground to the west.",
+  "render_details": "Wet fallen leaves over dark earth, thick exposed roots, half-buried stones, moss on every trunk, dense leafy undergrowth, a shallow stony stream, old grey planking, a huge cut stump, an uprooted trunk with a wall of earth in its roots",
+  "prop_density": "medium",
+  "rooms": [
+    {
+      "label": "The Clearing",
+      "description": "One open round clearing of uneven ground, deep in wet leaves and crossed by thick exposed roots and half-buried stones, with nothing built on it anywhere: no wall, no fence and no structure, only what the forest has left.",
+      "size": "l",
+      "props": [
+        "stump",
+        "boulder",
+        "bush",
+        "bush",
+        "rubble"
+      ],
+      "x": 1,
+      "y": 1,
+      "w": 28,
+      "h": 24
+    }
+  ],
+  "annotations": [
+    {
+      "label": "Forest Wall",
+      "description": "A dense unbroken band of forest closing the clearing in on this side: mossy trunks standing shoulder to shoulder with their canopies meeting overhead, so nothing of the ground beyond them can be seen",
+      "elaboration": "some",
+      "x": 1,
+      "y": 1,
+      "w": 28,
+      "h": 3
+    },
+    {
+      "label": "Great Stump",
+      "description": "The stump of an enormous felled tree standing alone near the middle of the clearing, its cut top broad enough for several people to shelter behind it, its rings and axe marks clearly visible from above",
+      "elaboration": "exact",
+      "x": 13,
+      "y": 11,
+      "w": 4,
+      "h": 4
+    },
+    {
+      "label": "Fallen Tree",
+      "description": "A whole tree lying on its side with its root plate torn out of the ground and standing on end, a great disc of earth and roots forming a natural wall at one end of the trunk",
+      "elaboration": "exact",
+      "x": 7,
+      "y": 4,
+      "w": 14,
+      "h": 3
+    },
+    {
+      "label": "The Stream",
+      "description": "A shallow stream of clear water running the length of this rectangle over rounded slippery stones, its banks low and muddy, nowhere deeper than an ankle",
+      "elaboration": "exact",
+      "x": 23,
+      "y": 1,
+      "w": 4,
+      "h": 24
+    },
+    {
+      "label": "Plank Bridge",
+      "description": "An old plank bridge across the stream, grey with age, three of its boards rotted through and fallen into the water leaving gaps in the walkway",
+      "elaboration": "exact",
+      "x": 22,
+      "y": 12,
+      "w": 6,
+      "h": 3
+    },
+    {
+      "label": "West Rise",
+      "description": "Ground rising into a low natural hillock, its slope broken by roots and stone, its flat top standing well above the clearing floor with a clear view across it",
+      "elaboration": "exact",
+      "x": 1,
+      "y": 9,
+      "w": 7,
+      "h": 9
+    }
+  ],
+  "terrain_zones": [
+    {
+      "kind": "vegetation",
+      "x": 1,
+      "y": 1,
+      "w": 28,
+      "h": 3
+    },
+    {
+      "kind": "water",
+      "x": 23,
+      "y": 1,
+      "w": 4,
+      "h": 24
+    },
+    {
+      "kind": "bridge",
+      "x": 22,
+      "y": 12,
+      "w": 6,
+      "h": 3
+    }
+  ]
+}

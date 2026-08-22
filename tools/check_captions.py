@@ -27,7 +27,7 @@ def fail(where, msg):
     problems.append(f"{where:28} {msg}")
 
 
-def check_caption(where, cap, cols, rows):
+def check_caption(where, cap, cols, rows, map_data=None):
     head = cap.get("high_level_description", "")
     if not head:
         fail(where, "no high-level description at all")
@@ -55,8 +55,9 @@ def check_caption(where, cap, cols, rows):
     els = cd.get("elements", [])
     if not els:
         fail(where, "no elements")
-    if len(els) > IP.MAX_ELEMENTS + 1:      # +1 for the un-bboxed clutter line
-        fail(where, f"{len(els)} elements, over the budget of {IP.MAX_ELEMENTS}")
+    budget = IP.element_budget(map_data) if map_data else IP.MAX_ELEMENTS
+    if len(els) > budget + 1:               # +1 for the un-bboxed clutter line
+        fail(where, f"{len(els)} elements, over the budget of {budget}")
 
     seen = Counter()
     for i, e in enumerate(els):
@@ -115,7 +116,7 @@ for sid, style in sorted(styles.items()):
                  "grid": {"cols": 34, "rows": 26},
                  "scene_summary": "a place to fight in", "prop_density": "medium"}, seed=9)
     cap = IP.build_caption(m, style, planner.load_base())
-    check_caption(sid, cap, 34, 26)
+    check_caption(sid, cap, 34, 26, m)
 
 # One map with everything on it, since annotations and effects take their own
 # route into the caption and are easy to break without noticing.

@@ -1105,6 +1105,71 @@ inline void ApplyTerrain(TileGrid& g, const RoomList& rooms, const DesignSpec& s
 }
 
 // A battle map you cannot walk across is a bug, not a feature.
+// Walkable regions with no door and no way off the edge of the map. A cave
+// that runs off the frame needs nothing; a walled room does.
+inline std::vector<std::vector<std::pair<int, int>>> SealedRegions(const TileGrid& g) {
+    std::vector<char> seen((size_t)g.cols * g.rows, 0);
+    std::vector<std::vector<std::pair<int, int>>> sealed;
+    for (int sy = 0; sy < g.rows; ++sy) {
+        for (int sx = 0; sx < g.cols; ++sx) {
+            if (seen[(size_t)sy * g.cols + sx] || !IsWalkable(g.Get(sx, sy))) continue;
+            std::vector<std::pair<int, int>> stack{{sx, sy}}, cells;
+            seen[(size_t)sy * g.cols + sx] = 1;
+            bool touchesEdge = false, hasOpening = false;
+            while (!stack.empty()) {
+                auto [x, y] = stack.back();
+                stack.pop_back();
+                cells.push_back({x, y});
+                if (x == 0 || y == 0 || x == g.cols - 1 || y == g.rows - 1) touchesEdge = true;
+                Tile here = g.Get(x, y);
+                if (here == Tile::Door || here == Tile::Window) hasOpening = true;
+                const int d[4][2] = {{1, 0}, {-1, 0}, {0, 1}, {0, -1}};
+                for (auto& o : d) {
+                    int nx = x + o[0], ny = y + o[1];
+                    if (nx < 0 || ny < 0 || nx >= g.cols || ny >= g.rows) continue;
+                    if (seen[(size_t)ny * g.cols + nx] || !IsWalkable(g.Get(nx, ny))) continue;
+                    seen[(size_t)ny * g.cols + nx] = 1;
+                    stack.push_back({nx, ny});
+                }
+            }
+            if (!touchesEdge && !hasOpening && cells.size() >= 12) sealed.push_back(cells);
+        }
+    }
+    return sealed;
+}
+
+inline void EnsureAWayIn(TileGrid& g, bool organic) {
+    for (int attempt = 0; attempt < 12; ++attempt) {
+        auto sealed = SealedRegions(g);
+        if (sealed.empty()) return;
+        const auto& cells = sealed.front();
+        std::set<std::pair<int, int>> inside(cells.begin(), cells.end());
+        int bestScore = 99, bwx = -1, bwy = -1, box = -1, boy = -1;
+        for (auto& c : cells) {
+            const int d[4][2] = {{1, 0}, {-1, 0}, {0, 1}, {0, -1}};
+            for (auto& o : d) {
+                int wx = c.first + o[0], wy = c.second + o[1];
+                if (g.Get(wx, wy) != Tile::Wall) continue;
+                int ox = wx + o[0], oy = wy + o[1];
+                if (inside.count({ox, oy})) continue;
+                int score;
+                if (!g.Inside(ox, oy)) score = 2;            // opens off the map edge
+                else if (IsWalkable(g.Get(ox, oy))) score = 0;
+                else if (g.Get(ox, oy) == Tile::Void) score = 1;
+                else continue;
+                if (score < bestScore) {
+                    bestScore = score;
+                    bwx = wx; bwy = wy; box = ox; boy = oy;
+                }
+            }
+        }
+        if (bwx < 0) return;
+        // Rock does not have doors in it; a cave opens by a passage.
+        g.Set(bwx, bwy, organic ? Tile::Floor : Tile::Door);
+        if (g.Inside(box, boy) && g.Get(box, boy) == Tile::Void) g.Set(box, boy, Tile::Floor);
+    }
+}
+
 inline void EnsureConnected(TileGrid& g, Rng& rng) {
     std::set<Tile> walk;
     for (int i = 0; i < (int)Tile::COUNT; ++i)
@@ -1367,6 +1432,8 @@ inline MapData Build(DesignSpec spec, uint32_t seed) {
     EnsureConnected(g, rng);
     DeriveWalls(g);
     if (!spec.edge_walls) OpenEdges(g);
+    EnsureAWayIn(g, L == "cavern" || L == "forest" || L == "swamp" || L == "open" ||
+                        L == "ruins" || L == "deck");
     FixDoors(g);
 
     MapData map;

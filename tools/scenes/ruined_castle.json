@@ -1,0 +1,51 @@
+{
+  "title": "Ruined Castle Courtyard",
+  "name": "scene_ruined_castle",
+  "style": "castle_keep",
+  "layout": "custom",
+  "grid": { "cols": 32, "rows": 26 },
+  "scene_summary": "The inner courtyard of a castle ruined long ago, seen from above: one open yard of cracked flagstones with grass growing through the joints, ringed by broken walls, with a well at its centre.",
+  "render_details": "Cracked grey flagstones with grass in the joints and whole slabs fallen away, tumbled masonry blocks, dry leaves drifted into corners, a mossy round well head, splintered crates, rusted weapons lying about, ivy on the broken stonework",
+  "prop_density": "medium",
+  "rooms": [
+    {
+      "label": "Inner Courtyard",
+      "description": "One open courtyard of cracked flagstones with grass growing through the joints and several patches fallen away into bare earth. It is one continuous open yard: nothing is built on it, and the only walls are the ruined ones around its edge.",
+      "size": "l",
+      "props": ["crate", "rubble", "rubble", "weapon_rack"],
+      "x": 1, "y": 1, "w": 30, "h": 24
+    }
+  ],
+  "annotations": [
+    {
+      "label": "The Well",
+      "description": "A round stone well head standing alone in the middle of the courtyard, its low wall thick with moss, its mouth open and black, with splintered crates and a few rusted weapons lying on the flagstones around it",
+      "elaboration": "exact",
+      "x": 14, "y": 11, "w": 4, "h": 4
+    },
+    {
+      "label": "Collapsed North Wall",
+      "description": "A length of curtain wall whose upper courses have fallen, leaving a jagged broken edge and several great masonry blocks lying in a heap at its foot, high enough to climb and stand on",
+      "elaboration": "exact",
+      "x": 6, "y": 1, "w": 20, "h": 3
+    },
+    {
+      "label": "Watch Tower",
+      "description": "The lower storey of a round watch tower, its roof and upper floors gone, its doorway standing open to the courtyard, a stone spiral stair inside it winding up along the wall and seen from directly above as a ring of wedge-shaped treads",
+      "elaboration": "exact",
+      "x": 1, "y": 7, "w": 7, "h": 7
+    },
+    {
+      "label": "Ruined Colonnade",
+      "description": "A row of thick stone columns left standing from a covered walk that has otherwise fallen, each column a separate block of stone with floor visible all round it and clear gaps between them, the roof they carried gone entirely",
+      "elaboration": "exact",
+      "x": 26, "y": 5, "w": 5, "h": 16
+    },
+    {
+      "label": "Iron Gates",
+      "description": "A pair of great rusted iron gates in the far wall, standing ajar with a gap between them, nothing but flat darkness visible through the opening",
+      "elaboration": "exact",
+      "x": 12, "y": 23, "w": 8, "h": 2
+    }
+  ]
+}

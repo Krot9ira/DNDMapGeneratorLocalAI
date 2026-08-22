@@ -23,7 +23,19 @@ namespace dnd {
 
 class IdeogramCaption {
 public:
-    static constexpr int kMaxElements = 24;
+    static constexpr int kMaxElements = 24;      // a one-room scene
+    static constexpr int kMaxElementsCeiling = 40;
+
+    // A flat budget was measured on a map whose elements were mostly identical
+    // wall runs: forty of those drown each other out. Now that every element
+    // says something different, a six-room dungeon needs room for its six
+    // rooms, their doors and their walls before anything is left over.
+    static int ElementBudget(const MapData& map) {
+        int rooms = 0;
+        for (const Area& a : map.areas)
+            if (!a.label.empty()) ++rooms;
+        return std::max(kMaxElements, std::min(kMaxElementsCeiling, 16 + 3 * rooms));
+    }
     // Walls are merged into the longest runs the grid allows, so this is generous.
     static constexpr int kMaxWallRuns = 8;
 
@@ -188,6 +200,26 @@ public:
         std::string where = "In the " + side + " wall";
         if (!hostName.empty() && hostName != "a building") return where + " of " + hostName;
         return where + (host ? " of this building" : " of the map");
+    }
+
+    // "The Crypt" already has its article; do not give it a second one.
+    // A short phrase for where something stands, to tell two alike things apart.
+    static std::string WhereOnMap(int x, int y, int cols, int rows) {
+        double fx = (x + 0.5) / std::max(1, cols), fy = (y + 0.5) / std::max(1, rows);
+        std::string band = fy < 0.34 ? "north" : (fy > 0.66 ? "south" : "");
+        std::string side = fx < 0.34 ? "west" : (fx > 0.66 ? "east" : "");
+        if (!band.empty() && !side.empty()) return "In the " + band + "-" + side + " of the map";
+        if (!band.empty() || !side.empty()) return "In the " + band + side + " of the map";
+        return "Near the middle of the map";
+    }
+
+    static std::string TheLabel(const std::string& label) {
+        if (label.size() >= 4) {
+            std::string head = label.substr(0, 4);
+            for (char& c : head) c = (char)tolower((unsigned char)c);
+            if (head == "the ") return label;
+        }
+        return "The " + label;
     }
 
     static std::string LowerFirst(std::string s) {
@@ -639,7 +671,7 @@ public:
             normal.push_back({
                 {"type", "obj"},
                 {"bbox", Bbox(a.x, a.y, a.w, a.h, cols, rows)},
-                {"desc", "The " + label + ": the roofless interior of a room seen from "
+                {"desc", TheLabel(label) + ": the roofless interior of a room seen from "
                          "directly above, its floor and furniture fully visible and filling "
                          "this rectangle, with no roof, no ceiling and nothing overhanging "
                          "it" + oneRoom +
@@ -650,6 +682,8 @@ public:
         // 7. Pinned props get a box; clutter is only described.
         std::map<std::string, int> loose;
         std::map<std::string, int> pinned;
+        std::map<std::string, int> kindCounts;
+        for (const Feature& f : map.features) ++kindCounts[f.kind];
         for (const auto& f : map.features) {
             // "Structural" says whether a kind of thing is load-bearing enough
             // to pin. It was also deciding whether something asked for by name
@@ -696,11 +730,16 @@ public:
                 phrase = "a " + pretty;
             }
             if (phrase.empty()) continue;
+            // Several of one kind described in identical words read as one
+            // thing repeated, which is the repetition that mirrors a layout.
+            std::string body = phrase.find("from directly above") != std::string::npos
+                                   ? phrase
+                                   : phrase + ", seen from directly above";
+            if (kindCounts[f.kind] > 1)
+                body = WhereOnMap(f.x, f.y, cols, rows) + ", " + body;
             filler.push_back({{"type", "obj"},
                               {"bbox", Bbox(f.x, f.y, 1, 1, cols, rows)},
-                              {"desc", phrase.find("from directly above") != std::string::npos
-                                           ? phrase
-                                           : phrase + ", seen from directly above"}});
+                              {"desc", body}});
         }
 
         nlohmann::json elements = nlohmann::json::array();
@@ -709,7 +748,8 @@ public:
         for (const auto& e : structure) elements.push_back(e);
         for (const auto& e : normal) elements.push_back(e);
         for (const auto& e : filler) elements.push_back(e);
-        while ((int)elements.size() > kMaxElements) elements.erase(elements.end() - 1);
+        int budget = ElementBudget(map);
+        while ((int)elements.size() > budget) elements.erase(elements.end() - 1);
 
         if (!loose.empty()) {
             std::vector<std::pair<std::string, int>> sorted(loose.begin(), loose.end());
