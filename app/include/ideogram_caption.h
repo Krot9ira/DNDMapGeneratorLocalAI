@@ -570,12 +570,28 @@ public:
                                           : "the " + where + " building";
                 }
                 buildingNames.push_back(label);
+                // How thick the wall actually is, said as a share of the
+                // picture. "Thick outer walls" is an invitation, and the
+                // renderer accepted it: a one-square wall came back as a band a
+                // sixth of the map wide, and a band that wide is a place, so it
+                // got furnished.
+                int depth = 0;
+                for (int step = 0; step < b.rect.w; ++step) {
+                    Tile t = g.Get(b.rect.x + step, b.rect.y + b.rect.h / 2);
+                    if (t == Tile::Wall || t == Tile::Door || t == Tile::Window) ++depth;
+                    else break;
+                }
+                int wallShare = std::max(2, (int)std::lround(100.0 * std::max(1, depth) /
+                                                             std::max(b.rect.w, b.rect.h)));
                 std::string shell = "One single " + sizeWord + " building" +
                                     (label.empty() ? "" : ", " + label) +
                                     ", standing alone inside this rectangle and nowhere "
-                                    "else: thick unbroken outer walls right on the edges of "
-                                    "the rectangle, its roof removed so the furnished floor "
-                                    "inside is fully visible from above.";
+                                    "else: one unbroken outer wall running right round the "
+                                    "edges of the rectangle, drawn as a narrow line about " +
+                                    std::to_string(wallShare) +
+                                    " percent of the width of this rectangle and no wider - "
+                                    "a line, not a band - with its roof removed so the "
+                                    "furnished floor inside is fully visible from above.";
                 std::string outsideNote =
                     doorNote + ". The inner face of those outer walls is flat and plain the "
                     "whole way round, and the floor runs right up to it everywhere. The "
@@ -926,7 +942,16 @@ public:
                     if (t == Tile::Wall || t == Tile::Door || t == Tile::Window)
                         hugsWall = true;
                 }
-                if (hugsWall) {
+                // Nor does filler get a box of its own on top of something
+                // the scene has already described. Five heaps of rubble pinned
+                // inside the rectangle of "a round stone well head standing
+                // alone" is two instructions for one square, and the renderer
+                // has to pick.
+                bool onNote = false;
+                for (const Annotation& n : map.annotations)
+                    if (f.x >= n.x && f.x < n.x + std::max(1, n.w) &&
+                        f.y >= n.y && f.y < n.y + std::max(1, n.h)) onNote = true;
+                if (hugsWall || onNote) {
                     std::string pretty = f.kind;
                     std::replace(pretty.begin(), pretty.end(), '_', ' ');
                     ++loose[pretty];

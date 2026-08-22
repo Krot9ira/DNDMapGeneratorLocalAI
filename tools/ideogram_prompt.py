@@ -284,6 +284,18 @@ def _plural(word, count):
     return word + "s"
 
 
+def _wall_thickness(grid, bx, by, bw, bh):
+    """How many squares deep the outer wall of this footprint actually is."""
+    mid = by + bh // 2
+    depth = 0
+    for step in range(bw):
+        if grid.get(bx + step, mid) in (A.WALL, A.DOOR, A.WINDOW):
+            depth += 1
+        else:
+            break
+    return max(1, depth)
+
+
 def _tile_rect(x, y, w, h, cols, rows, limit=0.22, max_tiles=6):
     """Split a rectangle into tiles when it covers a big share of the map.
 
@@ -710,11 +722,19 @@ def build_caption(map_data, style=None, base=None):
                 if doors_here else
                 f"All four of its walls are one continuous face of {enc['face']} running "
                 f"corner to corner")
+            # How thick the wall actually is, said as a share of the picture.
+            # "Thick outer walls" is an invitation, and the renderer accepted
+            # it: a one-square wall came back as a band a sixth of the map
+            # wide, and a band that wide is a place, so it got furnished.
+            thick = _wall_thickness(grid, bx, by, bw, bh)
+            share = max(2, int(round(100.0 * thick / max(bw, bh))))
             shell = (f"One single {size_word} building{', ' + named if named else ''}"
                      f", standing alone inside "
-                     f"this rectangle and nowhere else: thick unbroken outer walls right "
-                     f"on the edges of the rectangle, its roof removed so the furnished "
-                     f"floor inside is fully visible from above.")
+                     f"this rectangle and nowhere else: one unbroken outer wall running "
+                     f"right round the edges of the rectangle, drawn as a narrow line about "
+                     f"{share} percent of the width of this rectangle and no wider - a line, "
+                     f"not a band - with its roof removed so the furnished floor inside is "
+                     f"fully visible from above.")
             outside_note = (f"{door_note}. The inner face of those outer walls is flat and "
                             f"plain the whole way round, and the floor runs right up to it "
                             f"everywhere. The ground immediately outside the building on "
@@ -1068,6 +1088,15 @@ def build_caption(map_data, style=None, base=None):
             fx, fy = int(f["x"]), int(f["y"])
             if any(grid.get(fx + dx, fy + dy) in (A.WALL, A.DOOR, A.WINDOW)
                    for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1))):
+                loose.append(kind.replace("_", " "))
+                continue
+            # Nor does filler get a box of its own on top of something the
+            # scene has already described. Five heaps of rubble pinned inside
+            # the rectangle of "a round stone well head standing alone" is two
+            # instructions for one square, and the renderer has to pick.
+            if any(int(n.get("x", 0)) <= fx < int(n.get("x", 0)) + int(n.get("w", 1))
+                   and int(n.get("y", 0)) <= fy < int(n.get("y", 0)) + int(n.get("h", 1))
+                   for n in (map_data.get("annotations") or [])):
                 loose.append(kind.replace("_", " "))
                 continue
             pinned[kind] = pinned.get(kind, 0) + 1

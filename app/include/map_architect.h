@@ -1350,10 +1350,21 @@ inline std::vector<Feature> PlaceProps(const TileGrid& g, const RoomList& rooms,
         rng.Shuffle(wallSlots);
         rng.Shuffle(openSlots);
         auto centre = r.Center();
-        std::sort(openSlots.begin(), openSlots.end(), [&](auto& a, auto& b) {
-            return std::abs(a.first - centre.first) + std::abs(a.second - centre.second) <
-                   std::abs(b.first - centre.first) + std::abs(b.second - centre.second);
-        });
+        // Toward the middle, but not in a queue: sorted strictly by distance
+        // the props came out as a plus sign of five identical heaps around the
+        // exact centre of the room, which is the repeating pattern the caption
+        // spends its length warning against. Keys are drawn up front, because
+        // a comparator that answers differently each time it is asked is not a
+        // comparator.
+        std::vector<std::pair<float, std::pair<int, int>>> ranked;
+        ranked.reserve(openSlots.size());
+        for (const auto& c : openSlots)
+            ranked.push_back({(float)(std::abs(c.first - centre.first) +
+                                      std::abs(c.second - centre.second)) +
+                                  rng.Float(0.0f, 6.0f), c});
+        std::stable_sort(ranked.begin(), ranked.end(),
+                         [](const auto& a, const auto& b) { return a.first < b.first; });
+        for (size_t i = 0; i < ranked.size(); ++i) openSlots[i] = ranked[i].second;
 
         int placed = 0;
         size_t slot = 0;

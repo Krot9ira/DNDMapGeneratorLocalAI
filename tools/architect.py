@@ -1530,7 +1530,12 @@ def _place_props(grid, rooms, spec, rng, style_props=None):
         rng.shuffle(wall_slots)
         rng.shuffle(open_slots)
         centre = _rect_center(rect)
-        open_slots.sort(key=lambda c: abs(c[0] - centre[0]) + abs(c[1] - centre[1]))
+        # Toward the middle, but not in a queue: sorted strictly by distance the
+        # props came out as a plus sign of five identical heaps around the exact
+        # centre of the room, which is the repeating pattern the caption spends
+        # its length warning against.
+        open_slots.sort(key=lambda c: abs(c[0] - centre[0]) + abs(c[1] - centre[1])
+                        + rng.uniform(0, 6))
 
         for slot, kind in enumerate(wanted[:14]):
             is_filler = slot >= asked_for
