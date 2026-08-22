@@ -928,9 +928,29 @@ def build_caption(map_data, style=None, base=None):
                      f"{exact}")})
 
     # 5. Terrain bodies large enough to matter, biggest first.
+    def _already_described(x, y, w, h):
+        """Has the scene already said what this is, in its own words?
+
+        A lake the author called "absolutely still black water" does not want a
+        second element calling the same rectangle "dark green water". Two
+        answers to one question is worse than one, and it costs a slot.
+        """
+        covered = 0
+        for yy in range(y, y + h):
+            for xx in range(x, x + w):
+                for note in (map_data.get("annotations") or []):
+                    nx, ny = int(note.get("x", 0)), int(note.get("y", 0))
+                    nw, nh = int(note.get("w", 1)), int(note.get("h", 1))
+                    if nx <= xx < nx + nw and ny <= yy < ny + nh:
+                        covered += 1
+                        break
+        return covered >= 0.5 * max(1, w * h)
+
     for kind, phrase in phrases["terrain"].items():
         for (x, y, w, h) in _merge_runs(grid, kind)[:2]:
             if w * h < max(4, cols * rows * 0.02):
+                continue
+            if _already_described(x, y, w, h):
                 continue
             normal.append({"type": "obj", "bbox": _bbox(x, y, w, h, cols, rows),
                            "desc": f"A body of {phrase} filling this region, its edge meeting "
@@ -997,7 +1017,7 @@ def build_caption(map_data, style=None, base=None):
             "desc": (f"{_the(label)}: "
                      + ("the open ground of this place seen from directly above, filling "
                         "this rectangle, with nothing above it and nothing overhanging it"
-                        if site_edge is not None and not host else
+                        if enclosure != "masonry" and not host else
                         "the roofless interior of a room seen from directly "
                         "above, its floor and furniture fully visible and filling this "
                         "rectangle, with no roof, no ceiling and nothing overhanging it")

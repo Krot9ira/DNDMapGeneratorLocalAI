@@ -795,15 +795,16 @@ public:
         }
 
         AddTerrain(normal, g, Tile::Water, say("terrain", "water", "dark green water"),
-                   cols, rows, kExactS);
+                   cols, rows, kExactS, map.annotations);
         AddTerrain(normal, g, Tile::Pit,
                    say("terrain", "pit", "an open pit dropping into darkness"), cols, rows,
-                   kExactS);
+                   kExactS, map.annotations);
         AddTerrain(normal, g, Tile::Rubble,
                    say("terrain", "rubble", "loose rubble and broken stone"), cols, rows,
-                   kExactS);
+                   kExactS, map.annotations);
         AddTerrain(normal, g, Tile::Vegetation,
-                   say("terrain", "vegetation", "dense undergrowth"), cols, rows, kExactS);
+                   say("terrain", "vegetation", "dense undergrowth"), cols, rows, kExactS,
+                   map.annotations);
 
         // 6. Rooms.
         for (const auto& a : map.areas) {
@@ -865,7 +866,7 @@ public:
             }
             std::string oneRoom = single ? ". " + undivided : "";
             std::string opening =
-                (haveSiteEdge && !host)
+                (enclosure != "masonry" && !host)
                     ? "the open ground of this place seen from directly above, filling this "
                       "rectangle, with nothing above it and nothing overhanging it"
                     : "the roofless interior of a room seen from directly above, its floor "
@@ -1195,11 +1196,26 @@ private:
 
     static void AddTerrain(nlohmann::json& elements, const TileGrid& g, Tile kind,
                            const std::string& phrase, int cols, int rows,
-                           const std::string& exact) {
+                           const std::string& exact,
+                           const std::vector<Annotation>& notes) {
         std::vector<Rect> rects = MergeRuns(g, kind, cols, rows);
         int minArea = std::max(4, (int)(cols * rows * 0.02));
         for (size_t i = 0; i < rects.size() && i < 2; ++i) {
             if (rects[i].Area() < minArea) break;
+            // Has the scene already said what this is, in its own words? A lake
+            // the author called "absolutely still black water" does not want a
+            // second element calling the same rectangle "dark green water".
+            const Rect& rr = rects[i];
+            int covered = 0;
+            for (int yy = rr.y; yy < rr.y + rr.h; ++yy)
+                for (int xx = rr.x; xx < rr.x + rr.w; ++xx)
+                    for (const Annotation& n : notes)
+                        if (xx >= n.x && xx < n.x + std::max(1, n.w) &&
+                            yy >= n.y && yy < n.y + std::max(1, n.h)) {
+                            ++covered;
+                            break;
+                        }
+            if (covered >= 0.5 * std::max(1, rr.Area())) continue;
             elements.push_back({
                 {"type", "obj"},
                 {"bbox", Bbox(rects[i].x, rects[i].y, rects[i].w, rects[i].h, cols, rows)},
