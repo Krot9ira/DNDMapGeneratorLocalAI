@@ -922,6 +922,33 @@ public:
                         : "a vertical wall running down the " + side +
                               " of the map, filling the full height of this rectangle from "
                               "its top edge to its bottom edge";
+                // On an open-air site a wall standing on its own is landscape,
+                // not building: a treeline, a hedge, a cliff. Only what belongs
+                // to a building is masonry, and a building's own outline never
+                // gets here.
+                bool inBuilding = false;
+                for (const Rect& bb : buildings)
+                    if (r.x >= bb.x - 1 && r.y >= bb.y - 1 &&
+                        r.x + r.w <= bb.x + bb.w + 1 && r.y + r.h <= bb.y + bb.h + 1)
+                        inBuilding = true;
+                if (enclosure == "open" && !inBuilding) {
+                    std::string natural = encBoundary;
+                    for (const char* art : {"a ", "an ", "the "}) {
+                        std::string low = arch::Lower(natural);
+                        if (low.rfind(art, 0) == 0) {
+                            natural = natural.substr(std::strlen(art));
+                            break;
+                        }
+                    }
+                    walls.push_back({
+                        {"type", "obj"},
+                        {"bbox", Bbox(r.x, r.y, r.w, r.h, cols, rows)},
+                        {"desc", "A band of " + natural + ": " + shape +
+                                 ", filling it completely and keeping the same thickness "
+                                 "along its entire length, solid the whole way with no gap, "
+                                 "no gate and no opening through it. " + kExactS}});
+                    continue;
+                }
                 walls.push_back({
                     {"type", "obj"},
                     {"bbox", Bbox(r.x, r.y, r.w, r.h, cols, rows)},

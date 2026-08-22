@@ -1128,6 +1128,25 @@ def build_caption(map_data, style=None, base=None):
             where = f"down the {side} of the map" if side != "centre" else                     "down the centre of the map"
             shape = (f"a vertical wall running {where}, filling the full height of this "
                      f"rectangle from its top edge to its bottom edge")
+        # On an open-air site a wall standing on its own is landscape, not
+        # building: a treeline, a hedge, a cliff. Only what belongs to a
+        # building is masonry, and a building's own outline never gets here.
+        in_building = any(bx - 1 <= x and by - 1 <= y and
+                          x + w <= bx + bw + 1 and y + h <= by + bh + 1
+                          for (bx, by, bw, bh) in building_rects)
+        if enclosure == "open" and not in_building:
+            natural = enc["boundary"]
+            for article in ("a ", "an ", "the "):
+                if natural.lower().startswith(article):
+                    natural = natural[len(article):]
+                    break
+            walls.append({
+                "type": "obj",
+                "bbox": _bbox(x, y, w, h, cols, rows),
+                "desc": (f"A band of {natural}: {shape}, filling it completely and keeping "
+                         f"the same thickness along its entire length, solid the whole way "
+                         f"with no gap, no gate and no opening through it. {exact}")})
+            continue
         walls.append({
             "type": "obj",
             "bbox": _bbox(x, y, w, h, cols, rows),
