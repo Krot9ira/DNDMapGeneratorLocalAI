@@ -4,7 +4,7 @@
   "category": "Underground",
   "description": "Timber-propped shafts, ore carts on rails and a flooded lower gallery.",
   "palette": "raw rock grey-brown, old timber, rust orange, lantern amber",
-  "lighting": "pitch dark beyond the lantern light, hard pools of warm glow",
+  "lighting": "pitch dark away from the lanterns, hard pools of warm glow",
   "default_layout": "cavern",
   "props": [
     "cart",

@@ -655,12 +655,43 @@ public:
                         band.insert({xx, yy});
                 }
             }
+            // Widened a couple of squares inward: a cliff drawn along the west
+            // side of a gorge stands next to the wall, not on it, and asking
+            // for an exact overlap found nothing at all - so the style went on
+            // describing a palisade round the whole map over the top of two
+            // sheer rock faces.
+            std::set<std::pair<int, int>> bandNear = band;
+            for (const auto& c : band)
+                for (int dx = -2; dx <= 2; ++dx)
+                    for (int dy = -2; dy <= 2; ++dy)
+                        bandNear.insert({c.first + dx, c.second + dy});
             std::set<std::pair<int, int>> spoken;
             for (const auto& note : map.annotations)
                 for (int yy = note.y; yy < note.y + std::max(1, note.h); ++yy)
                     for (int xx = note.x; xx < note.x + std::max(1, note.w); ++xx)
-                        if (band.count({xx, yy})) spoken.insert({xx, yy});
-            if (!band.empty() && spoken.size() >= 0.4 * band.size()) haveSiteEdge = false;
+                        if (bandNear.count({xx, yy})) spoken.insert({xx, yy});
+            // Counted side by side as well as in total. A gorge says what its
+            // west and east walls are and says nothing about its ends, which is
+            // barely a third of the ring.
+            int sidesSpoken = 0;
+            const double halves[4][3] = {
+                {(double)siteEdge.x, siteEdge.x + siteEdge.w / 2.0, 0},
+                {siteEdge.x + siteEdge.w / 2.0, (double)(siteEdge.x + siteEdge.w), 0},
+                {(double)siteEdge.y, siteEdge.y + siteEdge.h / 2.0, 1},
+                {siteEdge.y + siteEdge.h / 2.0, (double)(siteEdge.y + siteEdge.h), 1}};
+            for (const auto& hh : halves) {
+                size_t total = 0, said = 0;
+                for (const auto& c : bandNear) {
+                    double v = hh[2] == 0 ? c.first : c.second;
+                    if (v < hh[0] || v >= hh[1]) continue;
+                    ++total;
+                    if (spoken.count(c)) ++said;
+                }
+                if (total && said >= 0.35 * total) ++sidesSpoken;
+            }
+            if (!bandNear.empty() &&
+                (spoken.size() >= 0.4 * bandNear.size() || sidesSpoken >= 2))
+                haveSiteEdge = false;
         }
         if (haveSiteEdge) {
             walls.push_back({

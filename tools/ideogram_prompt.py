@@ -449,6 +449,14 @@ _SIDE_ON_WORDS = (
 )
 
 
+# Things a lighting line has no business claiming: they are layout, and they end
+# up on every map the style is used for.
+_PLACING_WORDS = (
+    "central ", "in the middle", "round the", "along the", "down the",
+    "beyond the", "at the far", "on one side", "in the centre",
+)
+
+
 def style_warnings(map_data, style):
     """Places where the chosen style argues with the plan it is painting."""
     out = []
@@ -487,6 +495,14 @@ def style_warnings(map_data, style):
     # whole picture into perspective. A cave style that said its crystals grew
     # "from the walls" got three renders in a row with the top of the map drawn
     # as a wall face in elevation, alcoves and all.
+    for phrase in _PLACING_WORDS:
+        body = str(style.get("lighting", "")).lower()
+        if phrase in body:
+            out.append(
+                f"style '{style.get('id', '?')}' says '{phrase}' in its lighting. Lighting "
+                f"says what the light is like, not where anything stands: this one puts "
+                f"that thing on every map the style touches, whatever the plan says.")
+            break
     for phrase in _SIDE_ON_WORDS:
         for key in ("materials", "ground", "lighting", "boundary", "description"):
             body = str(style.get(key, "")).lower()
@@ -849,15 +865,34 @@ def build_caption(map_data, style=None, base=None):
             for xx in range(sx, sx + sw):
                 if xx in (sx, sx + sw - 1) or yy in (sy, sy + sh - 1) or                    grid.get(xx, yy) in (A.WALL, A.DOOR, A.WINDOW):
                     band.add((xx, yy))
+        # Widened a couple of squares inward: a cliff drawn along the west side
+        # of a gorge stands next to the wall, not on it, and asking for an exact
+        # overlap found nothing at all - so the style went on describing a
+        # palisade round the whole map over the top of two sheer rock faces.
+        near = set(band)
+        for (bxx, byy) in list(band):
+            for dx in range(-2, 3):
+                for dy in range(-2, 3):
+                    near.add((bxx + dx, byy + dy))
         spoken = set()
         for note in (map_data.get("annotations") or []):
             nx, ny = int(note.get("x", 0)), int(note.get("y", 0))
             nw, nh = int(note.get("w", 1)), int(note.get("h", 1))
             for yy in range(ny, ny + nh):
                 for xx in range(nx, nx + nw):
-                    if (xx, yy) in band:
+                    if (xx, yy) in near:
                         spoken.add((xx, yy))
-        if band and len(spoken) >= 0.4 * len(band):
+        # Counted side by side as well as in total. A gorge says what its west
+        # and east walls are and says nothing about its ends, which is barely a
+        # third of the ring - and the style went on describing a palisade round
+        # the whole thing over the top of two sheer cliffs.
+        sides = 0
+        for lo, hi, axis in ((sx, sx + sw / 2.0, 0), (sx + sw / 2.0, sx + sw, 0),
+                             (sy, sy + sh / 2.0, 1), (sy + sh / 2.0, sy + sh, 1)):
+            half = {c for c in near if lo <= c[axis] < hi}
+            if half and len(half & spoken) >= 0.35 * len(half):
+                sides += 1
+        if near and (len(spoken) >= 0.4 * len(near) or sides >= 2):
             site_edge = None
     if site_edge is not None:
         (sx, sy, sw, sh) = site_edge
