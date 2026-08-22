@@ -270,8 +270,11 @@ public:
             encBoundary = "a continuous timber bulwark of close-fitted planking running "
                           "right round the outside";
         } else if (enclosure == "open") {
-            encWall = "solid rough rock wall";
-            encFace = "raw rock";
+            // Open air outside; what is built on it is still built. Only the
+            // boundary is natural - a stone house on a city street does not
+            // have walls of raw rock, which is what it was being told it had.
+            encWall = "solid stone wall with visible courses";
+            encFace = "plain masonry";
             encBoundary = "a continuous natural edge closing the site in on all four sides "
                           "- rising ground, rock, earth and dense growth, whatever the "
                           "surroundings are - every part of it natural and unbuilt, with no "
@@ -467,6 +470,11 @@ public:
         //       invention; three named footprints of different sizes do not.
         bool organic = enclosure == "rock" || map.meta.layout == "forest" ||
                        map.meta.layout == "swamp";
+        if (organic && enclosure != "rock") {
+            // Nothing in a cave or a wood is laid course by course.
+            encWall = say("structure", "wall_organic", "solid rough rock wall");
+            encFace = "raw rock";
+        }
         std::vector<Rect> buildings;
         std::vector<std::string> buildingNames;
         // A building holding exactly one room is described once, at one
@@ -906,8 +914,37 @@ public:
                 continue;
             }
             std::string oneRoom = single ? ". " + undivided : "";
+            // The site being open air says nothing about one area inside it: a
+            // stone house on a burning street is a room even though the street
+            // is not. The boundary of the site does not count as its wall, or
+            // every cave would be a room - the architect rings the whole field
+            // whatever is on it.
+            auto onSiteEdge = [&](int px, int py) {
+                if (!haveSiteEdge) return false;
+                const Rect& e = siteEdge;
+                if (px < e.x - 1 || px > e.x + e.w || py < e.y - 1 || py > e.y + e.h)
+                    return false;
+                return px <= e.x + 2 || px >= e.x + e.w - 3 ||
+                       py <= e.y + 2 || py >= e.y + e.h - 3;
+            };
+            int ringCells = 0, ownWall = 0;
+            auto countRing = [&](int px, int py) {
+                ++ringCells;
+                Tile t = g.Get(px, py);
+                if ((t == Tile::Wall || t == Tile::Door || t == Tile::Window) &&
+                    !onSiteEdge(px, py)) ++ownWall;
+            };
+            for (int xx = a.x - 1; xx <= a.x + a.w; ++xx) {
+                countRing(xx, a.y - 1);
+                countRing(xx, a.y + a.h);
+            }
+            for (int yy = a.y; yy < a.y + a.h; ++yy) {
+                countRing(a.x - 1, yy);
+                countRing(a.x + a.w, yy);
+            }
+            bool walledIn = ringCells > 0 && ownWall >= 0.25 * ringCells;
             std::string opening =
-                (enclosure != "masonry" && !host)
+                (enclosure != "masonry" && !host && !walledIn)
                     ? "the open ground of this place seen from directly above, filling this "
                       "rectangle, with nothing above it and nothing overhanging it"
                     : "the roofless interior of a room seen from directly above, its floor "

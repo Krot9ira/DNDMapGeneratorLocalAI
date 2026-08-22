@@ -139,8 +139,11 @@ _ENCLOSURE_WORDS = {
                      "round the outside"),
     },
     "open": {
-        "wall": "solid rough rock wall",
-        "face": "raw rock",
+        # Open air outside; what is built on it is still built. Only the
+        # boundary is natural - a stone house on a city street does not have
+        # walls of raw rock, which is what it was being told it had.
+        "wall": "solid stone wall with visible courses",
+        "face": "plain masonry",
         "boundary": ("a continuous natural edge closing the site in on all four sides - "
                      "rising ground, rock, earth and dense growth, whatever the surroundings "
                      "are - every part of it natural and unbuilt, with no course of laid "
@@ -282,6 +285,34 @@ def _plural(word, count):
     if word.endswith("y") and len(word) > 1 and word[-2] not in "aeiou":
         return word[:-1] + "ies"
     return word + "s"
+
+
+def _is_walled_in(grid, x, y, w, h, site_edge=None):
+    """Is this area walled in by walls of its own, or is it open ground?
+
+    The site being open air says nothing about one area inside it: a stone
+    house on a burning street is a room even though the street is not, and it
+    was being described as open ground because the map it stands on is. The
+    boundary of the site does not count, or every cave would be a room - the
+    architect rings the whole field whatever is on it.
+    """
+    def on_site_edge(px, py):
+        if not site_edge:
+            return False
+        bx, by, bw, bh = site_edge
+        if not (bx - 1 <= px <= bx + bw and by - 1 <= py <= by + bh):
+            return False
+        return (px <= bx + 2 or px >= bx + bw - 3 or
+                py <= by + 2 or py >= by + bh - 3)
+
+    edge, walled = 0, 0
+    ring = [(xx, yy) for xx in range(x - 1, x + w + 1) for yy in (y - 1, y + h)]
+    ring += [(xx, yy) for yy in range(y, y + h) for xx in (x - 1, x + w)]
+    for (px, py) in ring:
+        edge += 1
+        if grid.get(px, py) in (A.WALL, A.DOOR, A.WINDOW) and not on_site_edge(px, py):
+            walled += 1
+    return edge > 0 and walled >= 0.25 * edge
 
 
 def _wall_thickness(grid, bx, by, bw, bh):
@@ -668,6 +699,10 @@ def build_caption(map_data, style=None, base=None):
         return "a building", ""
 
     organic = enclosure == "rock" or layout_name in ("forest", "swamp")
+    if organic:
+        # Nothing in a cave or a wood is laid course by course.
+        enc["wall"] = enc.get("wall") if enclosure == "rock" else wording["wall_organic"]
+        enc["face"] = enc.get("face") if enclosure == "rock" else "raw rock"
     hulls = [(int(st.get("x", 0)), int(st.get("y", 0)), int(st.get("w", 1)),
               int(st.get("h", 1)))
              for st in (map_data.get("structures") or []) if st.get("kind") == "ship"]
@@ -1059,7 +1094,9 @@ def build_caption(map_data, style=None, base=None):
             "desc": (f"{_the(label)}: "
                      + ("the open ground of this place seen from directly above, filling "
                         "this rectangle, with nothing above it and nothing overhanging it"
-                        if enclosure != "masonry" and not host else
+                        if not host and enclosure != "masonry"
+                        and not _is_walled_in(grid, area["x"], area["y"], area["w"],
+                                              area["h"], site_edge) else
                         "the roofless interior of a room seen from directly "
                         "above, its floor and furniture fully visible and filling this "
                         "rectangle, with no roof, no ceiling and nothing overhanging it")
