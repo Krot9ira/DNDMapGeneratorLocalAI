@@ -362,8 +362,10 @@ public:
             "floor-to-ceiling", "vaulted", "stalactite", "chandelier", "rafter",
             "suspended", "its face", "their faces", "the face of", "facade", "frontage",
             "flank", "rising the whole", "rising on either", "rises above", "towering",
-            "taller than a man", "seen from the side", "in profile", "silhouette",
-            "elevation"};
+            "taller than a man", "taller than a person", "seen from the side", "in profile",
+            "silhouette", "elevation", "to the roof", "to the ceiling", "floor to roof",
+            "head height", "upper level", "upper storey", "tall window",
+            "standing upright"};
         static const std::vector<std::string> placing = {
             "central ", "in the middle", "round the", "along the", "down the",
             "beyond the", "at the far", "on one side", "in the centre"};

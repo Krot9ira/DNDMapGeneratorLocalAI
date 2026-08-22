@@ -30,7 +30,7 @@
   "annotations": [
     {
       "label": "Black Lake",
-      "description": "A wide sheet of absolutely still black water filling this whole rectangle from edge to edge, so dark it reflects nothing, its edge meeting the wet rock in a clean irregular line, with a few faint rings spreading on it where water drips from above",
+      "description": "A wide sheet of absolutely still black water filling this whole rectangle from edge to edge, so dark it reflects nothing, its edge meeting the wet rock in a clean irregular line, with a few faint rings spreading on it here and there",
       "elaboration": "exact",
       "x": 1,
       "y": 13,
@@ -66,7 +66,7 @@
     },
     {
       "label": "Pillar Maze",
-      "description": "A close-set group of thick natural rock columns rising from floor to roof, leaving narrow winding gaps between them wide enough for one person",
+      "description": "A close-set group of thick natural rock columns, seen from straight above as a scatter of rounded grey tops with hard shadows beside them, narrow winding gaps between them wide enough for one person",
       "elaboration": "exact",
       "x": 24,
       "y": 3,
@@ -75,7 +75,7 @@
     },
     {
       "label": "Rock Ledge",
-      "description": "A raised shelf of rock standing above the water level, its edge a clean drop to the floor below, with a clear view out across the cave",
+      "description": "A raised shelf of dry rock, seen from straight above as a pale flat table of stone with a hard shadow line round its edge where it drops to the floor",
       "elaboration": "exact",
       "x": 1,
       "y": 4,

@@ -75,7 +75,7 @@
     },
     {
       "label": "Runed Obelisks",
-      "description": "Tall dark stone obelisks standing upright against the wall at even intervals, each one cut with ancient runes, some of the runes burning steadily and others flaring on and off",
+      "description": "Dark stone obelisks set at even intervals along the wall, seen from straight above as rectangular black tops with hard shadows beside them, each one cut with ancient runes, some of the runes burning steadily and others flaring on and off",
       "elaboration": "some",
       "x": 2,
       "y": 2,
@@ -93,7 +93,7 @@
     },
     {
       "label": "Mirror Wall",
-      "description": "A tall mirrored surface filling the whole north wall from side to side, throwing back a reflection of the hall that does not quite match it",
+      "description": "A band of mirrored surface set flush into the north wall from side to side, seen from straight above as a bright reflective strip along the top of the wall, throwing back a reflection of the hall that does not quite match it",
       "elaboration": "exact",
       "x": 6,
       "y": 0,

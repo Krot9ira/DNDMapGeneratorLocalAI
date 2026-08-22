@@ -96,7 +96,7 @@
     },
     {
       "label": "Grand Stair",
-      "description": "A broad stone stair rising out of the water towards the upper level, seen from directly above as straight pale bands, its lowest treads under water and slick with weed",
+      "description": "A broad stone stair running up out of the water, seen from directly above as straight pale bands one behind the next, its lowest treads under water and slick with weed",
       "elaboration": "exact",
       "x": 2,
       "y": 3,
@@ -123,7 +123,7 @@
     },
     {
       "label": "Broken Balcony",
-      "description": "A ruined stone balcony along the library wall above the water, its rail collapsed, close enough to the tops of the bookcases to climb across to them, with a view over the whole room",
+      "description": "A ruined stone ledge running along the library wall clear of the water, seen from straight above as a narrow shelf with its rail fallen away, the tops of the bookcases close enough beside it to climb across to",
       "elaboration": "exact",
       "x": 2,
       "y": 19,
@@ -150,7 +150,7 @@
     },
     {
       "label": "The Throne",
-      "description": "A stone throne on a platform of three steps at the head of the causeway, with an enormous round window behind it, its glass gone, water pouring in through the opening",
+      "description": "A stone throne on a platform of three steps at the head of the causeway, with a broken round opening in the wall behind it, its glass gone, water spilling in across the floor from it",
       "elaboration": "exact",
       "x": 29,
       "y": 2,

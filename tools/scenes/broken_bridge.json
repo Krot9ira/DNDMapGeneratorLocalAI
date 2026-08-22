@@ -100,7 +100,7 @@
     },
     {
       "label": "Terrace Steps",
-      "description": "A broad flight of five stone steps rising from the riverside up onto the eastern terrace, seen from directly above as five straight bands",
+      "description": "A broad flight of five stone steps between the riverside and the eastern terrace, seen from directly above as five straight pale bands one behind the next",
       "elaboration": "exact",
       "x": 26,
       "y": 12,
@@ -109,7 +109,7 @@
     },
     {
       "label": "Ruined Altar",
-      "description": "A broken stone altar standing in the middle of the eastern terrace with a tall carved wall rising behind it, faint ancient symbols still cut into the stone",
+      "description": "A broken stone altar in the middle of the eastern terrace, seen from straight above as a cracked rectangular block, with a carved stone slab fallen flat on the paving beside it, faint ancient symbols still cut into it",
       "elaboration": "exact",
       "x": 30,
       "y": 9,

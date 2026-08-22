@@ -13,7 +13,7 @@
   "rooms": [
     {
       "label": "West Gallery",
-      "description": "A long, high, spotless gallery of white marble running the whole depth of the palace, tall windows down its outer side looking into the garden, gilded suits of armour standing between them on their stands, and slim marble columns spaced down the middle of it with clear floor to walk between them.",
+      "description": "A long, high, spotless gallery of white marble running the whole depth of the palace, window openings down its outer side looking into the garden, gilded suits of armour standing between them on their stands, and slim marble columns spaced down the middle of it with clear floor to walk between them.",
       "size": "l",
       "props": [
         "statue",
@@ -116,7 +116,7 @@
     },
     {
       "label": "Gilded Armour Stands",
-      "description": "A row of gilded suits of plate armour, each standing upright on its own stand with its weapon set neatly beside it, spaced evenly along the length of the gallery wall",
+      "description": "A row of gilded suits of plate armour, each on its own stand with its weapon set neatly beside it, seen from straight above, spaced evenly along the length of the gallery wall",
       "elaboration": "some",
       "x": 3,
       "y": 5,

@@ -4,7 +4,7 @@
   "category": "Interior",
   "description": "One great pillared hall filling the whole map: a rich shop floor, guildhall or audience chamber with nothing subdividing it.",
   "palette": "pale marble white, dark green inlay, gilded brass, deep red velvet, dark walnut",
-  "lighting": "broad daylight falling in from tall windows, warm lamp glow at the walls, soft shadows pooling behind the columns",
+  "lighting": "broad daylight falling in from window openings, warm lamp glow at the walls, soft shadows pooling behind the columns",
   "default_layout": "arena",
   "props": [
     "column",

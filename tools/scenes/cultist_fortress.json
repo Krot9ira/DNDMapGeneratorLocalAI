@@ -63,7 +63,7 @@
     },
     {
       "label": "Armoury Gallery",
-      "description": "A timber gallery built along the end wall of the armoury above head height, reached by a narrow stair of plank treads, with a clear view down over the whole room",
+      "description": "A timber gallery built along the end wall of the armoury reached by a narrow stair of plank treads, with a clear view down over the whole room",
       "elaboration": "exact", "x": 15, "y": 18, "w": 5, "h": 7
     },
     {
@@ -78,12 +78,12 @@
     },
     {
       "label": "Many-Armed Statue",
-      "description": "A tall stone statue of a many-armed creature standing behind the chapel altar, its head turned to face the doorway, a narrow gap left between it and the altar wide enough to pass through in single file",
+      "description": "A stone statue of a many-armed creature, seen from straight above, standing behind the chapel altar, its head turned to face the doorway, a narrow gap left between it and the altar wide enough to pass through in single file",
       "elaboration": "exact", "x": 33, "y": 2, "w": 5, "h": 4
     },
     {
       "label": "Crypt Well",
-      "description": "A deep round well sunk into the middle of the crypt floor, its shaft black, with four stone columns standing around it joined to each other by heavy hanging chains",
+      "description": "A deep round well sunk into the middle of the crypt floor, its shaft black, with four stone columns standing around it joined to each other by heavy chains slung between them",
       "elaboration": "exact", "x": 33, "y": 19, "w": 6, "h": 5
     },
     {

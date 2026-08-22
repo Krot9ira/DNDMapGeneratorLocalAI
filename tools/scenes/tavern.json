@@ -25,7 +25,7 @@
     },
     {
       "label": "Stone Stair",
-      "description": "A broad stone stair rising against the right wall, seen from directly above so each tread reads as a straight pale band across the flight, three of the treads broken away into rubble, its broken timber banister fallen flat across the lowest treads",
+      "description": "A broad stone stair against the right wall, seen from directly above so each tread reads as a straight pale band across the flight, three of the treads broken away into rubble, its broken timber banister fallen flat across the lowest treads",
       "elaboration": "exact",
       "x": 24, "y": 5, "w": 5, "h": 12
     },
@@ -37,7 +37,7 @@
     },
     {
       "label": "Broken Windows",
-      "description": "Two tall windows in the far wall with every pane shattered, cold grey daylight falling through them across the dusty boards, a heavy iron-bound chest standing under each one",
+      "description": "Two window openings in the far wall with every pane shattered, seen from straight above as two bright gaps in the top of the wall, cold grey daylight falling through them across the dusty boards, a heavy iron-bound chest standing under each one",
       "elaboration": "exact",
       "x": 10, "y": 1, "w": 11, "h": 2
     },
