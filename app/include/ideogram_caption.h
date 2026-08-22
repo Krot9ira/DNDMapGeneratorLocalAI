@@ -660,9 +660,12 @@ public:
                 {"bbox", Bbox(siteEdge.x, siteEdge.y, siteEdge.w, siteEdge.h, cols, rows)},
                 {"desc", "The outer edge of the site, drawn as a continuous band right round "
                          "the four sides of this rectangle and nowhere else: " + encBoundary +
-                         ". It is the far limit of the map, not a building: nothing stands "
-                         "on it and nothing is built into it. Everything inside it is open "
-                         "ground. " + kExactS}});
+                         ". It is seen from directly overhead, so what is drawn is the flat "
+                         "top of it looking straight down and never its face; it is solid "
+                         "all the way through, and its edge against the ground inside is one "
+                         "clean continuous line the whole way round. It is the far limit of "
+                         "the map, not a building: nothing stands on it and nothing is set "
+                         "into it. Everything inside it is open ground. " + kExactS}});
         }
 
         // 4. Doors. Few in number and load-bearing for how the map plays, so each
@@ -1087,14 +1090,19 @@ public:
             cap["high_level_description"].get<std::string>() +
             (buildings.size() > 1
                  ? " The buildings are of different sizes and stand in an irregular "
-                   "arrangement; the layout is not symmetrical, not mirrored and not a "
-                   "repeating pattern."
+                   "arrangement."
              : buildings.size() == 1
                  ? " There is exactly one building in this picture and no second building "
-                   "anywhere; the layout is not symmetrical, not mirrored and not a "
-                   "repeating pattern."
-                 : " The layout is not symmetrical, not mirrored and not a repeating "
-                   "pattern.");
+                   "anywhere."
+                 : "");
+        // Said as what the halves are rather than as what the picture is not:
+        // the renderer answered "not mirrored" with a map whose left half was a
+        // mirror of its right, because the word it acted on was "mirrored".
+        cap["high_level_description"] =
+            cap["high_level_description"].get<std::string>() +
+            " The left half of this map and the right half are different from each other, "
+            "and so are the top half and the bottom half: every part of the picture is its "
+            "own shape, and each thing in it appears once, in one place, at its own angle.";
         return cap;
     }
 

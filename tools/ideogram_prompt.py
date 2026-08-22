@@ -803,9 +803,12 @@ def build_caption(map_data, style=None, base=None):
             "bbox": _bbox(sx, sy, sw, sh, cols, rows),
             "desc": (f"The outer edge of the site, drawn as a continuous band right round "
                      f"the four sides of this rectangle and nowhere else: {enc['boundary']}. "
-                     f"It is the far limit of the map, not a building: nothing stands on it "
-                     f"and nothing is built into it. Everything inside it is open ground. "
-                     f"{exact}")})
+                     f"It is seen from directly overhead, so what is drawn is the flat top "
+                     f"of it looking straight down and never its face; it is solid all the "
+                     f"way through, and its edge against the ground inside is one clean "
+                     f"continuous line the whole way round. It is the far limit of the map, "
+                     f"not a building: nothing stands on it and nothing is set into it. "
+                     f"Everything inside it is open ground. {exact}")})
 
     def _which_wall(x, y, w, h):
         """Which wall of which building - so no two doors read the same."""
@@ -1191,13 +1194,17 @@ def build_caption(map_data, style=None, base=None):
     # how a single tavern hall came back ringed with little timber bays.
     count = len(building_rects)
     caption["high_level_description"] += (
-        " The buildings are of different sizes and stand in an irregular arrangement; the "
-        "layout is not symmetrical, not mirrored and not a repeating pattern."
+        " The buildings are of different sizes and stand in an irregular arrangement."
         if count > 1 else
-        " There is exactly one building in this picture and no second building anywhere; "
-        "the layout is not symmetrical, not mirrored and not a repeating pattern."
-        if count == 1 else
-        " The layout is not symmetrical, not mirrored and not a repeating pattern.")
+        " There is exactly one building in this picture and no second building anywhere."
+        if count == 1 else "")
+    # Said as what the halves are rather than as what the picture is not: the
+    # renderer answered "not mirrored" with a map whose left half was a mirror
+    # of its right, because the word it acted on was "mirrored".
+    caption["high_level_description"] += (
+        " The left half of this map and the right half are different from each other, and "
+        "so are the top half and the bottom half: every part of the picture is its own "
+        "shape, and each thing in it appears once, in one place, at its own angle.")
 
     caption["compositional_deconstruction"] = {
         "background": background,
