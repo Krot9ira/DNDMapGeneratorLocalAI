@@ -442,9 +442,10 @@ _DIVIDING_WORDS = ("partition", "divided into rooms", "divide the inside",
 # the walls" and "along the walls" are fine - those things stand on the ground.
 _SIDE_ON_WORDS = (
     "on the wall", "from the wall", "up the wall", "wall-mounted", "wall-hung",
-    "mounted on", "hanging", "hung on", "hung from", "from the ceiling",
-    "on the ceiling", "floor-to-ceiling", "vaulted", "stalactite", "chandelier",
-    "rafter", "suspended",
+    "mounted on", "hanging from", "hanging over", "hanging above", "hung on",
+    "hung from", "hung above", "from the ceiling", "on the ceiling",
+    "floor-to-ceiling", "vaulted", "stalactite", "chandelier", "rafter",
+    "suspended",
 )
 
 
@@ -713,7 +714,8 @@ def build_caption(map_data, style=None, base=None):
             if bx <= ax <= bx + bw and by <= ay <= by + bh:
                 held.append((label, str(a.get("description", "")).strip()))
         if len(held) == 1:
-            return f"the {held[0][0]}", held[0][1]
+            named = _the(held[0][0])
+            return named[0].lower() + named[1:], held[0][1]
         if len(held) > 1:
             # Naming it after one of its rooms was a lie that cost the other
             # rooms their place in the caption. Say what it really is.

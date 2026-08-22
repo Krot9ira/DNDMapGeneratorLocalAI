@@ -19,13 +19,13 @@
   "annotations": [
     {
       "label": "The Long Bar",
-      "description": "A long dark timber bar counter standing against the left wall down most of its length, its top bare and dusty, with shelves of broken bottles on the wall behind it; the near third of the counter has collapsed into a heap of broken boards, leaving a gap somebody could crouch behind",
+      "description": "A long dark timber bar counter standing against the left wall down most of its length, its top bare and dusty, with a tall rack of broken bottles standing against the wall behind it; the near third of the counter has collapsed into a heap of broken boards, leaving a gap somebody could crouch behind",
       "elaboration": "exact",
       "x": 2, "y": 5, "w": 3, "h": 13
     },
     {
       "label": "Stone Stair",
-      "description": "A broad stone stair rising against the right wall, seen from directly above so each tread reads as a straight pale band across the flight, three of the treads broken away into rubble, with a broken timber banister down its open side hanging from a single bracket",
+      "description": "A broad stone stair rising against the right wall, seen from directly above so each tread reads as a straight pale band across the flight, three of the treads broken away into rubble, its broken timber banister fallen flat across the lowest treads",
       "elaboration": "exact",
       "x": 24, "y": 5, "w": 5, "h": 12
     },
@@ -42,8 +42,8 @@
       "x": 10, "y": 1, "w": 11, "h": 2
     },
     {
-      "label": "Fallen Chandelier",
-      "description": "The remains of an old iron chandelier lying on the boards where it fell, its arms bent and its chain trailing across the floor",
+      "label": "Fallen Light Ring",
+      "description": "The remains of a big iron light ring lying flat on the boards where it fell, its arms bent under it and its chain trailing away across the floor",
       "elaboration": "exact",
       "x": 14, "y": 6, "w": 3, "h": 3
     }

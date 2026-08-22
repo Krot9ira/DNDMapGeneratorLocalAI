@@ -568,7 +568,7 @@ public:
                         held.push_back(&ar);
                 }
                 if (held.size() == 1) {
-                    label = "the " + held[0]->label;
+                    label = LowerFirst(TheLabel(held[0]->label));
                     // The room element is skipped when a building holds one, so
                     // without this its description would be thrown away.
                     inside = Trim(held[0]->description);

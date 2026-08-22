@@ -56,12 +56,25 @@ def check(path):
     cap = IP.build_caption(m, agent_api.MapPlanner().load_style(m["meta"]["style"]),
                            agent_api.MapPlanner().load_base())
     text = json.dumps(cap)
+    lowered = text.lower()
     for note in m["annotations"]:
-        if note["label"] not in text:
+        if note["label"].lower() not in lowered:
             fail(scene, f"'{note['label']}' was trimmed out of the caption")
     for area in m["areas"]:
-        if area["label"] and area["label"] not in text:
+        if area["label"] and area["label"].lower() not in lowered:
             fail(scene, f"room '{area['label']}' was trimmed out of the caption")
+
+    # A scene may not ask for something that only exists on a vertical surface
+    # or above the floor: the renderer can only show it by drawing the wall from
+    # the side, and the whole picture tips into perspective to fit it in. The
+    # same rule the styles are held to.
+    for note in m["annotations"] + [dict(a) for a in m["areas"]]:
+        body = (str(note.get("description", "")) + " " + str(note.get("label", ""))).lower()
+        for phrase in IP._SIDE_ON_WORDS:
+            if phrase in body:
+                fail(scene, f"'{note.get('label', '?')}' says '{phrase}' - nothing can be "
+                            f"shown on a wall or overhead from directly above")
+                break
 
     els = cap["compositional_deconstruction"]["elements"]
     return scene, len(m["areas"]), len(m["annotations"]), len(els)
