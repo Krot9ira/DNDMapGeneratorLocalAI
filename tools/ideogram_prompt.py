@@ -437,9 +437,11 @@ def _components(grid, kinds):
             x0 = x1 = sx
             y0 = y1 = sy
             n = 0
+            cells = []
             while stack:
                 x, y = stack.pop()
                 n += 1
+                cells.append((x, y))
                 x0, x1 = min(x0, x), max(x1, x)
                 y0, y1 = min(y0, y), max(y1, y)
                 for dy in (-1, 0, 1):
@@ -449,9 +451,49 @@ def _components(grid, kinds):
                                 and grid.get(nx, ny) in kinds):
                             seen[ny][nx] = True
                             stack.append((nx, ny))
-            out.append((x0, y0, x1 - x0 + 1, y1 - y0 + 1, n))
+            out.append((x0, y0, x1 - x0 + 1, y1 - y0 + 1, n, cells))
     out.sort(key=lambda r: r[2] * r[3], reverse=True)
     return out
+
+
+def _encloses_floor(grid, wall_cells):
+    """How much walkable ground this wall shuts in.
+
+    A cliff running down one side of a gorge is a wall component like any
+    other, and it was being handed over as "one single building standing alone
+    inside this rectangle" - which is how a river gorge came back as a walled
+    compound seven renders running. A wall is a building when you cannot get
+    into what it surrounds without going through it.
+    """
+    wall = set(wall_cells)
+    seen = [[False] * grid.cols for _ in range(grid.rows)]
+    stack = []
+    for x in range(grid.cols):
+        for y in (0, grid.rows - 1):
+            if (x, y) not in wall and not seen[y][x]:
+                seen[y][x] = True
+                stack.append((x, y))
+    for y in range(grid.rows):
+        for x in (0, grid.cols - 1):
+            if (x, y) not in wall and not seen[y][x]:
+                seen[y][x] = True
+                stack.append((x, y))
+    while stack:
+        x, y = stack.pop()
+        for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+            nx, ny = x + dx, y + dy
+            if not (0 <= nx < grid.cols and 0 <= ny < grid.rows):
+                continue
+            if seen[ny][nx] or (nx, ny) in wall:
+                continue
+            seen[ny][nx] = True
+            stack.append((nx, ny))
+    shut_in = 0
+    for y in range(grid.rows):
+        for x in range(grid.cols):
+            if not seen[y][x] and (x, y) not in wall and grid.get(x, y) in A.WALKABLE:
+                shut_in += 1
+    return shut_in
 
 
 def _largest_rects(mask, cols, rows, count, min_area):
@@ -839,7 +881,7 @@ def build_caption(map_data, style=None, base=None):
         # whatever order each language happens to, and two buildings swapping
         # places in the list is two captions that are not the same caption.
         footprints.sort(key=lambda r: (-r[4], r[1], r[0]))
-        for i, (bx, by, bw, bh, _n) in enumerate(footprints[:5]):
+        for i, (bx, by, bw, bh, _n, cells) in enumerate(footprints[:6]):
             if bw < 3 or bh < 3:
                 continue
             # A ring of wall round the whole map is the boundary of the site. On
@@ -860,6 +902,12 @@ def build_caption(map_data, style=None, base=None):
             if organic:
                 # Caves and woodland have no buildings in them; the loop runs
                 # only to find the boundary of the site.
+                continue
+            # A wall is a building when you cannot get into what it surrounds
+            # without going through it. A cliff down one side of a gorge
+            # surrounds nothing, and calling it a building is how the gorge kept
+            # coming back as a walled compound.
+            if _encloses_floor(grid, cells) < 6:
                 continue
             building_rects.append((bx, by, bw, bh))
             size_word = ("large" if bw * bh > cols * rows * 0.12 else
@@ -1134,7 +1182,13 @@ def build_caption(map_data, style=None, base=None):
         in_building = any(bx - 1 <= x and by - 1 <= y and
                           x + w <= bx + bw + 1 and y + h <= by + bh + 1
                           for (bx, by, bw, bh) in building_rects)
-        if enclosure == "open" and not in_building:
+        # ...and only where it runs along the edge of the site. A wall standing
+        # in the middle of a ruined field is a piece of the ruin, and calling it
+        # a bank of drifted sand is no better than calling a treeline masonry.
+        fb = A.border_of(map_data)
+        on_field_edge = (x <= fb + 2 or y <= fb + 2 or
+                         x + w >= cols - fb - 2 or y + h >= rows - fb - 2)
+        if enclosure == "open" and not in_building and on_field_edge:
             natural = enc["boundary"]
             for article in ("a ", "an ", "the "):
                 if natural.lower().startswith(article):
@@ -1143,7 +1197,8 @@ def build_caption(map_data, style=None, base=None):
             walls.append({
                 "type": "obj",
                 "bbox": _bbox(x, y, w, h, cols, rows),
-                "desc": (f"A band of {natural}: {shape}, filling it completely and keeping "
+                "desc": (f"A band of {natural}, {_where_on_map(x, y, cols, rows).lower()}"
+                         f": {shape}, filling it completely and keeping "
                          f"the same thickness along its entire length, solid the whole way "
                          f"with no gap, no gate and no opening through it. It is seen from "
                          f"directly overhead, so what is drawn is the top of it looking "
@@ -1152,7 +1207,8 @@ def build_caption(map_data, style=None, base=None):
         walls.append({
             "type": "obj",
             "bbox": _bbox(x, y, w, h, cols, rows),
-            "desc": (f"A run of {wall_word}: {shape}, filling it completely and keeping the "
+            "desc": (f"A run of {wall_word}, {_where_on_map(x, y, cols, rows).lower()}"
+                     f": {shape}, filling it completely and keeping the "
                      f"same thickness along its entire length, with square ends and solid "
                      f"{enc['face']} everywhere except at the doors listed separately below. "
                      f"{exact}")})
@@ -1171,6 +1227,11 @@ def build_caption(map_data, style=None, base=None):
                     outside[y][x] = False
     for (x, y, w, h) in _largest_rects(outside, cols, rows, 4,
                                        max(6, int(cols * rows * 0.012))):
+        # A one-square strip along the edge is not a piece of open ground worth
+        # an element of its own; it is the sliver left over between a room and
+        # the edge of the field, and four of them ate a sixth of the budget.
+        if min(w, h) < 3:
+            continue
         walls.append({
             "type": "obj",
             "bbox": _bbox(x, y, w, h, cols, rows),

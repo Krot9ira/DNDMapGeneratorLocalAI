@@ -46,7 +46,7 @@ public:
     static constexpr int kMaxSameProp = 3;
     // 8-connected blobs of the given tile kinds, as bounding rectangles with
     // their cell counts, biggest first.
-    struct Blob { Rect rect; int cells; };
+    struct Blob { Rect rect; int cells; std::vector<std::pair<int, int>> at; };
     static std::vector<Blob> Components(const TileGrid& g,
                                         const std::vector<Tile>& kinds) {
         auto wanted = [&](Tile t) {
@@ -61,10 +61,12 @@ public:
                 std::vector<std::pair<int, int>> stack{{sx, sy}};
                 seen[(size_t)sy * g.cols + sx] = 1;
                 int x0 = sx, x1 = sx, y0 = sy, y1 = sy, n = 0;
+                std::vector<std::pair<int, int>> at;
                 while (!stack.empty()) {
                     auto [x, y] = stack.back();
                     stack.pop_back();
                     ++n;
+                    at.push_back({x, y});
                     x0 = std::min(x0, x); x1 = std::max(x1, x);
                     y0 = std::min(y0, y); y1 = std::max(y1, y);
                     for (int dy = -1; dy <= 1; ++dy) {
@@ -78,13 +80,51 @@ public:
                         }
                     }
                 }
-                out.push_back({{x0, y0, x1 - x0 + 1, y1 - y0 + 1}, n});
+                out.push_back({{x0, y0, x1 - x0 + 1, y1 - y0 + 1}, n, std::move(at)});
             }
         }
         std::sort(out.begin(), out.end(), [](const Blob& a, const Blob& b) {
             return a.rect.w * a.rect.h > b.rect.w * b.rect.h;
         });
         return out;
+    }
+
+    // How much walkable ground a wall shuts in. A cliff running down one side
+    // of a gorge is a wall component like any other, and it was being handed
+    // over as "one single building standing alone inside this rectangle" -
+    // which is how a river gorge came back as a walled compound seven renders
+    // running. A wall is a building when you cannot get into what it surrounds
+    // without going through it.
+    static int EnclosesFloor(const TileGrid& g,
+                             const std::vector<std::pair<int, int>>& wallCells) {
+        std::set<std::pair<int, int>> wall(wallCells.begin(), wallCells.end());
+        std::vector<char> seen((size_t)g.cols * g.rows, 0);
+        std::vector<std::pair<int, int>> stack;
+        auto seed = [&](int x, int y) {
+            if (wall.count({x, y}) || seen[(size_t)y * g.cols + x]) return;
+            seen[(size_t)y * g.cols + x] = 1;
+            stack.push_back({x, y});
+        };
+        for (int x = 0; x < g.cols; ++x) { seed(x, 0); seed(x, g.rows - 1); }
+        for (int y = 0; y < g.rows; ++y) { seed(0, y); seed(g.cols - 1, y); }
+        while (!stack.empty()) {
+            auto [x, y] = stack.back();
+            stack.pop_back();
+            const int d[4][2] = {{1, 0}, {-1, 0}, {0, 1}, {0, -1}};
+            for (auto& o : d) {
+                int nx = x + o[0], ny = y + o[1];
+                if (nx < 0 || ny < 0 || nx >= g.cols || ny >= g.rows) continue;
+                if (seen[(size_t)ny * g.cols + nx] || wall.count({nx, ny})) continue;
+                seen[(size_t)ny * g.cols + nx] = 1;
+                stack.push_back({nx, ny});
+            }
+        }
+        int shutIn = 0;
+        for (int y = 0; y < g.rows; ++y)
+            for (int x = 0; x < g.cols; ++x)
+                if (!seen[(size_t)y * g.cols + x] && !wall.count({x, y}) &&
+                    IsWalkable(g.Get(x, y))) ++shutIn;
+        return shutIn;
     }
 
     // Pull the biggest solid rectangles out of a boolean mask. Greedy row
@@ -578,7 +618,7 @@ public:
                                  return a.rect.x < b.rect.x;
                              });
             for (const Blob& b : footprints) {
-                if (buildings.size() >= 5) break;
+                if (buildings.size() >= 6) break;
                 if (b.cells < 6 || b.rect.w < 3 || b.rect.h < 3) continue;
                 // A ship's hull is drawn out of wall tiles and has an element of
                 // its own already.
@@ -608,6 +648,10 @@ public:
                 // Caves and woodland have no buildings in them; the loop runs
                 // only to find the boundary of the site.
                 if (organic) continue;
+                // A wall is a building when you cannot get into what it
+                // surrounds without going through it. A cliff down one side of
+                // a gorge surrounds nothing.
+                if (EnclosesFloor(g, b.at) < 6) continue;
                 buildings.push_back(b.rect);
                 double share = (double)b.rect.w * b.rect.h / std::max(1, cols * rows);
                 std::string sizeWord = share > 0.12 ? "large"
@@ -931,7 +975,15 @@ public:
                     if (r.x >= bb.x - 1 && r.y >= bb.y - 1 &&
                         r.x + r.w <= bb.x + bb.w + 1 && r.y + r.h <= bb.y + bb.h + 1)
                         inBuilding = true;
-                if (enclosure == "open" && !inBuilding) {
+                // ...and only where it runs along the edge of the site. A wall
+                // standing in the middle of a ruined field is a piece of the
+                // ruin, and calling it a bank of drifted sand is no better than
+                // calling a treeline masonry.
+                int fbEdge = arch::BorderOf(map);
+                bool onFieldEdge = r.x <= fbEdge + 2 || r.y <= fbEdge + 2 ||
+                                   r.x + r.w >= cols - fbEdge - 2 ||
+                                   r.y + r.h >= rows - fbEdge - 2;
+                if (enclosure == "open" && !inBuilding && onFieldEdge) {
                     std::string natural = encBoundary;
                     for (const char* art : {"a ", "an ", "the "}) {
                         std::string low = arch::Lower(natural);
@@ -943,7 +995,8 @@ public:
                     walls.push_back({
                         {"type", "obj"},
                         {"bbox", Bbox(r.x, r.y, r.w, r.h, cols, rows)},
-                        {"desc", "A band of " + natural + ": " + shape +
+                        {"desc", "A band of " + natural + ", " +
+                                 LowerFirst(WhereOnMap(r.x, r.y, cols, rows)) + ": " + shape +
                                  ", filling it completely and keeping the same thickness "
                                  "along its entire length, solid the whole way with no gap, "
                                  "no gate and no opening through it. It is seen from "
@@ -954,7 +1007,8 @@ public:
                 walls.push_back({
                     {"type", "obj"},
                     {"bbox", Bbox(r.x, r.y, r.w, r.h, cols, rows)},
-                    {"desc", "A run of " + encWall + ": " + shape +
+                    {"desc", "A run of " + encWall + ", " +
+                             LowerFirst(WhereOnMap(r.x, r.y, cols, rows)) + ": " + shape +
                              ", filling it completely and keeping the same thickness along "
                              "its entire length, with square ends and solid " + encFace +
                              " everywhere except at the doors listed separately below. " +
@@ -986,6 +1040,11 @@ public:
             for (const Rect& r : LargestRects(free_, cols, rows, 4,
                                               std::max(6, (int)(cols * rows * 0.012)))) {
                 (void)given;
+                // A one-square strip along the edge is not a piece of open
+                // ground worth an element of its own; it is the sliver left
+                // over between a room and the edge of the field, and four of
+                // them ate a sixth of the budget.
+                if (std::min(r.w, r.h) < 3) continue;
                 walls.push_back({
                     {"type", "obj"},
                     {"bbox", Bbox(r.x, r.y, r.w, r.h, cols, rows)},
