@@ -55,7 +55,7 @@ class OllamaClient:
             return False
 
     def generate(self, prompt, system=None, format=None, temperature=0.6,
-                 images=None, num_predict=2048, think=None):
+                 images=None, num_predict=2048, think=None, num_ctx=None):
         """Call /api/generate.
 
         `format` may be "json" or a JSON schema dict - the schema path is what
@@ -69,6 +69,12 @@ class OllamaClient:
             "stream": False,
             "options": {"temperature": float(temperature), "num_predict": int(num_predict)},
         }
+        if num_ctx:
+            # Planning a map costs a fraction of what rendering one does, so the
+            # window is sized for the whole system prompt, the style catalogue
+            # and a long answer rather than trimmed to be quick. A plan that got
+            # truncated is a plan somebody has to do again.
+            payload["options"]["num_ctx"] = int(num_ctx)
         if system:
             payload["system"] = system
         if format is not None:

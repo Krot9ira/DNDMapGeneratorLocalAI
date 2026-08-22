@@ -92,6 +92,32 @@ public:
             "- `render_details` is a dense comma-separated list of concrete materials, surface finishes,\n"
             "  colours, wear and damage, stains, and the quality of the light. Be specific: name the kind\n"
             "  of stone, the kind of timber, what is chipped, damp, scorched or overgrown.\n"
+            "- Work it out properly before you answer. Take the description apart: what is underfoot,\n"
+            "  what is built, what is growing, what is broken, what is burning, what blocks a line of\n"
+            "  sight, where a person comes in and where they can go. Every one of those is something\n"
+            "  you can say below, and anything you leave unsaid is invented by the artist instead.\n"
+            "- `annotations` are the strongest tool you have: a named region described in your own\n"
+            "  words, drawn exactly where you put it. Use one for every specific thing the description\n"
+            "  names - a fountain, a collapsed span, a stand of trees, a stair, an altar, a barricade.\n"
+            "  Give each a `label` of two or three words and a `description` of one or two sentences\n"
+            "  saying what it looks like from directly above. Place it with `where` and size it with\n"
+            "  `size`. Six to twelve of them is a rich map; none is a bare one.\n"
+            "- `terrain_zones` put the ground itself somewhere: water, pit, rubble, vegetation, bridge,\n"
+            "  stairs, wall or plain floor, placed with the same `where` and `size`. Use them whenever\n"
+            "  the description says a river runs somewhere, a cliff closes a side, a boardwalk crosses\n"
+            "  a bog or a floor has fallen in. Anything you call a cliff, a wall or a barricade in an\n"
+            "  annotation needs a `wall` zone under it, or the map will have open floor where you said\n"
+            "  there was rock.\n"
+            "- `effects` lay fire, smoke, fog, mist, embers, magic glow, sparks, ash, steam or shadow\n"
+            "  over a region. They sit on top of everything and change nothing underneath.\n"
+            "- `props` may be anything you can name, not only the catalogue: \"bush of raspberries\",\n"
+            "  \"toppled milk churn\", \"cracked scrying bowl\". An object nobody has a word for is still\n"
+            "  drawn, so name what the scene actually needs rather than the nearest stock item.\n"
+            "- `lighting` is optional and says how this place is lit and nothing else - the colour and\n"
+            "  quality of the light and where it falls off. Do not use it to say where anything stands:\n"
+            "  a lighting line that mentions a central fire puts one on the map whatever the plan says.\n"
+            "- `enclosed` on a room says whether it has walls round it. On an outdoor map a street, a\n"
+            "  square or a yard has none; a house standing on that street does.\n"
             "Answer with JSON only.\n";
     }
 
@@ -110,6 +136,50 @@ public:
         props["prop_density"] = {{"type", "string"},
                                  {"enum", std::vector<std::string>{"low", "medium", "high"}}};
         if (!styleIds.empty()) props["style"] = {{"type", "string"}, {"enum", styleIds}};
+
+        // Where something goes, without asking for coordinates.
+        const std::vector<std::string> places = {
+            "across the middle", "along the east edge", "along the north edge",
+            "along the south edge", "along the west edge", "centre", "down the middle",
+            "east", "north", "north-east", "north-west", "over the whole map", "south",
+            "south-east", "south-west", "west"};
+        const std::vector<std::string> sizes = {"s", "m", "l"};
+
+        nlohmann::json note;
+        note["type"] = "object";
+        note["properties"]["label"] = {{"type", "string"}};
+        note["properties"]["description"] = {{"type", "string"}};
+        note["properties"]["where"] = {{"type", "string"}, {"enum", places}};
+        note["properties"]["size"] = {{"type", "string"}, {"enum", sizes}};
+        note["required"] = std::vector<std::string>{"label", "description", "where"};
+        props["annotations"] = {{"type", "array"}, {"items", note}};
+
+        nlohmann::json fx;
+        fx["type"] = "object";
+        fx["properties"]["kind"] = {{"type", "string"},
+                                    {"enum", std::vector<std::string>{
+                                        "fire", "embers", "smoke", "fog", "mist",
+                                        "fireflies", "magic_glow", "holy_light",
+                                        "poison_gas", "blood", "ice", "webs", "sparks",
+                                        "ash", "steam", "shadow"}}};
+        fx["properties"]["where"] = {{"type", "string"}, {"enum", places}};
+        fx["properties"]["size"] = {{"type", "string"}, {"enum", sizes}};
+        fx["properties"]["strength"] = {{"type", "string"},
+                                        {"enum", std::vector<std::string>{
+                                            "low", "medium", "high"}}};
+        fx["required"] = std::vector<std::string>{"kind", "where"};
+        props["effects"] = {{"type", "array"}, {"items", fx}};
+
+        nlohmann::json zone;
+        zone["type"] = "object";
+        zone["properties"]["kind"] = {{"type", "string"},
+                                      {"enum", std::vector<std::string>{
+                                          "water", "pit", "rubble", "vegetation", "bridge",
+                                          "stairs", "wall", "floor"}}};
+        zone["properties"]["where"] = {{"type", "string"}, {"enum", places}};
+        zone["properties"]["size"] = {{"type", "string"}, {"enum", sizes}};
+        zone["required"] = std::vector<std::string>{"kind", "where"};
+        props["terrain_zones"] = {{"type", "array"}, {"items", zone}};
 
         nlohmann::json terrain;
         terrain["type"] = "object";
@@ -160,8 +230,13 @@ public:
         payload["system"] = SystemPrompt();
         payload["stream"] = false;
         payload["format"] = SpecSchema(styleIds);
-        payload["think"] = false;  // thinking preambles leak into the JSON
-        payload["options"] = {{"temperature", cfg.temperature}, {"num_predict", 1400}};
+        // Time spent here is nothing beside the render that follows, so the
+        // model is given room to think and room to answer: a plan that got
+        // truncated is a plan somebody has to do again.
+        payload["think"] = true;
+        payload["options"] = {{"temperature", cfg.temperature},
+                              {"num_predict", 4096},
+                              {"num_ctx", 16384}};
 
         HttpResponse resp = WinHttpClient::PostJson(cfg.base_url + "/api/generate",
                                                     payload.dump(), cfg.timeout_seconds);
@@ -192,8 +267,24 @@ public:
 
         nlohmann::json specJson;
         if (!ExtractJson(text, specJson)) {
-            result.error = "the model did not return usable JSON";
-            return result;
+            // Some models put their working in the answer. Ask again plainly
+            // rather than giving up on the plan.
+            payload["think"] = false;
+            HttpResponse retry = WinHttpClient::PostJson(cfg.base_url + "/api/generate",
+                                                         payload.dump(),
+                                                         cfg.timeout_seconds);
+            if (retry.success) {
+                try {
+                    nlohmann::json j = nlohmann::json::parse(retry.body);
+                    text = j.value("response", std::string(""));
+                    result.raw = text;
+                } catch (const std::exception&) {
+                }
+            }
+            if (!ExtractJson(text, specJson)) {
+                result.error = "the model did not return usable JSON";
+                return result;
+            }
         }
         result.spec = SpecFromJson(specJson, styleId, size);
         result.ok = true;
@@ -259,6 +350,56 @@ public:
                 if (spec.rooms.size() >= 9) break;
             }
         }
+        // The playable field, so a direction can become a rectangle. The bleed
+        // margin is added later and everything shifts with it.
+        auto preset = arch::SizePresetFor(size);
+        int fieldCols = preset.first, fieldRows = preset.second;
+        if (j.contains("annotations") && j["annotations"].is_array()) {
+            for (const auto& aj : j["annotations"]) {
+                if (!aj.is_object()) continue;
+                Annotation a;
+                a.label = aj.value("label", std::string(""));
+                if (a.label.empty()) continue;
+                a.description = aj.value("description", std::string(""));
+                a.elaboration = Elaboration::Exact;
+                Rect r = arch::PlaceInField(aj.value("where", std::string("centre")),
+                                            aj.value("size", std::string("m")),
+                                            fieldCols, fieldRows);
+                a.x = r.x; a.y = r.y; a.w = r.w; a.h = r.h;
+                spec.annotations.push_back(a);
+                if (spec.annotations.size() >= 14) break;
+            }
+        }
+        if (j.contains("effects") && j["effects"].is_array()) {
+            for (const auto& ej : j["effects"]) {
+                if (!ej.is_object()) continue;
+                Effect e;
+                e.kind = arch::Lower(ej.value("kind", std::string("")));
+                if (e.kind.empty()) continue;
+                e.intensity = ej.value("strength", std::string("medium"));
+                Rect r = arch::PlaceInField(ej.value("where", std::string("centre")),
+                                            ej.value("size", std::string("m")),
+                                            fieldCols, fieldRows);
+                e.x = r.x; e.y = r.y; e.w = r.w; e.h = r.h;
+                spec.effects.push_back(e);
+                if (spec.effects.size() >= 6) break;
+            }
+        }
+        if (j.contains("terrain_zones") && j["terrain_zones"].is_array()) {
+            for (const auto& zj : j["terrain_zones"]) {
+                if (!zj.is_object()) continue;
+                TerrainZone z;
+                z.kind = arch::Lower(zj.value("kind", std::string("")));
+                if (z.kind.empty()) continue;
+                Rect r = arch::PlaceInField(zj.value("where", std::string("centre")),
+                                            zj.value("size", std::string("m")),
+                                            fieldCols, fieldRows);
+                z.x = r.x; z.y = r.y; z.w = r.w; z.h = r.h;
+                spec.terrain_zones.push_back(z);
+                if (spec.terrain_zones.size() >= 8) break;
+            }
+        }
+
         // Filled in later, once the style is attached: what closes the site in
         // decides it, and "custom" - which is what a planner almost always
         // answers with - tells you nothing on its own.

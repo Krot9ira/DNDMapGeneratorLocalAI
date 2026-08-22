@@ -234,6 +234,14 @@ struct RoomSpec {
     int enclosed = -1;
 };
 
+// Ground the caller placed itself. Scattering is fine for atmosphere, but a
+// description that says "a river runs down the middle" is giving a rectangle
+// and should be able to say so.
+struct TerrainZone {
+    std::string kind = "rubble";
+    int x = 0, y = 0, w = 1, h = 1;
+};
+
 struct DesignSpec {
     std::string name = "battlemap";
     std::string title = "Battle Map";
@@ -253,6 +261,9 @@ struct DesignSpec {
     // from a gorge: see EnclosureOf.
     std::string style_category;
     std::string style_enclosure;
+    std::vector<TerrainZone> terrain_zones;
+    std::vector<Annotation> annotations;
+    std::vector<Effect> effects;
     bool edge_walls = true;
     float water_fraction = 0.32f;
     // Width of the blank ring added around the finished map, in cells.

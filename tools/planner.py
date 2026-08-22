@@ -16,6 +16,45 @@ from ollama_client import OllamaClient
 
 from paths import ROOT as PROJECT
 
+# Where something goes, without asking a language model for coordinates. Each
+# is a share of the playable field: (x, y, w, h) as fractions.
+PLACEMENTS = {
+    "centre": (0.34, 0.34, 0.32, 0.32),
+    "north": (0.30, 0.06, 0.40, 0.24),
+    "south": (0.30, 0.70, 0.40, 0.24),
+    "west": (0.06, 0.30, 0.24, 0.40),
+    "east": (0.70, 0.30, 0.24, 0.40),
+    "north-west": (0.06, 0.06, 0.30, 0.30),
+    "north-east": (0.64, 0.06, 0.30, 0.30),
+    "south-west": (0.06, 0.64, 0.30, 0.30),
+    "south-east": (0.64, 0.64, 0.30, 0.30),
+    "along the north edge": (0.04, 0.02, 0.92, 0.13),
+    "along the south edge": (0.04, 0.85, 0.92, 0.13),
+    "along the west edge": (0.02, 0.04, 0.13, 0.92),
+    "along the east edge": (0.85, 0.04, 0.13, 0.92),
+    "across the middle": (0.04, 0.42, 0.92, 0.16),
+    "down the middle": (0.42, 0.04, 0.16, 0.92),
+    "over the whole map": (0.02, 0.02, 0.96, 0.96),
+}
+PLACES = sorted(PLACEMENTS)
+_SIZE_SCALE = {"s": 0.62, "m": 1.0, "l": 1.35}
+
+
+def place_in_field(where, size, cols, rows, border):
+    """Turn "north-east" plus a size into a rectangle in field coordinates."""
+    fx, fy, fw, fh = PLACEMENTS.get(str(where or "").lower(), PLACEMENTS["centre"])
+    scale = _SIZE_SCALE.get(str(size or "m").lower(), 1.0)
+    play_w, play_h = max(1, cols - 2 * border), max(1, rows - 2 * border)
+    cx, cy = fx + fw / 2.0, fy + fh / 2.0
+    fw, fh = min(0.96, fw * scale), min(0.96, fh * scale)
+    fx, fy = cx - fw / 2.0, cy - fh / 2.0
+    x = int(round(max(0.0, min(1.0 - fw, fx)) * play_w))
+    y = int(round(max(0.0, min(1.0 - fh, fy)) * play_h))
+    w = max(1, min(play_w - x, int(round(fw * play_w))))
+    h = max(1, min(play_h - y, int(round(fh * play_h))))
+    return x, y, w, h
+
+
 SPEC_SCHEMA = {
     "type": "object",
     "properties": {
@@ -38,6 +77,46 @@ SPEC_SCHEMA = {
                 "shape": {"type": "string", "enum": ["pools", "river"]},
             },
             "required": ["kind"],
+        },
+        "annotations": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "label": {"type": "string"},
+                    "description": {"type": "string"},
+                    "where": {"type": "string", "enum": PLACES},
+                    "size": {"type": "string", "enum": ["s", "m", "l"]},
+                },
+                "required": ["label", "description", "where"],
+            },
+        },
+        "effects": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "kind": {"type": "string", "enum": sorted(A.EFFECTS.keys())},
+                    "where": {"type": "string", "enum": PLACES},
+                    "size": {"type": "string", "enum": ["s", "m", "l"]},
+                    "strength": {"type": "string", "enum": ["low", "medium", "high"]},
+                },
+                "required": ["kind", "where"],
+            },
+        },
+        "terrain_zones": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "kind": {"type": "string",
+                             "enum": ["water", "pit", "rubble", "vegetation", "bridge",
+                                      "stairs", "wall", "floor"]},
+                    "where": {"type": "string", "enum": PLACES},
+                    "size": {"type": "string", "enum": ["s", "m", "l"]},
+                },
+                "required": ["kind", "where"],
+            },
         },
         "rooms": {
             "type": "array",
@@ -104,9 +183,32 @@ Rules:
 - `render_details` is a dense comma-separated list of concrete materials, surface finishes,
   colours, wear and damage, stains, and the quality of the light. Be specific: name the kind
   of stone, the kind of timber, what is chipped, damp, scorched or overgrown.
+- Work it out properly before you answer. Take the description apart: what is underfoot,
+  what is built, what is growing, what is broken, what is burning, what blocks a line of
+  sight, where a person comes in and where they can go. Every one of those is something
+  you can say below, and anything you leave unsaid is invented by the artist instead.
+- `annotations` are the strongest tool you have: a named region described in your own
+  words, drawn exactly where you put it. Use one for every specific thing the description
+  names - a fountain, a collapsed span, a stand of trees, a stair, an altar, a barricade.
+  Give each a `label` of two or three words and a `description` of one or two sentences
+  saying what it looks like from directly above. Place it with `where` and size it with
+  `size`. Six to twelve of them is a rich map; none is a bare one.
+- `terrain_zones` put the ground itself somewhere: water, pit, rubble, vegetation, bridge,
+  stairs, wall or plain floor, placed with the same `where` and `size`. Use them whenever
+  the description says a river runs somewhere, a cliff closes a side, a boardwalk crosses
+  a bog or a floor has fallen in. Anything you call a cliff, a wall or a barricade in an
+  annotation needs a `wall` zone under it, or the map will have open floor where you said
+  there was rock.
+- `effects` lay fire, smoke, fog, mist, embers, magic glow, sparks, ash, steam or shadow
+  over a region. They sit on top of everything and change nothing underneath.
+- `props` may be anything you can name, not only the catalogue: "bush of raspberries",
+  "toppled milk churn", "cracked scrying bowl". An object nobody has a word for is still
+  drawn, so name what the scene actually needs rather than the nearest stock item.
 - `lighting` is optional and says how this place is lit and nothing else - the colour and
   quality of the light and where it falls off. Do not use it to say where anything stands:
   a lighting line that mentions a central fire puts one on the map whatever the plan says.
+- `enclosed` on a room says whether it has walls round it. On an outdoor map a street, a
+  square or a yard has none; a house standing on that street does.
 Answer with JSON only."""
 
 
@@ -204,16 +306,27 @@ class MapPlanner:
                          "their rough arrangement and any water or obstacles you can see.")
         parts.append("Return the design spec as JSON now.")
 
-        raw = self.client.generate(
-            "\n".join(parts),
-            system=SYSTEM_PROMPT,
-            format=schema,
-            temperature=temperature,
-            think=False,
-            images=[sketch_path] if sketch_path else None,
-            num_predict=1400,
-        )
+        # Time spent here is nothing beside the render that follows, so the
+        # model is given room to think and room to answer. If the reasoning
+        # pass tangles the JSON - some models put their working in the answer -
+        # it is asked again plainly rather than failing.
+        def ask(reasoning):
+            return self.client.generate(
+                "\n".join(parts),
+                system=SYSTEM_PROMPT,
+                format=schema,
+                temperature=temperature,
+                think=reasoning,
+                images=[sketch_path] if sketch_path else None,
+                num_predict=4096,
+                num_ctx=16384,
+            )
+
+        raw = ask(True)
         spec = self.client.extract_json(raw)
+        if not isinstance(spec, dict):
+            raw = ask(False)
+            spec = self.client.extract_json(raw)
         if not isinstance(spec, dict):
             raise ValueError(f"Planner returned no usable JSON.\n{raw[:600]}")
         spec.setdefault("size", size)
@@ -242,11 +355,61 @@ class MapPlanner:
         if cols and rows:
             spec["grid"] = {"cols": int(cols), "rows": int(rows)}
 
+        # Terrain the planner placed itself, turned into rectangles here. It
+        # names a direction; the arithmetic is not its job.
+        grid_cfg = spec.get("grid") or {}
+        plan_cols = int(grid_cfg.get("cols") or 0)
+        plan_rows = int(grid_cfg.get("rows") or 0)
+        if not plan_cols or not plan_rows:
+            plan_cols, plan_rows = A.SIZE_PRESETS.get(str(spec.get("size", "medium")),
+                                                      A.SIZE_PRESETS["medium"])
+        zones = []
+        for zone in (spec.get("terrain_zones") or []):
+            if isinstance(zone, dict) and "where" in zone:
+                zx, zy, zw, zh = place_in_field(zone.get("where"), zone.get("size"),
+                                                plan_cols, plan_rows, 0)
+                zones.append({"kind": zone.get("kind", "rubble"),
+                              "x": zx, "y": zy, "w": zw, "h": zh})
+            elif isinstance(zone, dict):
+                zones.append(zone)
+        if zones:
+            spec["terrain_zones"] = zones
+
         map_data = A.build(spec, seed=seed)
         # `render_details` belongs to the map, not the spec: the caption builder
         # reads it from meta when it assembles the style block.
         if spec.get("render_details"):
             map_data["meta"]["render_details"] = spec["render_details"]
+        if spec.get("lighting"):
+            map_data["meta"]["lighting"] = spec["lighting"]
+
+        # Regions the planner described in its own words, and the atmosphere it
+        # laid over them. Both were things only a Python agent could reach; a
+        # language model can now ask for them by naming a direction.
+        border = A.border_of(map_data)
+        cols = int(map_data["grid"]["cols"]) - 2 * border
+        rows = int(map_data["grid"]["rows"]) - 2 * border
+        for note in (spec.get("annotations") or []):
+            if not isinstance(note, dict) or not str(note.get("label", "")).strip():
+                continue
+            nx, ny, nw, nh = place_in_field(note.get("where"), note.get("size"),
+                                            cols, rows, 0)
+            map_data.setdefault("annotations", []).append({
+                "label": str(note["label"]).strip(),
+                "description": str(note.get("description", "")).strip(),
+                "elaboration": note.get("elaboration", "exact"),
+                "x": nx + border, "y": ny + border, "w": nw, "h": nh,
+            })
+        for fx in (spec.get("effects") or []):
+            if not isinstance(fx, dict) or not str(fx.get("kind", "")).strip():
+                continue
+            ex, ey, ew, eh = place_in_field(fx.get("where"), fx.get("size"), cols, rows, 0)
+            map_data.setdefault("effects", []).append({
+                "kind": str(fx["kind"]).strip().lower(),
+                "intensity": fx.get("strength", "medium"),
+                "x": ex + border, "y": ey + border, "w": ew, "h": eh,
+            })
+        map_data, _repairs = A.validate_map(map_data)
         return {
             "spec": spec,
             "map_json": map_data,

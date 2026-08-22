@@ -65,6 +65,8 @@ inline const std::vector<std::string>& LayoutNames() {
 constexpr int kMinCells = 10;
 constexpr int kMaxCells = 150;
 
+inline std::pair<int, int> SizePresetFor(const std::string& name);
+
 inline const std::vector<std::pair<std::string, std::pair<int, int>>>& SizePresets() {
     static const std::vector<std::pair<std::string, std::pair<int, int>>> v = {
         {"small", {17, 13}}, {"medium", {25, 19}}, {"large", {66, 50}},
@@ -1161,6 +1163,67 @@ inline void OpenUpOutdoorRooms(TileGrid& g,
                 g.Set(xx, yy, Tile::Floor);
 }
 
+// Terrain the caller placed itself. Mirrors architect._apply_terrain_zones.
+inline void ApplyTerrainZones(TileGrid& g, const DesignSpec& spec) {
+    for (const TerrainZone& z : spec.terrain_zones) {
+        Tile kind = TileFromName(Lower(z.kind));
+        if (Lower(z.kind) == "floor") kind = Tile::Floor;
+        for (int yy = z.y; yy < z.y + std::max(1, z.h); ++yy)
+            for (int xx = z.x; xx < z.x + std::max(1, z.w); ++xx)
+                if (g.Inside(xx, yy)) g.Set(xx, yy, kind);
+    }
+}
+
+// Where something goes, without asking a language model for coordinates. Each
+// entry is a share of the playable field. Mirrors planner.PLACEMENTS.
+inline Rect PlaceInField(const std::string& where, const std::string& size,
+                         int cols, int rows) {
+    struct Slot { const char* name; double x, y, w, h; };
+    static const Slot slots[] = {
+        {"centre", 0.34, 0.34, 0.32, 0.32},
+        {"north", 0.30, 0.06, 0.40, 0.24},
+        {"south", 0.30, 0.70, 0.40, 0.24},
+        {"west", 0.06, 0.30, 0.24, 0.40},
+        {"east", 0.70, 0.30, 0.24, 0.40},
+        {"north-west", 0.06, 0.06, 0.30, 0.30},
+        {"north-east", 0.64, 0.06, 0.30, 0.30},
+        {"south-west", 0.06, 0.64, 0.30, 0.30},
+        {"south-east", 0.64, 0.64, 0.30, 0.30},
+        {"along the north edge", 0.04, 0.02, 0.92, 0.13},
+        {"along the south edge", 0.04, 0.85, 0.92, 0.13},
+        {"along the west edge", 0.02, 0.04, 0.13, 0.92},
+        {"along the east edge", 0.85, 0.04, 0.13, 0.92},
+        {"across the middle", 0.04, 0.42, 0.92, 0.16},
+        {"down the middle", 0.42, 0.04, 0.16, 0.92},
+        {"over the whole map", 0.02, 0.02, 0.96, 0.96},
+    };
+    const Slot* found = &slots[0];
+    std::string key = Lower(where);
+    for (const Slot& sl : slots)
+        if (key == sl.name) { found = &sl; break; }
+    double scale = 1.0;
+    std::string sz = Lower(size);
+    if (sz == "s") scale = 0.62;
+    else if (sz == "l") scale = 1.35;
+    double fw = std::min(0.96, found->w * scale);
+    double fh = std::min(0.96, found->h * scale);
+    double cx = found->x + found->w / 2.0, cy = found->y + found->h / 2.0;
+    double fx = std::max(0.0, std::min(1.0 - fw, cx - fw / 2.0));
+    double fy = std::max(0.0, std::min(1.0 - fh, cy - fh / 2.0));
+    int x = (int)std::lround(fx * cols), y = (int)std::lround(fy * rows);
+    int w = std::max(1, std::min(cols - x, (int)std::lround(fw * cols)));
+    int h = std::max(1, std::min(rows - y, (int)std::lround(fh * rows)));
+    return {x, y, w, h};
+}
+
+// The grid a named size asks for.
+inline std::pair<int, int> SizePresetFor(const std::string& name) {
+    std::string key = Lower(name);
+    for (const auto& kv : SizePresets())
+        if (kv.first == key) return kv.second;
+    return SizePresets().empty() ? std::make_pair(25, 19) : SizePresets()[1].second;
+}
+
 // --- What closes a site in -------------------------------------------------
 // A gorge is not a building and a clearing has no masonry, but until this
 // existed every map was described to the renderer as though it were a walled
@@ -1588,6 +1651,7 @@ inline MapData Build(DesignSpec spec, uint32_t seed) {
                                              L, ""));
 
     ApplyTerrain(g, rooms, spec, rng);
+    ApplyTerrainZones(g, spec);
     DeriveWalls(g);
     if (!paths.empty()) PlaceDoors(g, rooms, paths);
     EnsureConnected(g, rng);
@@ -1607,6 +1671,8 @@ inline MapData Build(DesignSpec spec, uint32_t seed) {
     // description that said "lit only by the fire" was painted in whatever the
     // style felt like.
     map.meta.lighting = spec.lighting;
+    map.annotations = spec.annotations;
+    map.effects = spec.effects;
     map.meta.terrain_kind = spec.terrain_kind;
     map.meta.terrain_amount = spec.terrain_amount;
     map.meta.prop_density = spec.prop_density;
