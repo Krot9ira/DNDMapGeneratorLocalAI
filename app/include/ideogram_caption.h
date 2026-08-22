@@ -1212,7 +1212,10 @@ public:
             std::string opening =
                 (enclosure != "masonry" && !host && !walledIn)
                     ? "the open ground of this place seen from directly above, filling this "
-                      "rectangle, with nothing above it and nothing overhanging it"
+                      "rectangle, with nothing above it and nothing overhanging it. It is "
+                      "open ground and nothing is built round the edge of it: no wall, no "
+                      "fence, no railing and no kerb marks where it ends, and the ground "
+                      "carries straight on past it on every side"
                     : "the roofless interior of a room seen from directly above, its floor "
                       "and furniture fully visible and filling this rectangle, with no roof, "
                       "no ceiling and nothing overhanging it";
