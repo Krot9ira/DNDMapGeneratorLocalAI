@@ -129,12 +129,13 @@ public:
     // Split a rectangle into tiles when it covers a big share of the map. A
     // single box the size of half the frame is not a useful instruction: the
     // model satisfies it with one blob somewhere inside.
-    static std::vector<Rect> TileRect(int x, int y, int w, int h, int cols, int rows) {
+    static std::vector<Rect> TileRect(int x, int y, int w, int h, int cols, int rows,
+                                      int maxTiles = 6) {
         if (cols <= 0 || rows <= 0 || w * h <= 0.22 * cols * rows)
             return {{x, y, w, h}};
         int nx = (w >= cols * 0.6) ? 3 : 2;
         int ny = (h >= rows * 0.6) ? 3 : 2;
-        while (nx * ny > 6) (nx >= ny ? nx : ny) -= 1;
+        while (nx * ny > maxTiles) (nx >= ny ? nx : ny) -= 1;
         std::vector<Rect> out;
         for (int j = 0; j < ny; ++j) {
             for (int i = 0; i < nx; ++i) {
@@ -320,8 +321,8 @@ public:
             if (named == 1 && only &&
                 (double)only->w * only->h / std::max(1, cols * rows) > 0.45) {
                 onlyRoom = std::string(" The whole of this map is one single ") +
-                       (enclosure == "masonry" ? "room" : "open space") + ", the " +
-                       only->label +
+                       (enclosure == "masonry" ? "room" : "open space") + ", " +
+                       LowerFirst(TheLabel(only->label)) +
                            ", and nothing else: " +
                            std::string(enclosure == "masonry"
                                            ? "one continuous floor from wall to wall with "
@@ -390,6 +391,8 @@ public:
                                 {"desc", text}});
         }
 
+        // Effects covering the whole map; they go in the background.
+        std::vector<std::string> atmosphere;
         // 2. Effects sit on top of everything, so they are described as overlays
         //    and must never be mistaken for a change of ground material.
         for (const auto& eff : map.effects) {
@@ -413,10 +416,21 @@ public:
             std::string body = text + ". This is an atmospheric effect painted over the "
                                "scene, " + how + ", lying on top of the ground without "
                                "replacing it";
+            // An effect lying over most of the map is atmosphere, not a
+            // feature. Handed over as boxes it came back as six identical
+            // elements, which is both a quarter of the budget and the
+            // repeating pattern the rest of the caption spends its length
+            // arguing against. It goes in the background instead, which is
+            // where something covering everything belongs.
+            if (eff.w * eff.h >= 0.25 * cols * rows) {
+                atmosphere.push_back(text + ", " + how + ", lying over the whole map on top "
+                                     "of everything else without replacing any of it");
+                continue;
+            }
             // One huge box makes the model paint the effect in a single corner
             // and call it done. Tiling a large area forces real coverage,
             // because every tile has to be filled on its own.
-            for (const Rect& t : TileRect(eff.x, eff.y, eff.w, eff.h, cols, rows)) {
+            for (const Rect& t : TileRect(eff.x, eff.y, eff.w, eff.h, cols, rows, 4)) {
                 std::string spread =
                     (t.w == eff.w && t.h == eff.h)
                         ? ""
@@ -1043,6 +1057,7 @@ public:
                       "the rectangles are right and this is ignored: " + mats;
         }
         std::string background = ground + " " + base.background_suffix;
+        for (const std::string& note : atmosphere) background += ". " + note;
 
         // The blank ring around the playable field. Content boxes are already
         // inset by it, but the model still has to be told the margin is meant

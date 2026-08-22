@@ -508,7 +508,8 @@ def build_caption(map_data, style=None, base=None):
         if covers > 0.45:
             caption["high_level_description"] += (
                 f" The whole of this map is one single {'room' if built else 'open space'}, "
-                f"the {only['label']}, and nothing else: "
+                f"{_the(only['label'])[0].lower()}{_the(only['label'])[1:]}, "
+                f"and nothing else: "
                 + ("one continuous floor from wall to wall with "
                    if built else "one continuous open ground with ")
                 + f"no interior wall, no partition, no corridor and no smaller room "
@@ -536,6 +537,7 @@ def build_caption(map_data, style=None, base=None):
     # ship. It outranks rooms and scenery because a battle map with the wrong
     # walls is the wrong map, however well painted.
     critical, walls, structure, normal, filler = [], [], [], [], []
+    atmosphere = []   # effects covering the whole map; they go in the background
 
     # The blank margin is asked for in the background text, and painted onto the
     # finished image afterwards by render.trim_to_margin - a box saying "nothing
@@ -581,10 +583,19 @@ def build_caption(map_data, style=None, base=None):
         ew, eh = max(1, int(eff.get("w", 1))), max(1, int(eff.get("h", 1)))
         body_text = (f"{text}. This is an atmospheric effect painted over the scene, {how}, "
                      f"lying on top of the ground without replacing it")
+        # An effect lying over most of the map is atmosphere, not a feature.
+        # Handed over as boxes it came back as six identical elements, which is
+        # both a quarter of the budget and the repeating pattern the rest of the
+        # caption spends its length arguing against. It goes in the background
+        # instead, which is where something covering everything belongs.
+        if ew * eh >= 0.25 * cols * rows:
+            atmosphere.append(f"{text}, {how}, lying over the whole map on top of "
+                              f"everything else without replacing any of it")
+            continue
         # One huge box makes the model paint the effect in a single corner and
         # call it done. Splitting a large area into tiles forces the coverage it
         # was asked for, because every tile has to be filled on its own.
-        for (tx, ty, tw, th) in _tile_rect(ex, ey, ew, eh, cols, rows):
+        for (tx, ty, tw, th) in _tile_rect(ex, ey, ew, eh, cols, rows, max_tiles=4):
             spread = ("" if (tw, th) == (ew, eh) else
                       ", and this patch of it is one part of a single continuous effect "
                       "that covers the whole marked region")
@@ -1153,6 +1164,8 @@ def build_caption(map_data, style=None, base=None):
         "painted with visible brushwork, every part of the ground fully painted with no "
         "blank patches inside the map area")
     background = f"{ground} {suffix}"
+    for note in atmosphere:
+        background += f". {note}"
 
     # The blank ring around the playable field. Content boxes are already inset
     # by it, but the model still has to be told the margin is meant to be empty,
