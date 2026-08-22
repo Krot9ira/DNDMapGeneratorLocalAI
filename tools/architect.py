@@ -1534,8 +1534,9 @@ def _place_props(grid, rooms, spec, rng, style_props=None):
         # props came out as a plus sign of five identical heaps around the exact
         # centre of the room, which is the repeating pattern the caption spends
         # its length warning against.
+        spread = max(6.0, (rect[2] + rect[3]) * 0.35)
         open_slots.sort(key=lambda c: abs(c[0] - centre[0]) + abs(c[1] - centre[1])
-                        + rng.uniform(0, 6))
+                        + rng.uniform(0, spread))
 
         for slot, kind in enumerate(wanted[:14]):
             is_filler = slot >= asked_for

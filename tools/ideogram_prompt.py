@@ -499,6 +499,7 @@ def build_caption(map_data, style=None, base=None):
         f"corner, interrupted only by {door_count} doorways and {window_count} windows, each "
         f"of which is listed below with its own rectangle. Everywhere else that face runs "
         f"straight on.")
+    built = enclosure == "masonry"
     named_areas = [a for a in (map_data.get("areas") or [])
                    if str(a.get("label", "")).strip()]
     if len(named_areas) == 1:
@@ -506,10 +507,13 @@ def build_caption(map_data, style=None, base=None):
         covers = (only.get("w", 0) * only.get("h", 0)) / max(1, cols * rows)
         if covers > 0.45:
             caption["high_level_description"] += (
-                f" The whole of this map is one single room, the {only['label']}, and "
-                f"nothing else: one continuous floor from wall to wall with no interior "
-                f"wall, no partition, no corridor and no smaller room anywhere inside it. "
-                f"Everything standing on that floor is furniture, not architecture.")
+                f" The whole of this map is one single {'room' if built else 'open space'}, "
+                f"the {only['label']}, and nothing else: "
+                + ("one continuous floor from wall to wall with "
+                   if built else "one continuous open ground with ")
+                + f"no interior wall, no partition, no corridor and no smaller room "
+                f"anywhere inside it. Everything standing on it is furniture and scenery, "
+                f"not architecture.")
 
     caption["high_level_description"] += " " + opening_note
     # Nothing in the contract forbade perspective, so a scene that happened to
@@ -666,7 +670,7 @@ def build_caption(map_data, style=None, base=None):
     building_names = []
     single_room_shell = {}   # building index -> the words its one room needs
     site_edge = None         # the walled ring that is the map itself, not a house
-    if not organic:
+    if True:
         footprints = [r for r in _components(grid, (A.WALL, A.DOOR, A.WINDOW))
                       if r[4] >= 6 and not _in_hull(r[0], r[1], r[2], r[3])]
         # Put them in an order both ports agree on. Flood fill visits cells in
@@ -690,6 +694,10 @@ def build_caption(map_data, style=None, base=None):
                           bx + bw >= cols - fb - 1 and by + bh >= rows - fb - 1))
             if fills_map and enclosure != "masonry":
                 site_edge = (bx, by, bw, bh)
+                continue
+            if organic:
+                # Caves and woodland have no buildings in them; the loop runs
+                # only to find the boundary of the site.
                 continue
             building_rects.append((bx, by, bw, bh))
             size_word = ("large" if bw * bh > cols * rows * 0.12 else

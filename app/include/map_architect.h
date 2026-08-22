@@ -1356,12 +1356,13 @@ inline std::vector<Feature> PlaceProps(const TileGrid& g, const RoomList& rooms,
         // spends its length warning against. Keys are drawn up front, because
         // a comparator that answers differently each time it is asked is not a
         // comparator.
+        const float spread = std::max(6.0f, (r.w + r.h) * 0.35f);
         std::vector<std::pair<float, std::pair<int, int>>> ranked;
         ranked.reserve(openSlots.size());
         for (const auto& c : openSlots)
             ranked.push_back({(float)(std::abs(c.first - centre.first) +
                                       std::abs(c.second - centre.second)) +
-                                  rng.Float(0.0f, 6.0f), c});
+                                  rng.Float(0.0f, spread), c});
         std::stable_sort(ranked.begin(), ranked.end(),
                          [](const auto& a, const auto& b) { return a.first < b.first; });
         for (size_t i = 0; i < ranked.size(); ++i) openSlots[i] = ranked[i].second;

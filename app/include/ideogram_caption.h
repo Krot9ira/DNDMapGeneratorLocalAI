@@ -319,11 +319,16 @@ public:
                 if (!a.label.empty()) { ++named; only = &a; }
             if (named == 1 && only &&
                 (double)only->w * only->h / std::max(1, cols * rows) > 0.45) {
-                onlyRoom = " The whole of this map is one single room, the " + only->label +
-                           ", and nothing else: one continuous floor from wall to wall with "
+                onlyRoom = std::string(" The whole of this map is one single ") +
+                       (enclosure == "masonry" ? "room" : "open space") + ", the " +
+                       only->label +
+                           ", and nothing else: " +
+                           std::string(enclosure == "masonry"
+                                           ? "one continuous floor from wall to wall with "
+                                           : "one continuous open ground with ") +
                            "no interior wall, no partition, no corridor and no smaller room "
-                           "anywhere inside it. Everything standing on that floor is "
-                           "furniture, not architecture.";
+                           "anywhere inside it. Everything standing on it is furniture and "
+                           "scenery, not architecture.";
             }
         }
         cap["high_level_description"] =
@@ -458,7 +463,7 @@ public:
         std::map<size_t, std::pair<std::string, std::string>> singleRoomShell;
         bool haveSiteEdge = false;
         Rect siteEdge{0, 0, 0, 0};
-        if (!organic) {
+        {
             std::vector<Rect> hulls;
             for (const auto& st : map.structures)
                 if (st.kind == "ship") hulls.push_back({st.x, st.y, st.w, st.h});
@@ -501,6 +506,9 @@ public:
                     siteEdge = b.rect;
                     continue;
                 }
+                // Caves and woodland have no buildings in them; the loop runs
+                // only to find the boundary of the site.
+                if (organic) continue;
                 buildings.push_back(b.rect);
                 double share = (double)b.rect.w * b.rect.h / std::max(1, cols * rows);
                 std::string sizeWord = share > 0.12 ? "large"
