@@ -111,6 +111,38 @@ print(result["images"])
 
 ---
 
+## Render settings
+
+Everything comes from `config.json`, shared with the app, so an agent renders exactly as a
+person does: **Quality, 48 steps**, guidance 7 dropping to 3 over the last third of the
+schedule, euler, 1.8 megapixels (a 34x26 map lands at 1504x1200), random seed.
+
+Override any of it for one call without touching the file:
+
+```python
+agent_api.generate(spec, comfy_overrides={"preset": "Ultra", "target_megapixels": 2.4})
+```
+
+Presets are `Turbo` 12 steps, `Default` 20, `Quality` 48, `Ultra` 64. Past Quality the
+sampler is well into diminishing returns.
+
+## Seeing what would be sent
+
+```bash
+python tools/pipeline.py caption output/my_map/map.json
+```
+
+The app can do the same without opening a window, which is what to ask for when somebody
+reports a bad render:
+
+```bash
+DndBattlemapGenerator.exe --caption path	o\map.json out.json
+```
+
+`tools/check_caption_parity.py` compares the two across every layout. They should be byte
+for byte identical; if they are not, the app and the tools will paint the same plan
+differently.
+
 ## When it goes wrong
 
 | What you see | What it means |

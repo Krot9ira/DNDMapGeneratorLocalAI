@@ -1477,6 +1477,16 @@ _DEFAULT_ROOMS = [
 ]
 
 
+def _clip_sentence(text, limit):
+    """Trim to a length without leaving the sentence hanging."""
+    text = text.strip()
+    if len(text) <= limit:
+        return text
+    cut = text[:limit]
+    stop = max(cut.rfind(". "), cut.rfind("; "))
+    return (cut[:stop + 1] if stop > limit // 2 else cut.rstrip(" ,;")).strip()
+
+
 def normalize_spec(spec):
     """Accept anything an LLM or agent might plausibly hand us and turn it into
     a spec the generators can rely on."""
@@ -1532,7 +1542,8 @@ def normalize_spec(spec):
             "label": label[:40],
             # What this room is, in the planner's own words. It goes to the
             # renderer with the room's rectangle, so it is worth keeping.
-            "description": str(r.get("description") or r.get("desc") or "")[:400],
+            "description": _clip_sentence(
+                str(r.get("description") or r.get("desc") or ""), 600),
             "size": str(r.get("size", "m"))[:1].lower(),
             "props": r.get("props") or r.get("features") or [],
             "terrain": str(r.get("terrain", "none")).lower(),

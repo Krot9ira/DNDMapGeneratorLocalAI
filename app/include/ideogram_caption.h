@@ -155,6 +155,15 @@ public:
         "level with everything around it, with no perspective, no tilt, no arch or vault "
         "above it, no door frame standing proud, no steps and no visible handle.";
 
+    // Join a phrase to a following sentence with exactly one full stop, however
+    // the phrase happens to end. The wording file is edited by hand, so half
+    // its entries end with a stop and half do not.
+    static std::string Sentence(std::string head, const std::string& tail) {
+        while (!head.empty() && (head.back() == ' ' || head.back() == '.')) head.pop_back();
+        if (head.empty()) return tail;
+        return head + ". " + tail;
+    }
+
     static nlohmann::json Build(const MapData& map, const StyleDef* style,
                                 const BaseStyle& base, const Phrasebook& ph = {}) {
         // Every phrase below can be overridden in styles/_phrases.json; the
@@ -305,7 +314,7 @@ public:
             structure.push_back({
                 {"type", "obj"},
                 {"bbox", Bbox(r.x, r.y, r.w, r.h, cols, rows)},
-                {"desc", say("structure", "door", DOOR_TEXT) + " " + kExactS}});
+                {"desc", Sentence(say("structure", "door", DOOR_TEXT), kExactS)}});
         }
 
         // 4b. Windows. Like doors: few, load-bearing, and invented anywhere the
@@ -314,7 +323,7 @@ public:
             structure.push_back({
                 {"type", "obj"},
                 {"bbox", Bbox(r.x, r.y, r.w, r.h, cols, rows)},
-                {"desc", say("structure", "window", WINDOW_TEXT) + " " + kExactS}});
+                {"desc", Sentence(say("structure", "window", WINDOW_TEXT), kExactS)}});
         }
 
         // 5. Terrain bodies worth naming.
@@ -349,11 +358,19 @@ public:
                 for (int yy = b.rect.y; yy < b.rect.y + b.rect.h; ++yy)
                     for (int xx = b.rect.x; xx < b.rect.x + b.rect.w; ++xx)
                         if (g.Get(xx, yy) == Tile::Door) ++doorsHere;
+                // Stated as what the wall is, not as what it lacks: diffusion
+                // text encoders handle negation badly.
                 std::string doorNote =
-                    doorsHere == 1 ? "Exactly one doorway breaks its wall"
-                  : doorsHere == 0 ? "No doorway breaks its wall at all"
-                                   : "Exactly " + std::to_string(doorsHere) +
-                                     " doorways break its wall";
+                    doorsHere == 1
+                        ? "One single plank-filled gap sits in its wall and the rest of that "
+                          "wall is one continuous face of plain masonry running corner to "
+                          "corner"
+                  : doorsHere == 0
+                        ? "All four of its walls are one continuous face of plain masonry "
+                          "running corner to corner"
+                        : std::to_string(doorsHere) +
+                          " plank-filled gaps sit in its wall and the rest of that wall is "
+                          "one continuous face of plain masonry running corner to corner";
                 // Match a name to a footprint by where it sits, not by list
                 // order - the areas include things that are not buildings, which
                 // is how a warehouse came to be called "the Moored Ship".
@@ -380,9 +397,7 @@ public:
                              "roof removed so the furnished floor inside is fully visible "
                              "from above." + (inside.empty() ? std::string()
                                                              : " " + inside) + " " +
-                             doorNote + ", and the rest of its outer wall "
-                             "is continuous masonry with no second door, no archway and no "
-                             "gap anywhere in it. The ground immediately outside it on every "
+                             doorNote + ". The ground immediately outside it on every "
                              "side is open and free of any wall. " + kExactS}});
             }
         }
@@ -404,9 +419,9 @@ public:
                                        k == Tile::Window) ? Tile::Wall : k);
                 }
             }
-            int emitted = 0;
+            int considered = 0;
             for (const Rect& r : MergeRuns(solid, Tile::Wall, cols, rows)) {
-                if (emitted >= kMaxWallRuns) break;
+                if (considered++ >= kMaxWallRuns) break;
                 // Only genuinely elongated runs. The rest are stubs, or one lump
                 // of an irregular mass, and read as noise either way.
                 if (std::max(r.w, r.h) < 3 || r.w * r.h < 2) continue;
@@ -423,7 +438,6 @@ public:
                                  "whole rectangle solidly, its face irregular and broken but "
                                  "with no passage, gap or opening through it anywhere. ") +
                                  kExactS}});
-                    ++emitted;
                     continue;
                 }
                 std::string shape =
@@ -440,7 +454,6 @@ public:
                              "its entire length, with square ends and solid masonry "
                              "everywhere except at the doors listed separately below. " +
                              kExactS}});
-                ++emitted;
             }
         }
 
@@ -479,6 +492,9 @@ public:
         AddTerrain(normal, g, Tile::Pit,
                    say("terrain", "pit", "an open pit dropping into darkness"), cols, rows,
                    kExactS);
+        AddTerrain(normal, g, Tile::Rubble,
+                   say("terrain", "rubble", "loose rubble and broken stone"), cols, rows,
+                   kExactS);
         AddTerrain(normal, g, Tile::Vegetation,
                    say("terrain", "vegetation", "dense undergrowth"), cols, rows, kExactS);
 
@@ -516,9 +532,9 @@ public:
                 {"desc", "The " + label + ": the roofless interior of a room seen from "
                          "directly above, its floor and furniture fully visible and filling "
                          "this rectangle, with no roof, no ceiling and nothing overhanging "
-                         "it" + oneRoom + (a.description.empty()
-                                               ? std::string()
-                                               : ". " + Trim(a.description))}});
+                         "it" + oneRoom +
+                         (a.description.empty() ? std::string()
+                                                : ". " + TrimStop(Trim(a.description)))}});
         }
 
         // 7. Pinned props get a box; clutter is only described.
@@ -547,7 +563,9 @@ public:
             if (phrase.empty()) continue;
             filler.push_back({{"type", "obj"},
                               {"bbox", Bbox(f.x, f.y, 1, 1, cols, rows)},
-                              {"desc", phrase + ", seen from directly above"}});
+                              {"desc", phrase.find("from directly above") != std::string::npos
+                                           ? phrase
+                                           : phrase + ", seen from directly above"}});
         }
 
         nlohmann::json elements = nlohmann::json::array();
@@ -560,13 +578,15 @@ public:
 
         if (!loose.empty()) {
             std::vector<std::pair<std::string, int>> sorted(loose.begin(), loose.end());
-            std::sort(sorted.begin(), sorted.end(),
-                      [](const auto& a, const auto& b) { return a.second > b.second; });
+            std::sort(sorted.begin(), sorted.end(), [](const auto& a, const auto& b) {
+                if (a.second != b.second) return a.second > b.second;
+                return a.first < b.first;
+            });
             std::string listed;
             for (size_t i = 0; i < sorted.size() && i < 6; ++i) {
                 if (i) listed += ", ";
-                listed += std::to_string(sorted[i].second) + " " + sorted[i].first;
-                if (sorted[i].second > 1 && sorted[i].first.back() != 's') listed += "s";
+                listed += std::to_string(sorted[i].second) + " " +
+                          Plural(sorted[i].first, sorted[i].second);
             }
             elements.push_back({
                 {"type", "obj"},
@@ -653,6 +673,29 @@ private:
         }
     }
 
+    // The tools leave a room description without a closing stop; match that so
+    // the two captions are byte for byte the same.
+    // Enough English to keep "3 torchs" out of the caption.
+    static std::string Plural(const std::string& word, int count) {
+        if (count <= 1 || word.empty()) return word;
+        auto endsWith = [&word](const char* suffix) {
+            size_t n = std::strlen(suffix);
+            return word.size() >= n && word.compare(word.size() - n, n, suffix) == 0;
+        };
+        if (endsWith("s") || endsWith("x") || endsWith("z") || endsWith("ch") ||
+            endsWith("sh"))
+            return word + "es";
+        if (endsWith("y") && word.size() > 1 &&
+            std::string("aeiou").find(word[word.size() - 2]) == std::string::npos)
+            return word.substr(0, word.size() - 1) + "ies";
+        return word + "s";
+    }
+
+    static std::string TrimStop(std::string s) {
+        while (!s.empty() && (s.back() == '.' || s.back() == ' ')) s.pop_back();
+        return s;
+    }
+
     static std::string Trim(std::string s) {
         while (!s.empty() && isspace((unsigned char)s.front())) s.erase(s.begin());
         while (!s.empty() && isspace((unsigned char)s.back())) s.pop_back();
@@ -711,8 +754,11 @@ private:
                 rects.push_back({x, y, w, h});
             }
         }
-        std::sort(rects.begin(), rects.end(),
-                  [](const Rect& a, const Rect& b) { return a.Area() > b.Area(); });
+        std::sort(rects.begin(), rects.end(), [](const Rect& a, const Rect& b) {
+            if (a.Area() != b.Area()) return a.Area() > b.Area();
+            if (a.y != b.y) return a.y < b.y;
+            return a.x < b.x;
+        });
         return rects;
     }
 

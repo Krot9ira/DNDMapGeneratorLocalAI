@@ -155,6 +155,20 @@ def cmd_auto(args):
     cmd_generate(args, map_data=map_data)
 
 
+def cmd_caption(args):
+    """Print exactly what the renderer would be told for a plan, and stop.
+
+    The same thing the app writes with --caption, so the two can be compared
+    when a render does not match the plan.
+    """
+    text = agent_api.make_caption(load_json(args.map))
+    if args.out:
+        Path(args.out).write_text(text, encoding="utf-8")
+        print(f"[caption] wrote {args.out}")
+    else:
+        print(text)
+
+
 def cmd_validate(args):
     data, problems = A.validate_map(load_json(args.map))
     grid = A.zones_to_grid(data)
@@ -216,12 +230,17 @@ def main():
     p.add_argument("--timeout", type=int, default=2400)
     add_common(p)
 
+    p = sub.add_parser("caption", help="print what the renderer would be told")
+    p.add_argument("map")
+    p.add_argument("--out", help="write it to a file instead of the screen")
+
     p = sub.add_parser("validate", help="check and repair a map.json")
     p.add_argument("map")
 
     args = parser.parse_args()
     {"styles": cmd_styles, "plan": cmd_plan, "build": cmd_build, "preview": cmd_preview,
-     "generate": cmd_generate, "auto": cmd_auto, "validate": cmd_validate}[args.command](args)
+     "generate": cmd_generate, "auto": cmd_auto, "caption": cmd_caption,
+     "validate": cmd_validate}[args.command](args)
 
 
 if __name__ == "__main__":

@@ -187,8 +187,19 @@ def _merge_runs(grid, kind):
                 for xx in range(x, x + w):
                     claimed[yy][xx] = True
             rects.append((x, y, w, h))
-    rects.sort(key=lambda r: r[2] * r[3], reverse=True)
+    rects.sort(key=lambda r: (-(r[2] * r[3]), r[1], r[0]))
     return rects
+
+
+def _plural(word, count):
+    """Enough English to keep "3 torchs" out of the caption."""
+    if count <= 1:
+        return word
+    if word.endswith(("s", "x", "z", "ch", "sh")):
+        return word + "es"
+    if word.endswith("y") and len(word) > 1 and word[-2] not in "aeiou":
+        return word[:-1] + "ies"
+    return word + "s"
 
 
 def _tile_rect(x, y, w, h, cols, rows, limit=0.22, max_tiles=6):
@@ -554,10 +565,18 @@ def build_caption(map_data, style=None, base=None):
             # one stated once for the whole map.
             doors_here = sum(1 for yy in range(by, by + bh) for xx in range(bx, bx + bw)
                              if grid.get(xx, yy) == A.DOOR)
+            # Stated as what the wall is, not as what it lacks: diffusion text
+            # encoders handle negation badly, and a count attached to the wall
+            # it belongs to holds far better than one stated for the whole map.
             door_note = (
-                "Exactly one doorway breaks its wall" if doors_here == 1 else
-                f"Exactly {doors_here} doorways break its wall" if doors_here else
-                "No doorway breaks its wall at all")
+                "One single plank-filled gap sits in its wall and the rest of that wall is "
+                "one continuous face of plain masonry running corner to corner"
+                if doors_here == 1 else
+                f"{doors_here} plank-filled gaps sit in its wall and the rest of that wall "
+                f"is one continuous face of plain masonry running corner to corner"
+                if doors_here else
+                "All four of its walls are one continuous face of plain masonry running "
+                "corner to corner")
             walls.append({
                 "type": "obj",
                 "bbox": _bbox(bx, by, bw, bh, cols, rows),
@@ -566,11 +585,8 @@ def build_caption(map_data, style=None, base=None):
                          f"on the edges of the rectangle, its roof removed so the furnished "
                          f"floor inside is fully visible from above."
                          + (f" {inside.rstrip('.')}." if inside else "")
-                         + f" {door_note}, and the "
-                         f"rest of its outer wall is continuous masonry with no second "
-                         f"door, no archway and no gap anywhere in it. The ground "
-                         f"immediately outside it on every side is open and free of any "
-                         f"wall. {exact}")})
+                         + f" {door_note}. The ground immediately outside it on every "
+                         f"side is open and free of any wall. {exact}")})
 
     # 4c. Walls. Until now the renderer was handed room rectangles and left to
     #     invent every wall line itself, which is exactly where the layout came
@@ -706,7 +722,8 @@ def build_caption(map_data, style=None, base=None):
             continue
         filler.append({"type": "obj",
                        "bbox": _bbox(f["x"], f["y"], 1, 1, cols, rows),
-                       "desc": phrase + ", seen from directly above"})
+                       "desc": phrase if "from directly above" in phrase
+                               else phrase + ", seen from directly above"})
 
     elements = critical + walls + structure + normal + filler
     if len(elements) > MAX_ELEMENTS:
@@ -716,8 +733,9 @@ def build_caption(map_data, style=None, base=None):
         counts = {}
         for k in loose:
             counts[k] = counts.get(k, 0) + 1
-        listed = ", ".join(f"{n} {k}" + ("s" if n > 1 and not k.endswith("s") else "")
-                           for k, n in sorted(counts.items(), key=lambda kv: -kv[1])[:6])
+        listed = ", ".join(f"{n} {_plural(k, n)}"
+                           for k, n in sorted(counts.items(),
+                                              key=lambda kv: (-kv[1], kv[0]))[:6])
         elements.append({"type": "obj",
                          "desc": f"Scattered clutter across the walkable ground: {listed}, "
                                  f"arranged against walls and in corners, casting soft shadows"})

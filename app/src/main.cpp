@@ -3234,6 +3234,30 @@ static void SetupFonts() {
     io.Fonts->AddFontDefault();
 }
 
+// --caption <map.json> [out.json]
+//
+// Prints the caption this build would send for that plan and exits. Kept
+// deliberately quiet: no window, no ComfyUI, no side effects. It exists so the
+// app's caption can be compared against the one the Python tools build, and so
+// somebody reporting a bad render can send what was actually asked for.
+static int RunCaptionDump(const std::vector<std::string>& args) {
+    if (args.size() < 2) return 2;
+    MapData map;
+    if (!MapSerializer::LoadFromFile(args[1], map)) return 1;
+    StyleManager styles;
+    styles.stylesDir = "styles";
+    styles.LoadAll();
+    std::string caption = IdeogramCaption::BuildJson(
+        map, styles.Find(map.meta.style), styles.base, styles.phrases);
+    // A file, not stdout: this is a windowed process with no console of its
+    // own, and a bug report wants a file anyway.
+    std::string out = args.size() >= 3 ? args[2] : (args[1] + ".caption.json");
+    std::ofstream f(out, std::ios::binary);
+    if (!f.is_open()) return 1;
+    f << caption;
+    return 0;
+}
+
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int nCmdShow) {
     // Find the project data (styles/, presets/, config.json) by walking up from
     // the executable. One shared copy means editing a style in the app also
@@ -3250,6 +3274,12 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int nCmdShow) {
             }
             SetCurrentDirectoryW(root.c_str());
         }
+    }
+
+    if (__argc >= 3 && std::string(__argv[1]) == "--caption") {
+        std::vector<std::string> args;
+        for (int i = 1; i < __argc; ++i) args.push_back(__argv[i]);
+        return RunCaptionDump(args);
     }
 
     // The same icon in three places: title bar, alt-tab, and the executable

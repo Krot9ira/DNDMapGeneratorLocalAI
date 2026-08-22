@@ -52,7 +52,7 @@ from ollama_client import OllamaClient
 from planner import MapPlanner
 from render import render_preview, render_svg, trim_to_margin
 from ideogram_prompt import style_warnings
-from workflow import build_ideogram4
+from workflow import PRESETS, build_ideogram4
 
 from paths import ROOT as PROJECT
 
@@ -152,13 +152,25 @@ def blueprint(spec, seed=None, out_dir=None, cols=None, rows=None):
 
 
 def generate(spec=None, map_data=None, seed=None, out_dir=None, cols=None, rows=None,
-             timeout=2400, on_progress=None):
+             timeout=2400, on_progress=None, comfy_overrides=None):
     """Full run: spec (or a ready map) -> layout -> Ideogram 4 -> image paths.
+
+    `comfy_overrides` changes render settings for this call only, without
+    touching config.json - `{"preset": "Ultra"}`, `{"target_megapixels": 2.4}`,
+    `{"cfg": 5.0}`. Everything not named keeps the configured value.
 
     Returns a dict with `images`, `map_json`, `caption` and `out_dir`.
     """
     cfg = load_config()
-    comfy_cfg = cfg.get("comfy", {})
+    comfy_cfg = dict(cfg.get("comfy", {}))
+    if comfy_overrides:
+        ideo = dict(comfy_cfg.get("ideogram", {}) or {})
+        ideo.update(comfy_overrides)
+        # A preset carries a step count with it, so naming one and leaving a
+        # stale step count behind would silently ignore the preset.
+        if "preset" in comfy_overrides and "steps" not in comfy_overrides:
+            ideo["steps"] = PRESETS.get(ideo["preset"], {}).get("steps", ideo.get("steps"))
+        comfy_cfg["ideogram"] = ideo
 
     if map_data is not None:
         map_data, problems = A.validate_map(map_data)
