@@ -6,7 +6,7 @@
   "medium": "Inked line art combined with watercolour and gouache painting over digital texture",
   "lighting": "Soft warm ambient light from directly above with gentle directional shadows beneath walls and furniture",
   "forbidden_suffix": "The scene is completely empty of people, creatures and animals, and carries no text, letters, numbers, labels or grid lines anywhere",
-  "background_suffix": "painted with visible brushwork, grime in the joints and damp patches, every part of the ground fully painted with no blank patches inside the map area",
+  "background_suffix": "painted with visible brushwork, every part of the ground fully painted with no blank patches inside the map area",
   "default_palette": [
     "#C8B99A",
     "#8A7B63",
