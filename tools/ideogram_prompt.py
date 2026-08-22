@@ -1095,6 +1095,20 @@ def build_caption(map_data, style=None, base=None):
             break
         if on_outline:
             continue
+        # If a region the scene described covers this run, it has already been
+        # said what it is made of. A treeline laid down as wall came back drawn
+        # as a course of dressed stone, because the generic wall element sat on
+        # top of the annotation that called it mossy trunks.
+        spoken_run = 0
+        for note in (map_data.get("annotations") or []):
+            nx, ny = int(note.get("x", 0)), int(note.get("y", 0))
+            nw, nh = max(1, int(note.get("w", 1))), max(1, int(note.get("h", 1)))
+            for yy in range(y, y + h):
+                for xx in range(x, x + w):
+                    if nx <= xx < nx + nw and ny <= yy < ny + nh:
+                        spoken_run += 1
+        if spoken_run >= 0.5 * max(1, w * h):
+            continue
         if organic:
             walls.append({
                 "type": "obj",

@@ -885,6 +885,18 @@ public:
                     break;
                 }
                 if (onOutline) continue;
+                // If a region the scene described covers this run, it has
+                // already been said what it is made of. A treeline laid down as
+                // wall came back drawn as a course of dressed stone, because
+                // the generic wall element sat on top of the annotation that
+                // called it mossy trunks.
+                int spokenRun = 0;
+                for (const Annotation& n : map.annotations)
+                    for (int yy = r.y; yy < r.y + r.h; ++yy)
+                        for (int xx = r.x; xx < r.x + r.w; ++xx)
+                            if (xx >= n.x && xx < n.x + std::max(1, n.w) &&
+                                yy >= n.y && yy < n.y + std::max(1, n.h)) ++spokenRun;
+                if (spokenRun >= 0.5 * std::max(1, r.w * r.h)) continue;
                 if (organic) {
                     walls.push_back({
                         {"type", "obj"},
