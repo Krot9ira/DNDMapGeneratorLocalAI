@@ -42,6 +42,12 @@ public:
                     cfg.comfy.clip = n.value("clip", cfg.comfy.clip);
                     cfg.comfy.vae = n.value("vae", cfg.comfy.vae);
                     cfg.comfy.preset = n.value("preset", cfg.comfy.preset);
+                    cfg.comfy.steps = n.value("steps", 0);
+                    if (cfg.comfy.steps <= 0)
+                        cfg.comfy.steps = cfg.comfy.preset == "Turbo"   ? 12
+                                        : cfg.comfy.preset == "Default" ? 20
+                                        : cfg.comfy.preset == "Ultra"   ? 64
+                                                                        : 48;
                     cfg.comfy.cfg = n.value("cfg", cfg.comfy.cfg);
                     cfg.comfy.cfg_late = n.value("cfg_late", cfg.comfy.cfg_late);
                     cfg.comfy.cfg_late_start = n.value("cfg_late_start", cfg.comfy.cfg_late_start);
@@ -81,6 +87,7 @@ public:
             n["clip"] = cfg.comfy.clip;
             n["vae"] = cfg.comfy.vae;
             n["preset"] = cfg.comfy.preset;
+            n["steps"] = cfg.comfy.steps;
             n["cfg"] = cfg.comfy.cfg;
             n["cfg_late"] = cfg.comfy.cfg_late;
             n["cfg_late_start"] = cfg.comfy.cfg_late_start;

@@ -313,7 +313,8 @@ struct ComfyConfig {
     std::string unet_uncond = "ideogram4_unconditional_fp8_scaled.safetensors";
     std::string clip = "qwen3vl_8b_fp8_scaled.safetensors";
     std::string vae = "flux2-vae.safetensors";
-    std::string preset = "Quality";      // Quality | Default | Turbo
+    std::string preset = "Quality";      // kept for older config files
+    int steps = 48;                      // 4..64; the presets are three points on it
     float cfg = 7.0f;
     float cfg_late = 3.0f;               // Ideogram drops CFG for the last stretch
     float cfg_late_start = 0.7f;

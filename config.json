@@ -18,7 +18,8 @@
       "cfg_late_start": 0.7,
       "sampler": "euler",
       "target_megapixels": 1.8,
-      "seed": -1
+      "seed": -1,
+      "steps": 48
     }
   },
   "default_style": "city_harbour",

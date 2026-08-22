@@ -2333,13 +2333,22 @@ static void TabRender() {
                         "plan is followed exactly and no blueprint image is needed.");
     ImGui::PopTextWrapPos();
 
-    static const char* kPresetItems[] = {"Quality - 48 steps", "Default - 20 steps",
-                                         "Turbo - 12 steps"};
-    int preset = c.preset == "Quality" ? 0 : (c.preset == "Turbo" ? 2 : 1);
-    if (ImGui::Combo("Quality", &preset, kPresetItems, IM_ARRAYSIZE(kPresetItems)))
-        c.preset = preset == 0 ? "Quality" : (preset == 2 ? "Turbo" : "Default");
-    ImGui::SetItemTooltip("How many painting steps. Quality is slow and best; Turbo is for "
-                          "trying an idea out.");
+    static const char* kPresetItems[] = {"Ultra - 64 steps", "Quality - 48 steps",
+                                         "Default - 20 steps", "Turbo - 12 steps"};
+    static const int kPresetSteps[] = {64, 48, 20, 12};
+    static const char* kPresetIds[] = {"Ultra", "Quality", "Default", "Turbo"};
+    int preset = c.preset == "Ultra"   ? 0
+               : c.preset == "Quality" ? 1
+               : c.preset == "Turbo"   ? 3
+                                       : 2;
+    if (ImGui::Combo("Quality", &preset, kPresetItems, IM_ARRAYSIZE(kPresetItems))) {
+        c.preset = kPresetIds[preset];
+        c.steps = kPresetSteps[preset];
+    }
+    ImGui::SetItemTooltip("How many painting steps the renderer takes. Turbo is for trying "
+                          "an idea out; Quality is the one to use. Ultra costs a third again "
+                          "the time for a little more settling in the fine detail - worth it "
+                          "on a map you are keeping, not on a draft.");
     ImGui::SliderFloat("Guidance", &c.cfg, 1.0f, 12.0f, "%.1f");
     ImGui::SetItemTooltip("How literally the caption is followed. Higher sticks to the "
                           "description, lower lets the model improvise.");

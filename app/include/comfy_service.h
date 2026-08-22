@@ -64,12 +64,28 @@ public:
     // Two UNets - a conditional and an unconditional one - are combined by
     // DualModelGuider to give true classifier-free guidance, alongside
     // Ideogram's own sigma schedule.
+    static constexpr int kMinSteps = 4;
+    static constexpr int kMaxSteps = 64;
+
+    // The scheduler spread that goes with a step count. Ideogram's own presets
+    // pair fewer steps with a wider spread, which is what keeps a short
+    // schedule from coming out muddy; a slider that moved the steps and left
+    // the spread behind would make every setting between the presets worse than
+    // either of them.
+    static float StdForSteps(int steps) {
+        steps = std::clamp(steps, kMinSteps, kMaxSteps);
+        if (steps <= 12) return 2.0f;
+        if (steps >= 48) return 1.5f;
+        if (steps <= 20) return 2.0f + (1.75f - 2.0f) * (steps - 12) / 8.0f;
+        return 1.75f + (1.5f - 1.75f) * (steps - 20) / 28.0f;
+    }
+
     static nlohmann::json BuildGraph(const ComfyConfig& cfg, const std::string& captionJson,
                                      int width, int height, int64_t seed) {
-        int steps = 20;
-        float mu = 0.0f, sigmaStd = 1.75f;
-        if (cfg.preset == "Quality") { steps = 48; sigmaStd = 1.5f; }
-        else if (cfg.preset == "Turbo") { steps = 12; sigmaStd = 2.0f; }
+        int steps = cfg.steps > 0 ? cfg.steps : 48;
+        steps = std::clamp(steps, kMinSteps, kMaxSteps);
+        float mu = 0.0f;
+        float sigmaStd = StdForSteps(steps);
 
         auto snap = [](int v) { return std::max(256, ((v + 15) / 16) * 16); };
         width = snap(width);

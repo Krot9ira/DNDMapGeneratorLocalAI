@@ -15,12 +15,41 @@ drifted. Bounding boxes give an exact layout with no constraint on the painting.
 """
 import random
 
-# Ideogram's own sampling presets, taken from the reference workflow.
+# Ideogram's own sampling presets, taken from the reference workflow. They are
+# three points on one curve rather than three separate modes.
 PRESETS = {
+    # Past Quality the sampler is well into diminishing returns, so Ultra buys
+    # a little more settling of fine detail for a third again the time.
+    "Ultra": {"steps": 64, "mu": 0.0, "std": 1.5},
     "Quality": {"steps": 48, "mu": 0.0, "std": 1.5},
     "Default": {"steps": 20, "mu": 0.0, "std": 1.75},
     "Turbo": {"steps": 12, "mu": 0.0, "std": 2.0},
 }
+
+MIN_STEPS = 4
+MAX_STEPS = 64
+
+
+def std_for_steps(steps):
+    """The scheduler spread that goes with a step count.
+
+    The three presets pair fewer steps with a wider spread, which is what keeps
+    a short schedule from coming out muddy. A slider that moved the steps and
+    left the spread behind would make every setting between the presets worse
+    than either of them, so it is interpolated across the same curve and held
+    flat outside it.
+    """
+    anchors = [(12, 2.0), (20, 1.75), (48, 1.5)]
+    steps = max(MIN_STEPS, min(MAX_STEPS, int(steps)))
+    if steps <= anchors[0][0]:
+        return anchors[0][1]
+    if steps >= anchors[-1][0]:
+        return anchors[-1][1]
+    for (s0, v0), (s1, v1) in zip(anchors, anchors[1:]):
+        if s0 <= steps <= s1:
+            t = (steps - s0) / float(s1 - s0)
+            return round(v0 + (v1 - v0) * t, 4)
+    return anchors[-1][1]
 
 
 def _seed(seed):
@@ -46,6 +75,7 @@ def build_ideogram4(cfg, caption_json, seed=None, width=None, height=None):
     seed = _seed(seed if seed is not None else c.get("seed", -1))
     preset = PRESETS.get(c.get("preset", "Quality"), PRESETS["Quality"])
     steps = int(c.get("steps") or preset["steps"])
+    steps = max(MIN_STEPS, min(MAX_STEPS, steps))
     width = _snap(width, 1536)
     height = _snap(height, 1152)
 
@@ -96,7 +126,7 @@ def build_ideogram4(cfg, caption_json, seed=None, width=None, height=None):
         "sigmas": {
             "inputs": {"steps": steps, "width": width, "height": height,
                        "mu": float(c.get("mu", preset["mu"])),
-                       "std": float(c.get("std", preset["std"]))},
+                       "std": float(c["std"]) if c.get("std") else std_for_steps(steps)},
             "class_type": "Ideogram4Scheduler",
         },
         "sampler_sel": {
