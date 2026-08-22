@@ -1091,6 +1091,18 @@ public:
         // kind of place this is - and the rest, which says where everything
         // stands, is dropped. A map with nothing of its own to say still gets
         // all of it, because then there is nothing for it to argue with.
+        // The map's own list of materials. The planner asks every agent for one
+        // - "a dense comma-separated list of concrete materials, surface
+        // finishes" - and it was stored on the map and then never used
+        // anywhere, so a scene that said exactly what it was made of was
+        // painted out of a style's general idea of the genre instead. It goes
+        // where the style's text used to, and it cannot argue with the plan,
+        // because it came with it.
+        {
+            std::string details = Trim(map.meta.render_details);
+            while (!details.empty() && details.back() == '.') details.pop_back();
+            if (!details.empty()) ground += ". " + details;
+        }
         size_t saidByMap = 0;
         for (const Area& a : map.areas) saidByMap += a.description.size();
         bool speaksForItself = !map.annotations.empty() || saidByMap > 200;

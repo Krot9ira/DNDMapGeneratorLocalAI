@@ -1234,6 +1234,15 @@ def build_caption(map_data, style=None, base=None):
         head_stop = materials.find(". ")
         if head_stop > 0:
             materials = materials[:head_stop + 1].strip()
+    # The map's own list of materials. The planner asks every agent for one -
+    # "a dense comma-separated list of concrete materials, surface finishes" -
+    # and it was stored on the map and then never used anywhere, so a scene that
+    # said exactly what it was made of was painted out of a style's general
+    # idea of the genre instead. It goes where the style's text used to, and it
+    # cannot argue with the plan, because it came with it.
+    details = str(meta.get("render_details", "")).strip()
+    if details:
+        ground = f"{ground}. {details.rstrip('.')}"
     if materials and speaks_for_itself:
         ground = f"{ground}. {materials.rstrip('.')}"
     elif materials:
