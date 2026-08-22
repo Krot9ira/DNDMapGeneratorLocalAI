@@ -91,6 +91,10 @@ add_custom_command(TARGET DndBattlemapGenerator POST_BUILD
             "${CMAKE_CURRENT_SOURCE_DIR}/tools/render.py"
             "${CMAKE_CURRENT_SOURCE_DIR}/tools/workflow.py"
             "${DIST_DIR}/tools"
+    # The scene files and the descriptions they were built from travel together:
+    # a scene without its description cannot be checked against anything.
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
+            "${CMAKE_CURRENT_SOURCE_DIR}/tools/scenes" "${DIST_DIR}/tools/scenes"
 
     # Documentation. Only the finished manual ships; the HTML source and the
     # development report stay in the repository.

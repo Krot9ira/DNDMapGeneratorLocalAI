@@ -19,36 +19,44 @@ import agent_api          # noqa: E402
 import architect as A     # noqa: E402
 
 
-def main():
-    ap = argparse.ArgumentParser()
-    ap.add_argument("scene")
-    ap.add_argument("--plan-only", action="store_true",
-                    help="build the plan and stop, without rendering")
-    ap.add_argument("--seed", type=int, default=7)
-    ap.add_argument("--out", help="output directory")
-    args = ap.parse_args()
+def build_scene(spec, seed=7):
+    """Turn a scene file into a finished map.
 
-    spec = json.loads(Path(args.scene).read_text(encoding="utf-8"))
+    A scene file is an ordinary agent spec plus `annotations` and `effects`
+    written in field coordinates - the ones a person reads off the plan. The
+    bleed margin is added by the architect, so they are shifted here to match.
+    Both the checker and the renderer come through this function; when they had
+    one each, a scene could pass the check and render as a different map.
+    """
+    spec = dict(spec)
     pinned = spec.pop("annotations", [])
-    name = spec.get("name") or Path(args.scene).stem
-    out = args.out or str(A.PROJECT / "output" / name) if hasattr(A, "PROJECT") else None
-
-    built = agent_api.build_map(spec, seed=args.seed)
+    layered = spec.pop("effects", [])
+    built = agent_api.build_map(spec, seed=seed)
     m = built["map_json"]
-    for p in built.get("problems", []):
-        print("  !", p)
-
-    # Hand-pinned things are written in field coordinates; the stored map counts
-    # from the outside of the bleed margin.
     b = A.border_of(m)
     for note in pinned:
-        m["annotations"].append({
+        m.setdefault("annotations", []).append({
             "label": note["label"],
             "description": note["description"],
             "elaboration": note.get("elaboration", "exact"),
             "x": note["x"] + b, "y": note["y"] + b,
             "w": note["w"], "h": note["h"],
         })
+    for fx in layered:
+        m.setdefault("effects", []).append({
+            "kind": fx["kind"], "strength": fx.get("strength", "medium"),
+            "x": fx["x"] + b, "y": fx["y"] + b,
+            "w": fx["w"], "h": fx["h"],
+        })
+    return m, spec, built.get("problems", [])
+
+
+def run_one(path, args):
+    raw = json.loads(Path(path).read_text(encoding="utf-8"))
+    name = raw.get("name") or Path(args.scene).stem
+    m, spec, problems = build_scene(raw, seed=args.seed)
+    for p in problems:
+        print("  !", p)
     A.validate_map(m)
 
     out_dir = args.out or str(Path(agent_api.PROJECT) / "output" / name)
@@ -60,6 +68,29 @@ def main():
     result = agent_api.generate_from_map(m, out_dir=out_dir, seed=args.seed,
                                          on_progress=lambda n: print("  ", n))
     print("images:", result["images"])
+
+
+def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument("scene", nargs="?",
+                    help="a scene file; omit it and pass --all for the whole suite")
+    ap.add_argument("--all", action="store_true",
+                    help="render every scene in tools/scenes, one after another")
+    ap.add_argument("--plan-only", action="store_true",
+                    help="build the plan and stop, without rendering")
+    ap.add_argument("--seed", type=int, default=7)
+    ap.add_argument("--out", help="output directory")
+    args = ap.parse_args()
+
+    if args.all:
+        scenes = sorted((Path(__file__).resolve().parent / "scenes").glob("*.json"))
+        for i, path in enumerate(scenes, 1):
+            print(f"[{i}/{len(scenes)}] {path.stem}")
+            run_one(path, args)
+        return
+    if not args.scene:
+        ap.error("give a scene file, or --all")
+    run_one(args.scene, args)
 
 
 if __name__ == "__main__":

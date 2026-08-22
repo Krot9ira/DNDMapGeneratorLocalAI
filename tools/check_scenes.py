@@ -16,6 +16,7 @@ from paths import ROOT  # noqa: E402
 import agent_api          # noqa: E402
 import architect as A     # noqa: E402
 import ideogram_prompt as IP  # noqa: E402
+import render_scene        # noqa: E402
 
 WALKABLE = {A.FLOOR, A.BRIDGE, A.RUBBLE, A.VEGETATION, A.STAIRS, A.DOOR}
 problems = []
@@ -28,19 +29,10 @@ def fail(scene, msg):
 def check(path):
     scene = path.stem
     spec = json.loads(path.read_text(encoding="utf-8"))
-    pinned = spec.pop("annotations", [])
-
-    built = agent_api.build_map(spec, seed=7)
-    m = built["map_json"]
-    for p in built.get("problems", []):
+    m, _spec, problems = render_scene.build_scene(spec, seed=7)
+    for p in problems:
         fail(scene, p)
-
     b = A.border_of(m)
-    for note in pinned:
-        m["annotations"].append({
-            "label": note["label"], "description": note["description"],
-            "elaboration": note.get("elaboration", "exact"),
-            "x": note["x"] + b, "y": note["y"] + b, "w": note["w"], "h": note["h"]})
     m, repairs = A.validate_map(m)
     for r in repairs:
         fail(scene, r)

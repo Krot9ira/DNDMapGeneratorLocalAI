@@ -1,0 +1,222 @@
+{
+  "title": "The Marble Palace",
+  "name": "scene_marble_palace",
+  "style": "merchant_hall",
+  "layout": "custom",
+  "grid": {
+    "cols": 48,
+    "rows": 36
+  },
+  "scene_summary": "A spotless white and pale grey marble palace with the roof off: a long west gallery, a great hall with a stair dividing into two flights, an eastern banquet hall, and a formal garden behind them, everything polished and freshly laid out for guests.",
+  "render_details": "Polished white and pale grey marble in large slabs, gilded column bases, deep burgundy carpet, gold candle stands with even flames, gilded suits of plate armour on stands, white linen, silver dishes and crystal glass, clipped green hedges in geometric patterns, white stone paths, clear fountain water, pale marble statues",
+  "prop_density": "medium",
+  "rooms": [
+    {
+      "label": "West Gallery",
+      "description": "A long, high, spotless gallery of white marble running the whole depth of the palace, tall windows down its outer side looking into the garden, gilded suits of armour standing between them on their stands, and slim marble columns spaced down the middle of it with clear floor to walk between them.",
+      "size": "l",
+      "props": [
+        "statue",
+        "statue",
+        "pillar",
+        "pillar",
+        "weapon_rack"
+      ],
+      "x": 2,
+      "y": 2,
+      "w": 12,
+      "h": 32
+    },
+    {
+      "label": "Grand Hall",
+      "description": "An enormous state hall of polished white marble, so clean it reflects the light, with a deep burgundy carpet laid down the middle of it, tall gilded columns along both sides, and small round tables of fresh flowers set between them. Nothing is broken here and there is no dust anywhere.",
+      "size": "l",
+      "props": [
+        "pillar",
+        "pillar",
+        "pillar",
+        "pillar",
+        "table",
+        "table"
+      ],
+      "x": 15,
+      "y": 2,
+      "w": 18,
+      "h": 20
+    },
+    {
+      "label": "Banquet Hall",
+      "description": "A rich banqueting hall with one long table down the middle of it under white linen, laid with silver dishes, crystal glasses and porcelain, tall folding screens standing along the walls with the servants' spaces behind them, and a low raised platform at the far end.",
+      "size": "l",
+      "props": [
+        "table",
+        "chair",
+        "chair",
+        "chair",
+        "bench"
+      ],
+      "x": 34,
+      "y": 2,
+      "w": 12,
+      "h": 20
+    },
+    {
+      "label": "Palace Garden",
+      "description": "A formal walled garden of clipped hedges in geometric patterns, broad white stone paths running between them, tall ornamental trees along its edges and pale marble statues standing among them. Every plant is trimmed and nothing is overgrown.",
+      "size": "l",
+      "props": [
+        "statue",
+        "statue",
+        "bench",
+        "bench",
+        "tree"
+      ],
+      "x": 15,
+      "y": 24,
+      "w": 31,
+      "h": 10
+    }
+  ],
+  "annotations": [
+    {
+      "label": "Carved Entrance Doors",
+      "description": "A pair of enormous carved doors of dark wood with gold inlay set in the outer wall, standing open, seen from directly overhead as two flat leaves lying flush in the wall opening",
+      "elaboration": "exact",
+      "x": 21,
+      "y": 2,
+      "w": 6,
+      "h": 2
+    },
+    {
+      "label": "Burgundy Carpet",
+      "description": "One enormous rectangular carpet of deep burgundy with a woven gold border, lying flat on the polished marble down the middle of the hall, its edges square to the room",
+      "elaboration": "exact",
+      "x": 20,
+      "y": 6,
+      "w": 8,
+      "h": 9
+    },
+    {
+      "label": "Divided Marble Stair",
+      "description": "A broad white marble stair at the far end of the hall, seen from directly above as flat bands: it rises in one wide flight and then divides into two matching flights that turn away from each other to left and right, with a white marble balustrade along the landing above",
+      "elaboration": "exact",
+      "x": 18,
+      "y": 16,
+      "w": 12,
+      "h": 5
+    },
+    {
+      "label": "Flower Tables",
+      "description": "Two small round tables of white marble standing one on each side of the carpet, each with a tall vase of fresh cut flowers on it",
+      "elaboration": "exact",
+      "x": 17,
+      "y": 8,
+      "w": 14,
+      "h": 3
+    },
+    {
+      "label": "Gilded Armour Stands",
+      "description": "A row of gilded suits of plate armour, each standing upright on its own stand with its weapon set neatly beside it, spaced evenly along the length of the gallery wall",
+      "elaboration": "some",
+      "x": 3,
+      "y": 5,
+      "w": 3,
+      "h": 24
+    },
+    {
+      "label": "Gallery Columns",
+      "description": "Several slim white marble columns with gold bases standing down the middle of the gallery, well apart from each other, with clear polished floor between them to walk through",
+      "elaboration": "exact",
+      "x": 7,
+      "y": 11,
+      "w": 5,
+      "h": 12
+    },
+    {
+      "label": "Library Doors",
+      "description": "A pair of tall double doors at the far end of the gallery, closed, seen from directly overhead as two flat leaves flush with the wall",
+      "elaboration": "exact",
+      "x": 4,
+      "y": 32,
+      "w": 4,
+      "h": 2
+    },
+    {
+      "label": "Banquet Table",
+      "description": "One long banqueting table under a white linen cloth running down the middle of the hall, laid the whole way with silver dishes, crystal glasses and porcelain plates, chairs drawn up along both of its sides",
+      "elaboration": "exact",
+      "x": 37,
+      "y": 5,
+      "w": 6,
+      "h": 11
+    },
+    {
+      "label": "Folding Screens",
+      "description": "Tall decorative folding screens standing flat against the wall in a line, with narrow service spaces behind them holding stacked trays and covered dishes",
+      "elaboration": "some",
+      "x": 44,
+      "y": 4,
+      "w": 2,
+      "h": 16
+    },
+    {
+      "label": "Musician's Platform",
+      "description": "A low raised platform of pale marble at the far end of the banquet hall, seen from directly above, with a grand piano standing on it and several armchairs set beside it",
+      "elaboration": "exact",
+      "x": 37,
+      "y": 18,
+      "w": 8,
+      "h": 3
+    },
+    {
+      "label": "Garden Fountain",
+      "description": "A large round stone fountain in the middle of the garden with four carved basins, clear water spilling from each of them into the pool below, the water perfectly clean",
+      "elaboration": "exact",
+      "x": 28,
+      "y": 26,
+      "w": 6,
+      "h": 6
+    },
+    {
+      "label": "Clipped Hedges",
+      "description": "Low hedges clipped into a geometric pattern of straight lines and square corners, with broad paths of white stone running between them",
+      "elaboration": "exact",
+      "x": 16,
+      "y": 25,
+      "w": 10,
+      "h": 8
+    },
+    {
+      "label": "Garden Pavilion",
+      "description": "A small open pavilion of white stone at the far corner of the garden, its floor raised a step above the path, open on every side so the whole courtyard can be seen from inside it",
+      "elaboration": "exact",
+      "x": 40,
+      "y": 28,
+      "w": 5,
+      "h": 5
+    }
+  ],
+  "terrain_zones": [
+    {
+      "kind": "vegetation",
+      "x": 16,
+      "y": 25,
+      "w": 10,
+      "h": 8
+    },
+    {
+      "kind": "water",
+      "x": 29,
+      "y": 27,
+      "w": 4,
+      "h": 4
+    },
+    {
+      "kind": "vegetation",
+      "x": 36,
+      "y": 25,
+      "w": 3,
+      "h": 8
+    }
+  ]
+}

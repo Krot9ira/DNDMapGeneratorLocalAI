@@ -1,0 +1,166 @@
+{
+  "title": "The Misty Swamp",
+  "name": "scene_misty_swamp",
+  "style": "marsh_bog",
+  "layout": "custom",
+  "grid": {
+    "cols": 34,
+    "rows": 30
+  },
+  "scene_summary": "A wide colourless bog under thick white fog: wet mossy ground broken by narrow channels of dark water, an old timber boardwalk running through the middle of it with raised sections, huge mossy boulders on one side, tall dead trees on the other, and a small stone island with a round chapel on it at the far end.",
+  "render_details": "Wet peat and moss in washed-out greys and greens, low sedge grass, narrow bands of black standing water, weathered grey planking, lichen and moss on stone, bare pale dead trunks with tangled branches, dull yellow lantern light drowned in fog, old grey chapel masonry",
+  "prop_density": "medium",
+  "rooms": [
+    {
+      "label": "The Mire",
+      "description": "One continuous stretch of soft wet bog: peat and moss and low sedge, cut through by narrow bands of dark standing water, with nothing built on it anywhere except the boardwalk described separately. Everything is drained of colour by the fog.",
+      "size": "l",
+      "props": [
+        "stump",
+        "boulder",
+        "bush",
+        "tree",
+        "rubble"
+      ],
+      "x": 1,
+      "y": 1,
+      "w": 32,
+      "h": 28
+    }
+  ],
+  "annotations": [
+    {
+      "label": "The Boardwalk",
+      "description": "An old timber boardwalk of wide weathered grey planks running the length of this rectangle over the wet ground, with short plank bridges carrying it across the channels of water, some of its boards sprung and one or two missing",
+      "elaboration": "exact",
+      "x": 14,
+      "y": 1,
+      "w": 5,
+      "h": 28
+    },
+    {
+      "label": "Raised Platform",
+      "description": "A section of the boardwalk built a good step higher than the rest, a flat plank deck with a low rail on one side, standing above the bog with a clear view over it",
+      "elaboration": "exact",
+      "x": 13,
+      "y": 9,
+      "w": 7,
+      "h": 4
+    },
+    {
+      "label": "Second Platform",
+      "description": "Another raised plank deck further along the boardwalk, level and clear, its posts sunk into the peat below it",
+      "elaboration": "exact",
+      "x": 13,
+      "y": 19,
+      "w": 7,
+      "h": 4
+    },
+    {
+      "label": "Mossy Boulders",
+      "description": "Several enormous boulders standing out of the bog, each one taller than a person and thick with moss and pale lichen, close enough together to shelter behind and solid enough that nothing can be seen through them",
+      "elaboration": "exact",
+      "x": 2,
+      "y": 8,
+      "w": 9,
+      "h": 12
+    },
+    {
+      "label": "Dead Trees",
+      "description": "A stand of tall bare dead trees with pale trunks, their branches tangled together overhead into dark silhouettes, standing in wet ground with their roots exposed",
+      "elaboration": "some",
+      "x": 22,
+      "y": 4,
+      "w": 10,
+      "h": 16
+    },
+    {
+      "label": "Old Lanterns",
+      "description": "Two old iron lanterns hung on leaning wooden posts beside the boardwalk, each throwing a weak yellow circle of light onto the planks that the fog swallows a pace away",
+      "elaboration": "exact",
+      "x": 13,
+      "y": 14,
+      "w": 7,
+      "h": 3
+    },
+    {
+      "label": "Chapel Island",
+      "description": "A small island of dry pale stone at the far end of the bog, its edges a clean line against the black water",
+      "elaboration": "exact",
+      "x": 12,
+      "y": 24,
+      "w": 11,
+      "h": 5
+    },
+    {
+      "label": "Round Chapel",
+      "description": "A small round chapel of ancient grey stone standing on the island, its roof taken off so its bare circular floor is visible from above, its double doors standing wide open and nothing but darkness inside",
+      "elaboration": "exact",
+      "x": 14,
+      "y": 25,
+      "w": 6,
+      "h": 4
+    }
+  ],
+  "terrain_zones": [
+    {
+      "kind": "water",
+      "x": 4,
+      "y": 3,
+      "w": 8,
+      "h": 2
+    },
+    {
+      "kind": "water",
+      "x": 2,
+      "y": 21,
+      "w": 11,
+      "h": 3
+    },
+    {
+      "kind": "water",
+      "x": 21,
+      "y": 21,
+      "w": 12,
+      "h": 3
+    },
+    {
+      "kind": "water",
+      "x": 24,
+      "y": 2,
+      "w": 3,
+      "h": 8
+    },
+    {
+      "kind": "vegetation",
+      "x": 22,
+      "y": 4,
+      "w": 10,
+      "h": 16
+    },
+    {
+      "kind": "bridge",
+      "x": 14,
+      "y": 1,
+      "w": 5,
+      "h": 28
+    },
+    {
+      "kind": "floor",
+      "x": 12,
+      "y": 24,
+      "w": 11,
+      "h": 5
+    }
+  ],
+  "effects": [
+    {
+      "kind": "fog",
+      "strength": "high",
+      "x": 1,
+      "y": 1,
+      "w": 32,
+      "h": 28
+    }
+  ]
+}

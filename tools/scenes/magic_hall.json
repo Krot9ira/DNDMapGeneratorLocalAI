@@ -1,0 +1,168 @@
+{
+  "title": "Hall of Unstable Magic",
+  "name": "scene_magic_hall",
+  "style": "arcane_library",
+  "layout": "custom",
+  "grid": {
+    "cols": 32,
+    "rows": 32
+  },
+  "scene_summary": "A huge round hall of polished black stone with glowing lines of energy moving under its surface, four raised circular platforms joined to the floor by narrow stone bridges, tall runed obelisks round the wall, a stretch of floor missing in the south where things hang weightless, and a mirror wall across the north end.",
+  "render_details": "Glass-smooth black stone with coloured light moving beneath it, thin threads of violet, cyan and gold energy, pale grey stone platforms and narrow bridges, tall dark obelisks cut with glowing runes, torn floor edges over an empty void, a full-height mirrored surface reflecting the room",
+  "prop_density": "low",
+  "rooms": [
+    {
+      "label": "The Rotunda",
+      "description": "One enormous round hall with a floor of perfectly smooth black stone, glowing lines of energy running slowly beneath its surface in complex patterns. It is one open space with nothing built across it except what is described separately.",
+      "size": "l",
+      "props": [
+        "pillar",
+        "pillar",
+        "rune_circle",
+        "crystal"
+      ],
+      "x": 1,
+      "y": 1,
+      "w": 30,
+      "h": 30
+    }
+  ],
+  "annotations": [
+    {
+      "label": "The Great Crystal",
+      "description": "An enormous many-faceted crystal seen from straight above, turning slowly over the middle of the hall, with thin threads of violet, cyan and gold energy running out of it in every direction across the floor and into the walls, and a bright circle of its light thrown onto the black stone directly beneath it",
+      "elaboration": "exact",
+      "x": 13,
+      "y": 13,
+      "w": 6,
+      "h": 6
+    },
+    {
+      "label": "North Platform",
+      "description": "A round platform of pale grey stone standing a step above the floor, its edge a clean circle, joined to the floor by one narrow stone bridge",
+      "elaboration": "exact",
+      "x": 13,
+      "y": 6,
+      "w": 6,
+      "h": 5
+    },
+    {
+      "label": "South Platform",
+      "description": "A round platform of pale grey stone standing a step above the floor, its edge a clean circle, joined to the floor by one narrow stone bridge",
+      "elaboration": "exact",
+      "x": 13,
+      "y": 21,
+      "w": 6,
+      "h": 5
+    },
+    {
+      "label": "West Platform",
+      "description": "A round platform of pale grey stone standing a step above the floor, its edge a clean circle, joined to the floor by one narrow stone bridge",
+      "elaboration": "exact",
+      "x": 5,
+      "y": 13,
+      "w": 5,
+      "h": 6
+    },
+    {
+      "label": "East Platform",
+      "description": "A round platform of pale grey stone standing a step above the floor, its edge a clean circle, joined to the floor by one narrow stone bridge",
+      "elaboration": "exact",
+      "x": 22,
+      "y": 13,
+      "w": 5,
+      "h": 6
+    },
+    {
+      "label": "Runed Obelisks",
+      "description": "Tall dark stone obelisks standing upright against the wall at even intervals, each one cut with ancient runes, some of the runes burning steadily and others flaring on and off",
+      "elaboration": "some",
+      "x": 2,
+      "y": 2,
+      "w": 28,
+      "h": 3
+    },
+    {
+      "label": "Weightless Zone",
+      "description": "A stretch where the floor is simply gone, its torn edges dropping into empty black nothing, with loose stones, broken fragments and beads of water hanging motionless in the air above the gap",
+      "elaboration": "exact",
+      "x": 10,
+      "y": 26,
+      "w": 12,
+      "h": 4
+    },
+    {
+      "label": "Mirror Wall",
+      "description": "A tall mirrored surface filling the whole north wall from side to side, throwing back a reflection of the hall that does not quite match it",
+      "elaboration": "exact",
+      "x": 6,
+      "y": 1,
+      "w": 20,
+      "h": 2
+    },
+    {
+      "label": "Energy Lines",
+      "description": "Bright thin lines of coloured energy running through the black stone just below its surface, curving into complicated geometric patterns and meeting at the middle of the hall",
+      "elaboration": "some",
+      "x": 4,
+      "y": 8,
+      "w": 24,
+      "h": 16
+    }
+  ],
+  "terrain_zones": [
+    {
+      "kind": "pit",
+      "x": 10,
+      "y": 26,
+      "w": 12,
+      "h": 4
+    },
+    {
+      "kind": "bridge",
+      "x": 15,
+      "y": 11,
+      "w": 2,
+      "h": 3
+    },
+    {
+      "kind": "bridge",
+      "x": 15,
+      "y": 18,
+      "w": 2,
+      "h": 4
+    },
+    {
+      "kind": "bridge",
+      "x": 10,
+      "y": 15,
+      "w": 4,
+      "h": 2
+    },
+    {
+      "kind": "bridge",
+      "x": 18,
+      "y": 15,
+      "w": 4,
+      "h": 2
+    }
+  ],
+  "effects": [
+    {
+      "kind": "magic_glow",
+      "strength": "high",
+      "x": 4,
+      "y": 8,
+      "w": 24,
+      "h": 16
+    },
+    {
+      "kind": "sparks",
+      "strength": "medium",
+      "x": 13,
+      "y": 13,
+      "w": 6,
+      "h": 6
+    }
+  ]
+}
