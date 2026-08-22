@@ -287,9 +287,13 @@ static std::string OutputDir(const std::string& name) {
 // and the app cannot drift apart on it.
 static void AttachStyle(DesignSpec& spec) {
     const StyleDef* s = g_app.styles.Find(spec.style);
-    if (!s) return;
-    spec.style_category = s->category;
-    spec.style_enclosure = s->enclosure;
+    if (s) {
+        spec.style_category = s->category;
+        spec.style_enclosure = s->enclosure;
+    }
+    // An open-air site runs off the frame; anything else is closed in.
+    spec.edge_walls = arch::EnclosureOf(spec.style_enclosure, spec.style_category,
+                                        spec.layout, "") != "open";
 }
 
 static DesignSpec SpecFromUi() {
@@ -313,10 +317,6 @@ static DesignSpec SpecFromUi() {
     spec.rows = g_app.rows;
     spec.border = std::clamp(g_app.config.border_cells, 0, 8);
 
-    bool outdoor = spec.layout == "harbour" || spec.layout == "open" ||
-                   spec.layout == "street" || spec.layout == "forest" ||
-                   spec.layout == "swamp" || spec.layout == "ruins";
-    spec.edge_walls = !outdoor;
 
     // Without a described scene the architect still needs areas to fill.
     spec.rooms = {
@@ -616,6 +616,9 @@ static void StartPlanAndRender(bool alsoRender) {
             spec.style_category = shapeIt->second.first;
             spec.style_enclosure = shapeIt->second.second;
         }
+        // An open-air site runs off the frame; anything else is closed in.
+        spec.edge_walls = arch::EnclosureOf(spec.style_enclosure, spec.style_category,
+                                            spec.layout, "") != "open";
         job.Log("Layout: " + spec.layout + " | areas: " + std::to_string(spec.rooms.size()));
         if (!spec.scene_summary.empty()) job.Log("Scene: " + spec.scene_summary);
 

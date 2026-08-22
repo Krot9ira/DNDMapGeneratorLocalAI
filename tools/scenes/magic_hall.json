@@ -96,7 +96,7 @@
       "description": "A tall mirrored surface filling the whole north wall from side to side, throwing back a reflection of the hall that does not quite match it",
       "elaboration": "exact",
       "x": 6,
-      "y": 1,
+      "y": 0,
       "w": 20,
       "h": 2
     },

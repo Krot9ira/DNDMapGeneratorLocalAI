@@ -1157,6 +1157,85 @@ def _gen_ruins(grid, spec, rng):
     return rooms, []
 
 
+# Words that name a built interior. On an open-air site everything else is
+# outdoors, and outdoors does not have walls round it.
+_BUILT_WORDS = (
+    "house", "hut", "cottage", "cabin", "barn", "shed", "stable", "granary",
+    "mill", "forge", "smithy", "workshop", "warehouse", "store", "storeroom",
+    "shop", "inn", "tavern", "hall", "keep", "tower", "turret", "gatehouse",
+    "chapel", "church", "temple", "shrine", "crypt", "vault", "cellar",
+    "room", "chamber", "kitchen", "bedroom", "study", "library", "office",
+    "guardhouse", "barracks", "lodge", "cabin", "manor", "villa", "interior",
+)
+# ...and words that name an outdoor space, for when both could be read into it.
+_OPEN_WORDS = (
+    "street", "square", "yard", "courtyard", "market", "plaza", "green",
+    "field", "meadow", "clearing", "glade", "shore", "bank", "beach", "path",
+    "road", "track", "lane", "terrace", "garden", "grove", "camp", "dock",
+    "quay", "pier", "bridge", "ford", "crossing", "floor", "ground", "mire",
+    "bog", "marsh", "gorge", "pass", "ravine", "plain", "slope", "rise",
+)
+
+
+def _room_is_built(room_spec):
+    """Does this room have walls round it, or is it a piece of the open air?
+
+    A city street map is a street with houses on it, not a building with three
+    rooms in it - but every room used to be walled and doored alike, so a
+    fountain square came out as a chamber with a fountain in it. A scene can say
+    outright with `enclosed`; otherwise the name decides, and outdoors wins,
+    because on an open-air site that is what the ground is unless something was
+    built on it.
+    """
+    if isinstance(room_spec, dict) and room_spec.get("enclosed") is not None:
+        return bool(room_spec.get("enclosed"))
+    text = " ".join(str((room_spec or {}).get(k, "")) for k in ("label", "description"))
+    text = text.lower()
+    first = str((room_spec or {}).get("label", "")).lower()
+    for word in _OPEN_WORDS:
+        if word in first:
+            return False
+    for word in _BUILT_WORDS:
+        if word in first:
+            return True
+    for word in _OPEN_WORDS:
+        if word in text:
+            return False
+    return any(word in text for word in _BUILT_WORDS)
+
+
+def _open_up_outdoor_rooms(grid, rooms, enclosure):
+    """Join the outdoor rooms of an open-air site into one continuous surface.
+
+    Walls are derived from where floor meets nothing, so two rooms with a gap
+    between them get a wall each and a door between them. Outdoors there is no
+    gap: the square runs into the street. The ground between them is filled in
+    before the walls are worked out, and anything actually built keeps its own.
+    """
+    if enclosure != "open":
+        return
+    outdoor = [r for r in rooms if not _room_is_built(r.get("spec"))]
+    built = [r for r in rooms if _room_is_built(r.get("spec"))]
+    if len(outdoor) < 2:
+        return
+    x0 = min(r["rect"][0] for r in outdoor)
+    y0 = min(r["rect"][1] for r in outdoor)
+    x1 = max(r["rect"][0] + r["rect"][2] for r in outdoor)
+    y1 = max(r["rect"][1] + r["rect"][3] for r in outdoor)
+    keep = set()
+    for r in built:
+        bx, by, bw, bh = r["rect"]
+        for yy in range(by - 1, by + bh + 1):
+            for xx in range(bx - 1, bx + bw + 1):
+                keep.add((xx, yy))
+    for yy in range(y0, y1):
+        for xx in range(x0, x1):
+            if (xx, yy) in keep:
+                continue
+            if grid.get(xx, yy) == VOID:
+                grid.set(xx, yy, FLOOR)
+
+
 def _gen_custom(grid, spec, rng):
     """Explicit rectangles supplied by the caller - validated, then walled."""
     rooms = []
@@ -1751,10 +1830,13 @@ def normalize_spec(spec):
     out["prop_density"] = str(spec.get("prop_density", "high")).lower()
     # Callers may widen or disable the blank ring; they may not make it huge.
     out["border"] = _clamp(int(spec.get("border", BORDER_CELLS) or 0), 0, 8)
-    # Outdoor layouts continue past the frame; indoor ones are enclosed.
+    # Outdoor sites continue past the frame; indoor ones are enclosed. Keyed on
+    # what closes the site in rather than on a list of layout names, because
+    # every scene an agent writes uses "custom" and "custom" was not on the
+    # list - so a city street came out as a room with walls round it and a
+    # fountain square came out as a chamber with a fountain in it.
     out["edge_walls"] = bool(spec.get(
-        "edge_walls",
-        out["layout"] not in ("harbour", "open", "street", "forest", "swamp", "ruins")))
+        "edge_walls", enclosure_of(out["style"], out["layout"]) != "open"))
     if "water_fraction" in spec:
         out["water_fraction"] = spec["water_fraction"]
     props = spec.get("style_props") or []
@@ -1820,6 +1902,8 @@ def build(spec, seed=None):
 
     grid = TileGrid(spec["cols"], spec["rows"], VOID)
     rooms, paths = _GENERATORS[spec["layout"]](grid, spec, rng)
+    _open_up_outdoor_rooms(grid, rooms,
+                           enclosure_of(spec.get("style"), spec.get("layout")))
 
     _apply_terrain(grid, rooms, spec, rng)
     _apply_terrain_zones(grid, spec)

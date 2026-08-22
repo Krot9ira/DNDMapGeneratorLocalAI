@@ -227,6 +227,11 @@ struct RoomSpec {
     std::vector<std::string> props;
     bool hasRect = false;
     int x = 0, y = 0, w = 0, h = 0;  // only for the "custom" layout
+    // -1 unset, 0 outdoors, 1 walled. Unset means the name decides: see
+    // RoomIsBuilt. Only matters on an open-air site, where a street is not a
+    // room and should not be walled like one. Last, so the positional
+    // initialisers the generators use are unaffected.
+    int enclosed = -1;
 };
 
 struct DesignSpec {

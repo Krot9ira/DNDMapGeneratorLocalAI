@@ -1104,6 +1104,63 @@ inline void ApplyTerrain(TileGrid& g, const RoomList& rooms, const DesignSpec& s
     }
 }
 
+// Words that name a built interior. On an open-air site everything else is
+// outdoors, and outdoors does not have walls round it. Mirrors architect.py.
+inline bool RoomIsBuilt(const RoomSpec& room) {
+    static const std::vector<std::string> built = {
+        "house", "hut", "cottage", "cabin", "barn", "shed", "stable", "granary",
+        "mill", "forge", "smithy", "workshop", "warehouse", "store", "storeroom",
+        "shop", "inn", "tavern", "hall", "keep", "tower", "turret", "gatehouse",
+        "chapel", "church", "temple", "shrine", "crypt", "vault", "cellar",
+        "room", "chamber", "kitchen", "bedroom", "study", "library", "office",
+        "guardhouse", "barracks", "lodge", "manor", "villa", "interior"};
+    static const std::vector<std::string> open = {
+        "street", "square", "yard", "courtyard", "market", "plaza", "green",
+        "field", "meadow", "clearing", "glade", "shore", "bank", "beach", "path",
+        "road", "track", "lane", "terrace", "garden", "grove", "camp", "dock",
+        "quay", "pier", "bridge", "ford", "crossing", "floor", "ground", "mire",
+        "bog", "marsh", "gorge", "pass", "ravine", "plain", "slope", "rise"};
+    auto has = [](const std::string& hay, const std::vector<std::string>& needles) {
+        for (const std::string& n : needles)
+            if (hay.find(n) != std::string::npos) return true;
+        return false;
+    };
+    if (room.enclosed >= 0) return room.enclosed != 0;
+    std::string label = Lower(room.label);
+    std::string all = label + " " + Lower(room.description);
+    if (has(label, open)) return false;
+    if (has(label, built)) return true;
+    if (has(all, open)) return false;
+    return has(all, built);
+}
+
+// Join the outdoor rooms of an open-air site into one continuous surface.
+// Walls are derived from where floor meets nothing, so two rooms with a gap
+// between them get a wall each and a door between them. Outdoors there is no
+// gap: the square runs into the street.
+inline void OpenUpOutdoorRooms(TileGrid& g,
+                               const std::vector<std::pair<RoomSpec, Rect>>& rooms,
+                               const std::string& enclosure) {
+    if (enclosure != "open") return;
+    std::vector<Rect> outdoor, built;
+    for (const auto& rp : rooms)
+        (RoomIsBuilt(rp.first) ? built : outdoor).push_back(rp.second);
+    if (outdoor.size() < 2) return;
+    int x0 = g.cols, y0 = g.rows, x1 = 0, y1 = 0;
+    for (const Rect& r : outdoor) {
+        x0 = std::min(x0, r.x);        y0 = std::min(y0, r.y);
+        x1 = std::max(x1, r.x + r.w);  y1 = std::max(y1, r.y + r.h);
+    }
+    std::set<std::pair<int, int>> keep;
+    for (const Rect& r : built)
+        for (int yy = r.y - 1; yy <= r.y + r.h; ++yy)
+            for (int xx = r.x - 1; xx <= r.x + r.w; ++xx) keep.insert({xx, yy});
+    for (int yy = y0; yy < y1; ++yy)
+        for (int xx = x0; xx < x1; ++xx)
+            if (!keep.count({xx, yy}) && g.Get(xx, yy) == Tile::Void)
+                g.Set(xx, yy, Tile::Floor);
+}
+
 // --- What closes a site in -------------------------------------------------
 // A gorge is not a building and a clearing has no masonry, but until this
 // existed every map was described to the renderer as though it were a walled
@@ -1526,6 +1583,9 @@ inline MapData Build(DesignSpec spec, uint32_t seed) {
     else if (L == "harbour") rooms = GenHarbour(g, spec, rng, paths, structures);
     else if (L == "custom") rooms = GenCustom(g, spec, rng, paths);
     else rooms = GenDungeon(g, spec, rng, paths);
+
+    OpenUpOutdoorRooms(g, rooms, EnclosureOf(spec.style_enclosure, spec.style_category,
+                                             L, ""));
 
     ApplyTerrain(g, rooms, spec, rng);
     DeriveWalls(g);

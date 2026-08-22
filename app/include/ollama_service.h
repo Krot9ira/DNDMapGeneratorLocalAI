@@ -253,12 +253,16 @@ public:
                         std::string k = arch::NormalizeProp(p.get<std::string>());
                         if (!k.empty()) r.props.push_back(k);
                     }
+                if (rj.contains("enclosed") && rj["enclosed"].is_boolean())
+                    r.enclosed = rj["enclosed"].get<bool>() ? 1 : 0;
                 spec.rooms.push_back(r);
                 if (spec.rooms.size() >= 9) break;
             }
         }
-        bool outdoor = spec.layout == "harbour" || spec.layout == "open" || spec.layout == "street";
-        spec.edge_walls = !outdoor;
+        // Filled in later, once the style is attached: what closes the site in
+        // decides it, and "custom" - which is what a planner almost always
+        // answers with - tells you nothing on its own.
+        spec.edge_walls = true;
         return spec;
     }
 

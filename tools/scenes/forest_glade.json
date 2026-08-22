@@ -86,7 +86,7 @@
   ],
   "terrain_zones": [
     {
-      "kind": "vegetation",
+      "kind": "wall",
       "x": 1,
       "y": 1,
       "w": 28,

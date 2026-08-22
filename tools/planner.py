@@ -50,6 +50,7 @@ SPEC_SCHEMA = {
                     "terrain": {"type": "string",
                                 "enum": ["none", "water", "pit", "rubble", "vegetation"]},
                     "props": {"type": "array", "items": {"type": "string"}},
+                    "enclosed": {"type": "boolean"},
                 },
                 "required": ["label", "description", "size", "props"],
             },

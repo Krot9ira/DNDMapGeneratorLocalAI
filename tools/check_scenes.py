@@ -76,6 +76,26 @@ def check(path):
                             f"shown on a wall or overhead from directly above")
                 break
 
+    # A description that names something solid - a cliff, a wall, a barricade -
+    # has to have it in the plan too, or the renderer is told there is a sheer
+    # rock face somewhere the map says is open floor, and has to choose. The
+    # scene puts it there with a terrain_zone, which is what they are for.
+    # Matched on the label, not the description: half the things in a gorge
+    # mention the cliff they are pitched against without being one.
+    solid = ("cliff", "rock face", "palisade", "curtain wall", "rampart", "stockade")
+    for note in m["annotations"]:
+        label = str(note.get("label", "")).lower()
+        named = any(w in label for w in solid) or "wall" in label.split()
+        if not named:
+            continue
+        cells = [(xx, yy)
+                 for yy in range(note["y"], note["y"] + note["h"])
+                 for xx in range(note["x"], note["x"] + note["w"])]
+        blocked = sum(1 for (xx, yy) in cells if g.get(xx, yy) not in WALKABLE)
+        if cells and blocked < 0.5 * len(cells):
+            fail(scene, f"'{note['label']}' describes something solid but the plan has "
+                        f"open floor under it - give it a terrain_zone")
+
     els = cap["compositional_deconstruction"]["elements"]
     return scene, len(m["areas"]), len(m["annotations"]), len(els)
 
