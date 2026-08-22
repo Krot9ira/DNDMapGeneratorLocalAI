@@ -1081,9 +1081,25 @@ public:
 
         std::string ground = (style && !style->ground.empty()) ? style->ground
                                                                : "worn stone paving";
-        // The style's material description is the richest theme detail we have.
+        // A style's materials text describes a whole imagined scene - tents in
+        // a ring round a fire, stalls along a street - and it is the strongest
+        // text in the caption. Reframing it as "texture only" was not enough: a
+        // gorge with cliffs down both sides came back as a palisaded camp round
+        // a central fire, which is what bandit_camp describes and nothing like
+        // what the plan said. When the map has its own things in its own
+        // places, only the first sentence is kept - the one that names what
+        // kind of place this is - and the rest, which says where everything
+        // stands, is dropped. A map with nothing of its own to say still gets
+        // all of it, because then there is nothing for it to argue with.
+        size_t saidByMap = 0;
+        for (const Area& a : map.areas) saidByMap += a.description.size();
+        bool speaksForItself = !map.annotations.empty() || saidByMap > 200;
         if (style && !style->materials.empty()) {
             std::string mats = style->materials;
+            if (speaksForItself) {
+                size_t stop = mats.find(". ");
+                if (stop != std::string::npos) mats = mats.substr(0, stop + 1);
+            }
             while (!mats.empty() && mats.back() == '.') mats.pop_back();
             // A style describes a whole imagined scene - tents in a ring round
             // a fire, stalls along a street - and that description is the
@@ -1091,10 +1107,18 @@ public:
             // plan it was meant to be painting. It is kept for its materials
             // and colour and told, in as many words, that it does not decide
             // where anything goes.
-            ground += ". The following names the kinds of thing this place is made of, for "
-                      "texture, material and colour only; it does not say where anything "
-                      "stands, and wherever it disagrees with the rectangles listed below, "
-                      "the rectangles are right and this is ignored: " + mats;
+            if (speaksForItself) {
+                ground += ". " + mats;
+            } else {
+                // Used whole, it needs saying that it does not decide where
+                // anything goes; trimmed to its first sentence, there is
+                // nothing left in it that could.
+                ground += ". The following names the kinds of thing this place is made of, "
+                          "for texture, material and colour only; it does not say where "
+                          "anything stands, and wherever it disagrees with the rectangles "
+                          "listed below, the rectangles are right and this is ignored: " +
+                          mats;
+            }
         }
         std::string background = ground + " " + base.background_suffix;
         for (const std::string& note : atmosphere) background += ". " + note;

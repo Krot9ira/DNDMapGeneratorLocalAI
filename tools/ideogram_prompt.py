@@ -1218,12 +1218,28 @@ def build_caption(map_data, style=None, base=None):
     # The style's material description used to be dropped entirely; it is the
     # richest source of theme detail we have, so it belongs in the background.
     materials = (style.get("materials") or "").strip()
-    if materials:
-        # A style describes a whole imagined scene - tents in a ring round a
-        # fire, stalls along a street - and that description is the strongest
-        # text in the caption, so it used to quietly overrule the plan it was
-        # supposed to be painting. It is kept for its materials and colour and
-        # told, in as many words, that it does not decide where anything goes.
+    # A style's materials text describes a whole imagined scene - tents in a
+    # ring round a fire, stalls along a street - and it is the strongest text in
+    # the caption. Reframing it as "texture only" was not enough: a gorge with
+    # cliffs down both sides and tents against one of them came back as a
+    # palisaded camp round a central fire, which is what bandit_camp describes
+    # and nothing like what the plan said. When the map has its own things in
+    # its own places, only the first sentence is kept - the one that names what
+    # kind of place this is - and the rest, which says where everything stands,
+    # is dropped. A map with nothing of its own to say still gets all of it,
+    # because then there is nothing for it to argue with.
+    speaks_for_itself = bool(map_data.get("annotations")) or sum(
+        len(str(a.get("description", ""))) for a in (map_data.get("areas") or [])) > 200
+    if materials and speaks_for_itself:
+        head_stop = materials.find(". ")
+        if head_stop > 0:
+            materials = materials[:head_stop + 1].strip()
+    if materials and speaks_for_itself:
+        ground = f"{ground}. {materials.rstrip('.')}"
+    elif materials:
+        # Used whole, it needs saying that it does not decide where anything
+        # goes; trimmed to its first sentence, there is nothing left in it that
+        # could.
         ground = (f"{ground}. The following names the kinds of thing this place is made of, "
                   f"for texture, material and colour only; it does not say where anything "
                   f"stands, and wherever it disagrees with the rectangles listed below, the "
