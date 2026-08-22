@@ -704,15 +704,21 @@ public:
                 // and the next begins, and dropping it left a keep as one empty
                 // shell for the renderer to subdivide however it liked.
                 bool onOutline = false;
-                std::vector<Rect> outlines;
-                if (haveSiteEdge) outlines.push_back(siteEdge);
-                outlines.insert(outlines.end(), buildings.begin(), buildings.end());
-                for (const Rect& b : outlines) {
+                // The boundary of a site is often two cells thick, so a run
+                // lying along it can sit two cells in from the corner of its
+                // bounding box. Handed over as a wall of its own, it becomes a
+                // second wall drawn just inside the first one.
+                std::vector<std::pair<Rect, int>> outlines;
+                if (haveSiteEdge) outlines.push_back({siteEdge, 2});
+                for (const Rect& bb : buildings) outlines.push_back({bb, 1});
+                for (const auto& ob : outlines) {
+                    const Rect& b = ob.first;
+                    const int slack = ob.second;
                     bool inside = r.x >= b.x - 1 && r.y >= b.y - 1 &&
                                   r.x + r.w <= b.x + b.w + 1 && r.y + r.h <= b.y + b.h + 1;
                     if (!inside) continue;
-                    bool hugsSide = r.x <= b.x + 1 || r.x + r.w >= b.x + b.w - 1;
-                    bool hugsTop = r.y <= b.y + 1 || r.y + r.h >= b.y + b.h - 1;
+                    bool hugsSide = r.x <= b.x + slack || r.x + r.w >= b.x + b.w - slack;
+                    bool hugsTop = r.y <= b.y + slack || r.y + r.h >= b.y + b.h - slack;
                     if ((r.w >= r.h && hugsTop) || (r.h > r.w && hugsSide)) onOutline = true;
                     break;
                 }

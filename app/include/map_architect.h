@@ -1212,14 +1212,19 @@ inline void EnsureAWayIn(TileGrid& g, const std::string& enclosure) {
             }
         }
         if (bwx < 0) return;
-        // Does this region span the whole site, or is it a room inside it?
-        int minX = g.cols, minY = g.rows, maxX = -1, maxY = -1;
-        for (auto& c : cells) {
-            minX = std::min(minX, c.first);  maxX = std::max(maxX, c.first);
-            minY = std::min(minY, c.second); maxY = std::max(maxY, c.second);
+        // Does this wall face the outside of the map, or another part of it?
+        // A hut standing in a clearing is built and gets a door; the cliff
+        // round the clearing is not and gets a gap. Walking outward from the
+        // wall answers it: if nothing walkable lies that way, it is the
+        // boundary.
+        bool facesOutside = true;
+        for (int cx = bwx, cy = bwy; g.Inside(cx, cy); cx += bgx, cy += bgy) {
+            if (IsWalkable(g.Get(cx, cy)) && !inside.count({cx, cy})) {
+                facesOutside = false;
+                break;
+            }
         }
-        bool wholeSite = minX <= 2 && minY <= 2 && maxX >= g.cols - 3 && maxY >= g.rows - 3;
-        bool cutOpen = enclosure == "rock" || (enclosure == "open" && wholeSite);
+        bool cutOpen = enclosure == "rock" || (enclosure == "open" && facesOutside);
         if (!cutOpen) {
             // Rock does not have doors in it; a built wall does.
             g.Set(bwx, bwy, Tile::Door);

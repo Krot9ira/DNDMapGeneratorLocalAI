@@ -1404,12 +1404,18 @@ def _ensure_a_way_in(grid, rng, enclosure="masonry"):
         if best is None:
             return
         _, wx, wy, ox, oy, gx, gy = best
-        # Does this region span the whole site, or is it a room inside it?
-        xs = [c[0] for c in cells]
-        ys = [c[1] for c in cells]
-        whole_site = (min(xs) <= 2 and min(ys) <= 2 and
-                      max(xs) >= grid.cols - 3 and max(ys) >= grid.rows - 3)
-        cut_open = enclosure == "rock" or (enclosure == "open" and whole_site)
+        # Does this wall face the outside of the map, or another part of it?
+        # A hut standing in a clearing is built and gets a door; the cliff round
+        # the clearing is not and gets a gap. Walking outward from the wall
+        # answers it: if nothing walkable lies that way, it is the boundary.
+        faces_outside = True
+        cx, cy = wx, wy
+        while grid.inside(cx, cy):
+            if grid.get(cx, cy) in WALKABLE and (cx, cy) not in inside:
+                faces_outside = False
+                break
+            cx, cy = cx + gx, cy + gy
+        cut_open = enclosure == "rock" or (enclosure == "open" and faces_outside)
         if not cut_open:
             grid.set(wx, wy, DOOR)
             if grid.inside(ox, oy) and grid.get(ox, oy) == VOID:

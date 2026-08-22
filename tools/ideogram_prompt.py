@@ -860,13 +860,18 @@ def build_caption(map_data, style=None, base=None):
         if max(w, h) < 3 or w * h < 2:
             continue
         on_outline = False
-        for (bx, by, bw, bh) in ([site_edge] if site_edge else []) + building_rects:
+        outlines = ([(site_edge, 2)] if site_edge else []) +                    [(b, 1) for b in building_rects]
+        # The boundary of a site is often two cells thick, so a run lying along
+        # it can sit two cells in from the corner of its bounding box. Handed
+        # over as a wall of its own, it becomes a second wall drawn just inside
+        # the first one.
+        for (bx, by, bw, bh), slack in outlines:
             inside = (bx - 1 <= x and by - 1 <= y and
                       x + w <= bx + bw + 1 and y + h <= by + bh + 1)
             if not inside:
                 continue
-            hugs_side = x <= bx + 1 or x + w >= bx + bw - 1
-            hugs_top = y <= by + 1 or y + h >= by + bh - 1
+            hugs_side = x <= bx + slack or x + w >= bx + bw - slack
+            hugs_top = y <= by + slack or y + h >= by + bh - slack
             # Along an edge of the footprint, not across its middle.
             if (w >= h and hugs_top) or (h > w and hugs_side):
                 on_outline = True
