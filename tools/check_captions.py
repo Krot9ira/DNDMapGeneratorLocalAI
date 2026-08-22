@@ -117,6 +117,12 @@ for sid, style in sorted(styles.items()):
                  "scene_summary": "a place to fight in", "prop_density": "medium"}, seed=9)
     cap = IP.build_caption(m, style, planner.load_base())
     check_caption(sid, cap, 34, 26, m)
+    # A style that places something on a wall or overhead cannot be drawn from
+    # directly above, and the renderer answers it by tipping the whole picture
+    # into perspective.
+    for warning in IP.style_warnings(m, style):
+        if "in its" in warning:
+            fail(sid, warning.split(". ", 1)[0])
 
 # One map with everything on it, since annotations and effects take their own
 # route into the caption and are easy to break without noticing.

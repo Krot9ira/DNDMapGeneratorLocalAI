@@ -4,7 +4,7 @@
   "category": "Interior",
   "description": "Warm oak interior, hearth fire, long tables and lantern light.",
   "palette": "aged cream, warm beige, ochre, honey brown, dark walnut wood, muted grey stone",
-  "lighting": "soft warm hearth and lantern light from above, gentle directional shadows",
+  "lighting": "soft warm hearth and lantern light, gentle directional shadows",
   "default_layout": "building",
   "props": [
     "table",
@@ -32,5 +32,5 @@
     "#7A7169"
   ],
   "ground": "wide oak plank flooring with visible grain, knots and spilled-ale stains",
-  "materials": "A warm, cozy medieval tavern interior. Wide oak plank floors with visible grain and knots, timber-framed plaster walls, a large stone hearth with a crackling fire, long trestle tables and benches, a polished bar counter with ale barrels behind it, hanging iron lanterns, woven rugs and clutter of mugs and crockery."
+  "materials": "A warm, cozy medieval tavern interior. Wide oak plank floors with visible grain and knots, timber-framed plaster walls, a large stone hearth with a crackling fire, long trestle tables and benches, a polished bar counter with ale barrels behind it, iron lanterns standing on the tables and along the bar, woven rugs and clutter of mugs and crockery."
 }

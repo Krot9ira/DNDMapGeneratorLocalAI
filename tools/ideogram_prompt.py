@@ -438,6 +438,16 @@ _DIVIDING_WORDS = ("partition", "divided into rooms", "divide the inside",
                    "warren", "corridor")
 
 
+# Placements that only exist on a vertical surface or above the floor. "against
+# the walls" and "along the walls" are fine - those things stand on the ground.
+_SIDE_ON_WORDS = (
+    "on the wall", "from the wall", "up the wall", "wall-mounted", "wall-hung",
+    "mounted on", "hanging", "hung on", "hung from", "from the ceiling",
+    "on the ceiling", "floor-to-ceiling", "vaulted", "stalactite", "chandelier",
+    "rafter", "suspended",
+)
+
+
 def style_warnings(map_data, style):
     """Places where the chosen style argues with the plan it is painting."""
     out = []
@@ -470,6 +480,22 @@ def style_warnings(map_data, style):
                     f"{hits[0]}, but this map is one single room filling the field - the "
                     f"style text will fight the plan and the renderer will subdivide it. "
                     f"Pick a style written for one open space.")
+
+    # Nothing on a top-down map can be on a wall, hanging, or under a ceiling:
+    # those are things you only see from the side, and asking for one tips the
+    # whole picture into perspective. A cave style that said its crystals grew
+    # "from the walls" got three renders in a row with the top of the map drawn
+    # as a wall face in elevation, alcoves and all.
+    for phrase in _SIDE_ON_WORDS:
+        for key in ("materials", "ground", "lighting", "boundary", "description"):
+            body = str(style.get(key, "")).lower()
+            if phrase in body:
+                out.append(
+                    f"style '{style.get('id', '?')}' says '{phrase}' in its {key}. Nothing "
+                    f"can be shown on a wall or overhead from directly above, so the "
+                    f"renderer draws the wall from the side to fit it in and the map comes "
+                    f"back in perspective. Say where the thing stands on the floor instead.")
+                break
     return out
 
 
