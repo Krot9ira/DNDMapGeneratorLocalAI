@@ -536,9 +536,14 @@ static void StartQuickBlueprint() {
     if (!BeginJob("Building blueprint...")) return;
     DesignSpec spec = SpecFromUi();
     AttachStyle(spec);
+    // Read on this thread, where the style table is safe to touch, and carried
+    // into the worker with everything else.
+    std::vector<std::string> styleWarnings =
+        IdeogramCaption::StyleWarnings(g_app.styles.Find(spec.style));
     uint32_t seed = PickSeed();
-    std::thread([spec, seed]() {
+    std::thread([spec, seed, styleWarnings]() {
         Job& job = g_app.job;
+        for (const auto& warn : styleWarnings) job.Log("[warn] " + warn);
         MapData map = arch::Build(spec, seed);
         job.Log("Built " + std::to_string(map.grid.cols) + "x" +
                 std::to_string(map.grid.rows) + " " + spec.layout + " map, " +
@@ -580,10 +585,12 @@ static void StartPlanAndRender(bool alsoRender) {
     // Snapshotted here, on the UI thread, like the props above: the worker must
     // not reach into g_app.styles.
     std::map<std::string, std::pair<std::string, std::string>> styleShape;
+    std::map<std::string, std::vector<std::string>> styleWarn;
     std::map<std::string, std::string> styleLayout;
     for (const auto& kv : g_app.styles.styles) {
         styleProps[kv.first] = kv.second.props;
         styleShape[kv.first] = {kv.second.category, kv.second.enclosure};
+        styleWarn[kv.first] = IdeogramCaption::StyleWarnings(&kv.second);
         styleLayout[kv.first] = kv.second.default_layout;
     }
 
@@ -619,6 +626,9 @@ static void StartPlanAndRender(bool alsoRender) {
         // An open-air site runs off the frame; anything else is closed in.
         spec.edge_walls = arch::EnclosureOf(spec.style_enclosure, spec.style_category,
                                             spec.layout, "") != "open";
+        auto warnIt = styleWarn.find(spec.style);
+        std::vector<std::string> planStyleWarnings =
+            warnIt == styleWarn.end() ? std::vector<std::string>{} : warnIt->second;
         job.Log("Layout: " + spec.layout + " | areas: " + std::to_string(spec.rooms.size()));
         if (!spec.scene_summary.empty()) job.Log("Scene: " + spec.scene_summary);
 
@@ -626,6 +636,10 @@ static void StartPlanAndRender(bool alsoRender) {
         job.Log("Blueprint: " + std::to_string(map.grid.cols) + "x" +
                 std::to_string(map.grid.rows) + ", " + std::to_string(map.features.size()) +
                 " props");
+        // A style whose own words argue with the plan beats anything the
+        // caption says about it, so it is worth saying out loud before the GPU
+        // is spent. The tools have said this for a while; now the app does too.
+        for (const auto& warn : planStyleWarnings) job.Log("[warn] " + warn);
         {
             std::lock_guard<std::mutex> lock(job.mtx);
             job.map = map;

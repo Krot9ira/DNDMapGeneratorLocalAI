@@ -348,6 +348,57 @@ public:
         return head + ". " + tail;
     }
 
+    // Places where a style argues with the map it is painting, or asks for
+    // something that can only be seen from the side. Mirrors
+    // ideogram_prompt.style_warnings, so the app warns about a style somebody
+    // writes here exactly as the tools do.
+    static std::vector<std::string> StyleWarnings(const StyleDef* style) {
+        std::vector<std::string> out;
+        if (!style) return out;
+        static const std::vector<std::string> sideOn = {
+            "on the wall", "from the wall", "up the wall", "wall-mounted", "wall-hung",
+            "mounted on", "hanging from", "hanging over", "hanging above", "hung on",
+            "hung from", "hung above", "from the ceiling", "on the ceiling",
+            "floor-to-ceiling", "vaulted", "stalactite", "chandelier", "rafter",
+            "suspended", "its face", "their faces", "the face of", "facade", "frontage",
+            "flank", "rising the whole", "rising on either", "rises above", "towering",
+            "taller than a man", "seen from the side", "in profile", "silhouette",
+            "elevation"};
+        static const std::vector<std::string> placing = {
+            "central ", "in the middle", "round the", "along the", "down the",
+            "beyond the", "at the far", "on one side", "in the centre"};
+
+        const std::pair<const char*, std::string> fields[] = {
+            {"materials", style->materials}, {"ground", style->ground},
+            {"lighting", style->lighting},   {"boundary", style->boundary},
+            {"description", style->description}};
+
+        std::string light = arch::Lower(style->lighting);
+        for (const std::string& w : placing)
+            if (light.find(w) != std::string::npos) {
+                out.push_back("style '" + style->id + "' says '" + w + "' in its lighting. "
+                              "Lighting says what the light is like, not where anything "
+                              "stands: this one puts that thing on every map the style "
+                              "touches, whatever the plan says.");
+                break;
+            }
+        for (const std::string& w : sideOn) {
+            bool said = false;
+            for (const auto& f : fields) {
+                if (arch::Lower(f.second).find(w) == std::string::npos) continue;
+                out.push_back("style '" + style->id + "' says '" + w + "' in its " +
+                              f.first + ". Nothing can be shown on a wall or overhead from "
+                              "directly above, so the renderer draws the wall from the side "
+                              "to fit it in and the map comes back tilted. Say where the "
+                              "thing stands on the floor instead.");
+                said = true;
+                break;
+            }
+            if (said) break;
+        }
+        return out;
+    }
+
     static nlohmann::json Build(const MapData& map, const StyleDef* style,
                                 const BaseStyle& base, const Phrasebook& ph = {}) {
         // Every phrase below can be overridden in styles/_phrases.json; the
