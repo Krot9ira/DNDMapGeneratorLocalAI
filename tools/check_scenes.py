@@ -68,7 +68,13 @@ def check(path):
     # or above the floor: the renderer can only show it by drawing the wall from
     # the side, and the whole picture tips into perspective to fit it in. The
     # same rule the styles are held to.
-    for note in m["annotations"] + [dict(a) for a in m["areas"]]:
+    # The scene's own prose counts too: render_details goes straight into the
+    # caption background, which is where a cave got its stalagmites and its
+    # columns, and drew both from the side.
+    prose = [{"label": "scene_summary", "description": m["meta"].get("scene_summary", "")},
+             {"label": "render_details", "description": m["meta"].get("render_details", "")},
+             {"label": "lighting", "description": m["meta"].get("lighting", "")}]
+    for note in m["annotations"] + [dict(a) for a in m["areas"]] + prose:
         body = (str(note.get("description", "")) + " " + str(note.get("label", ""))).lower()
         for phrase in IP._SIDE_ON_WORDS:
             if phrase in body:

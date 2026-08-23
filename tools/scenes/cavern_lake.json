@@ -7,8 +7,8 @@
     "cols": 32,
     "rows": 26
   },
-  "scene_summary": "One enormous natural cave with the rock cut away above, its floor wet stone, half of it filled by a still black underground lake crossed by a natural stone rib.",
-  "render_details": "Wet grey limestone floor with dark pooled water in the hollows, a wide sheet of still water so black it reflects nothing, stumps of broken stalagmites, thick natural rock columns, a huge rounded boulder, loose scree, pale mineral streaking on the rock",
+  "scene_summary": "One enormous natural cave seen from straight down onto its floor: wet grey stone, half of it filled by a still black underground lake crossed by a natural stone rib of pale rock.",
+  "render_details": "Wet grey limestone seen from directly above, dark pooled water in the hollows, a wide sheet of still water so black it reflects nothing, broken stalagmite stumps as small round tops, thick rock columns as round grey tops with hard shadows beside them, one huge rounded boulder, loose scree, pale mineral streaking on the rock",
   "prop_density": "low",
   "rooms": [
     {

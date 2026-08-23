@@ -1522,7 +1522,10 @@ def build_caption(map_data, style=None, base=None):
         # trusting the long sentence higher up.
         " Every single thing in this picture is drawn as seen from straight above it: the "
         "top of the wall, the top of the tent, the top of the rock, the top of the table. "
-        "No side of anything is visible anywhere in the picture.")
+        "No side of anything is visible anywhere in the picture. The top edge of the "
+        "picture shows exactly the same straight-down view as the bottom edge and the two "
+        "sides do too: no part of this map is further away from the viewer than any other "
+        "part, there is no far side, no back wall and no distance.")
 
     caption["compositional_deconstruction"] = {
         "background": background,
