@@ -288,14 +288,20 @@ inline void DissolveBorderCell(TileGrid& g, int x, int y) {
 }
 
 // Outdoor scenes should read as a slice of a bigger world, not a walled room.
-inline void OpenEdges(TileGrid& g) {
+// Wall the scene placed itself is left alone: a gorge whose cliffs run to the
+// edge of the field means them to, and dissolving their outermost square leaves
+// a strip of walkable ground behind the cliff that nobody can reach.
+inline void OpenEdges(TileGrid& g, const std::set<std::pair<int, int>>& keep = {}) {
+    auto maybe = [&](int x, int y) {
+        if (!keep.count({x, y})) DissolveBorderCell(g, x, y);
+    };
     for (int x = 0; x < g.cols; ++x) {
-        DissolveBorderCell(g, x, 0);
-        DissolveBorderCell(g, x, g.rows - 1);
+        maybe(x, 0);
+        maybe(x, g.rows - 1);
     }
     for (int y = 0; y < g.rows; ++y) {
-        DissolveBorderCell(g, 0, y);
-        DissolveBorderCell(g, g.cols - 1, y);
+        maybe(0, y);
+        maybe(g.cols - 1, y);
     }
 }
 
@@ -1249,14 +1255,20 @@ inline void ApplyAnnotationGround(TileGrid& g, const std::vector<Annotation>& no
 }
 
 // Terrain the caller placed itself. Mirrors architect._apply_terrain_zones.
-inline void ApplyTerrainZones(TileGrid& g, const DesignSpec& spec) {
+inline std::set<std::pair<int, int>> ApplyTerrainZones(TileGrid& g,
+                                                      const DesignSpec& spec) {
+    std::set<std::pair<int, int>> placed;
     for (const TerrainZone& z : spec.terrain_zones) {
         Tile kind = TileFromName(Lower(z.kind));
         if (Lower(z.kind) == "floor") kind = Tile::Floor;
         for (int yy = z.y; yy < z.y + std::max(1, z.h); ++yy)
             for (int xx = z.x; xx < z.x + std::max(1, z.w); ++xx)
-                if (g.Inside(xx, yy)) g.Set(xx, yy, kind);
+                if (g.Inside(xx, yy)) {
+                    g.Set(xx, yy, kind);
+                    if (kind == Tile::Wall) placed.insert({xx, yy});
+                }
     }
+    return placed;
 }
 
 // Where something goes, without asking a language model for coordinates. Each
@@ -1737,7 +1749,7 @@ inline MapData Build(DesignSpec spec, uint32_t seed) {
     // must not fill the rib back in. Both before the outdoor ground is spread,
     // so that spreading stops at whatever the scene has already put down.
     ApplyAnnotationGround(g, spec.annotations);
-    ApplyTerrainZones(g, spec);
+    std::set<std::pair<int, int>> sceneWalls = ApplyTerrainZones(g, spec);
     OpenUpOutdoorRooms(g, rooms, EnclosureOf(spec.style_enclosure, spec.style_category,
                                              L, ""));
     ApplyTerrain(g, rooms, spec, rng);
@@ -1745,7 +1757,7 @@ inline MapData Build(DesignSpec spec, uint32_t seed) {
     if (!paths.empty()) PlaceDoors(g, rooms, paths);
     EnsureConnected(g, rng);
     DeriveWalls(g);
-    if (!spec.edge_walls) OpenEdges(g);
+    if (!spec.edge_walls) OpenEdges(g, sceneWalls);
     EnsureAWayIn(g, EnclosureOf(spec.style_enclosure, spec.style_category, L, ""));
     FixDoors(g);
 

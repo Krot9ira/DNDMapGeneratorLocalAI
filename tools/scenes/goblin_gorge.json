@@ -35,26 +35,26 @@
       "label": "West Cliff",
       "description": "A band of raw rock running the whole length of the gorge on this side, seen from straight above as its broken irregular top, solid all the way with no way through it anywhere",
       "elaboration": "some",
-      "x": 1,
-      "y": 1,
-      "w": 4,
-      "h": 28
+      "x": 0,
+      "y": 0,
+      "w": 7,
+      "h": 30
     },
     {
       "label": "East Cliff",
       "description": "A band of raw rock running the whole length of the gorge on this side, seen from straight above as its broken irregular top, solid all the way with no way through it anywhere",
       "elaboration": "some",
-      "x": 21,
-      "y": 1,
-      "w": 4,
-      "h": 28
+      "x": 20,
+      "y": 0,
+      "w": 6,
+      "h": 30
     },
     {
       "label": "The Fire",
       "description": "A big open fire burning on the gravel, ringed with blackened stones, a heavy iron cooking pot standing on an iron tripod over it with thick steam rising from the pot",
       "elaboration": "exact",
-      "x": 11,
-      "y": 13,
+      "x": 10,
+      "y": 17,
       "w": 4,
       "h": 4
     },
@@ -62,26 +62,26 @@
       "label": "Crate Barricade",
       "description": "A short stack of crates and sacks heaped beside the fire to make a chest-high breastwork somebody could crouch behind",
       "elaboration": "exact",
-      "x": 15,
-      "y": 12,
-      "w": 4,
+      "x": 14,
+      "y": 19,
+      "w": 3,
       "h": 3
     },
     {
       "label": "West Tents",
       "description": "Three low tents of filthy patched canvas pitched hard against the cliff, their guy ropes pegged into the gravel and their flaps hanging open",
       "elaboration": "exact",
-      "x": 5,
-      "y": 5,
-      "w": 5,
-      "h": 9
+      "x": 7,
+      "y": 3,
+      "w": 6,
+      "h": 7
     },
     {
       "label": "East Platform",
       "description": "A timber platform built out from the cliff on rough posts, standing well above the gorge floor, with a rickety ladder of lashed poles leading up to it and a clear view along the gorge from its deck",
       "elaboration": "exact",
-      "x": 16,
-      "y": 5,
+      "x": 15,
+      "y": 7,
       "w": 5,
       "h": 6
     },
@@ -89,59 +89,59 @@
       "label": "West Platform",
       "description": "A timber platform built out from the cliff on rough posts, standing well above the gorge floor, with a rickety ladder of lashed poles leading up to it and a clear view along the gorge from its deck",
       "elaboration": "exact",
-      "x": 5,
-      "y": 19,
+      "x": 7,
+      "y": 22,
       "w": 5,
-      "h": 6
+      "h": 5
     },
     {
       "label": "Drying Lines",
       "description": "Ropes strung across the gorge from one cliff to the other, hung with stretched hides and rags that block the view of what is beneath them",
       "elaboration": "some",
-      "x": 5,
-      "y": 16,
-      "w": 16,
+      "x": 7,
+      "y": 12,
+      "w": 13,
       "h": 2
     },
     {
       "label": "Log Barricade",
       "description": "A heavy barricade of lashed logs and planks thrown right across the gorge from wall to wall, blocking it completely except for a narrow gap at one side",
       "elaboration": "exact",
-      "x": 5,
+      "x": 7,
       "y": 26,
-      "w": 16,
+      "w": 10,
       "h": 2
     },
     {
       "label": "Cave Mouth",
       "description": "A dark opening in the rock behind the barricade, its edges rough, nothing but blackness inside it",
       "elaboration": "exact",
-      "x": 10,
+      "x": 17,
       "y": 28,
-      "w": 6,
+      "w": 3,
       "h": 1
     }
   ],
   "terrain_zones": [
     {
       "kind": "wall",
-      "x": 1,
-      "y": 1,
-      "w": 4,
-      "h": 28
+      "x": 0,
+      "y": 0,
+      "w": 7,
+      "h": 30
     },
     {
       "kind": "wall",
-      "x": 21,
-      "y": 1,
-      "w": 4,
-      "h": 28
+      "x": 20,
+      "y": 0,
+      "w": 6,
+      "h": 30
     },
     {
       "kind": "wall",
-      "x": 5,
+      "x": 7,
       "y": 26,
-      "w": 13,
+      "w": 10,
       "h": 2
     }
   ]

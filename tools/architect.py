@@ -347,17 +347,22 @@ def _derive_walls(grid):
         grid.set(x, y, WALL)
 
 
-def _open_edges(grid):
+def _open_edges(grid, keep=()):
     """Strip the enclosing wall off the map border.
 
     Outdoor scenes - a dock, a street, a forest - should read as a slice of a
-    larger world, not as a room with walls at the edge of the paper."""
+    larger world, not as a room with walls at the edge of the paper. Wall the
+    scene placed itself is left alone: a gorge whose cliffs run to the edge of
+    the field means them to."""
+    keep = set(keep)
     for x in range(grid.cols):
         for y in (0, grid.rows - 1):
-            _dissolve_border(grid, x, y)
+            if (x, y) not in keep:
+                _dissolve_border(grid, x, y)
     for y in range(grid.rows):
         for x in (0, grid.cols - 1):
-            _dissolve_border(grid, x, y)
+            if (x, y) not in keep:
+                _dissolve_border(grid, x, y)
 
 
 def _dissolve_border(grid, x, y):
@@ -1396,6 +1401,7 @@ def _apply_terrain_zones(grid, spec):
     kinds = {"water": WATER, "pit": PIT, "rubble": RUBBLE,
              "vegetation": VEGETATION, "floor": FLOOR, "bridge": BRIDGE,
              "stairs": STAIRS, "wall": WALL, "void": VOID}
+    placed = set()
     for zone in (spec.get("terrain_zones") or []):
         kind = kinds.get(str(zone.get("kind", "")).lower())
         if kind is None:
@@ -1406,6 +1412,15 @@ def _apply_terrain_zones(grid, spec):
         except (KeyError, TypeError, ValueError):
             continue
         grid.fill_rect(x, y, w, h, kind)
+        if kind == WALL:
+            # Remembered so that opening the edge of an outdoor map does not
+            # eat it. A gorge whose cliffs run to the edge of the field lost
+            # their outermost square that way, leaving a strip of walkable
+            # ground behind the cliff that nobody can reach.
+            for yy in range(y, y + h):
+                for xx in range(x, x + w):
+                    placed.add((xx, yy))
+    return placed
 
 
 def _apply_terrain(grid, rooms, spec, rng):
@@ -2004,7 +2019,7 @@ def build(spec, seed=None):
     # not fill the rib back in. Both before the outdoor ground is spread, so
     # that spreading stops at whatever the scene has already put down.
     _apply_annotation_ground(grid, spec.get("annotations"))
-    _apply_terrain_zones(grid, spec)
+    scene_walls = _apply_terrain_zones(grid, spec)
     _open_up_outdoor_rooms(grid, rooms,
                            enclosure_of(spec.get("style"), spec.get("layout")))
     _apply_terrain(grid, rooms, spec, rng)
@@ -2014,7 +2029,7 @@ def build(spec, seed=None):
     _ensure_connected(grid, rng)
     _derive_walls(grid)
     if not spec["edge_walls"]:
-        _open_edges(grid)
+        _open_edges(grid, scene_walls)
     # After the walls are final, or the opening would be walled up again.
     _ensure_a_way_in(grid, rng,
                      enclosure=enclosure_of(spec.get("style"), spec.get("layout")))
