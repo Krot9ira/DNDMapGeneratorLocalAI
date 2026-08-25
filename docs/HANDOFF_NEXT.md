@@ -20,6 +20,14 @@ says exactly where.
   25 floor-safe kinds (bollard, mast, capstan, crate_stack...). Zero
   warnings, caption scan clean (one legitimate door wording hit only).
   Artifacts output/_ollama_test/harbour/.
+- A3 flooded_crypt DONE (233s): layout dungeon, 35 kinds (sarcophagus,
+  stalactite -> curated floor-safe phrase, skeleton...). Two warnings, both
+  the LLM's own prose ('on the wall' in its summary, 'vaulted' in a room).
+  FOUND A GAP: its "Candlelit Niche Chamber" wrote "stone niches are set
+  high in the walls" and that passed SILENTLY - "in the wall(s)" was kept
+  out of _SIDE_ON_WORDS to protect the pipeline's own door wording. Fixing
+  next: reword the pipeline door/window/gap sentences out of that shape,
+  then promote the phrase family into the lint in both ports.
 
 Written for whichever model picks this up next. Read [AGENTS.md](../AGENTS.md)
 first — "How the renderer reads what you give it" is the accumulated rulebook
