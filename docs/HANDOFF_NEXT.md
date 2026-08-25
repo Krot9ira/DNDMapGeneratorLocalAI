@@ -9,6 +9,12 @@ says exactly where.
 - batch opened: tree clean at `e596e66`, Ollama up (qwen3.8:27b), ComfyUI up
   (0.33.4). Queue: A) five planner stress tests; B) full 13-scene re-render;
   C) close-out sweep.
+- A1 tavern DONE: 34 prop kinds (bar, stool, cask, hearth, stair...), layout
+  building, 5 areas. One warning — LLM's own room prose said "flanked by"
+  twice ('flank' is a side-on word); system worked as intended. Caption scan:
+  zero non-negated side-on hits; raw "in the wall" x12 are all the
+  documented legitimate door wording ("a closed door filling this opening
+  in the wall"). Artifacts output/_ollama_test/tavern/.
 
 Written for whichever model picks this up next. Read [AGENTS.md](../AGENTS.md)
 first — "How the renderer reads what you give it" is the accumulated rulebook
