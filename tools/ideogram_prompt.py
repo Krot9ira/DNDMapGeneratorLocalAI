@@ -98,14 +98,14 @@ _EXACT = "It sits exactly inside this rectangle and nowhere else"
 
 # Built-in fallbacks. The live text comes from styles/_phrases.json.
 _DOOR_TEXT = (
-    "A closed door filling this opening in the wall, seen from directly overhead so only the "
+    "A closed door filling this opening in the stonework, seen from directly overhead so only the "
     "flat top face of the door leaf is visible: a plain rectangular timber panel with dark "
     "iron bands across it, lying flush inside the wall opening and squared up with the wall, "
     "exactly as wide as the wall is thick. It is drawn flat, straight on and level with "
     "everything around it, with no perspective, no tilt, no arch or vault above it, no door "
     "frame standing proud, no steps and no visible handle")
 _WINDOW_TEXT = (
-    "a window set into the wall: a stone or timber frame holding small panes of glass, its "
+    "a window set into the stonework: a stone or timber frame holding small panes of glass, its "
     "sill and lintel clearly drawn")
 _WALL_TEXT = "solid stone wall with visible courses"
 _WALL_ORGANIC_TEXT = "solid rough rock wall"
@@ -570,6 +570,13 @@ _SIDE_ON_WORDS = (
     # ceiling". They judge by side_on_hit below now, which skips exactly
     # those negated mentions, so the bare words can carry the weight.
     "ceiling", "roof",
+    # "in the wall(s)" and kin were kept out for the same reason: the door
+    # sentence said a door fills an opening in the wall. The pipeline's own
+    # door/window/gap wordings were rewritten out of that shape so these
+    # could join - an Ollama room whose "niches are set high in the walls"
+    # was passing silently, and that is exactly what this list is for.
+    "in the walls", "in the wall", "in its walls", "in its wall",
+    "in a wall", "into the walls", "into the wall",
 )
 
 _NEGATIONS = (" no ", "not ", "never", "without", "nor ", "n't ", "nothing ",
@@ -610,9 +617,9 @@ _DANGLING_WORDS = ("a", "an", "the", "on", "in", "into", "from", "under",
 
 # Mountings that show up inside invented prop names but not in prose: a nail
 # is only ever holding something to a vertical surface, and a hook in a wall
-# has no top face to draw. Kept out of _SIDE_ON_WORDS itself because captions
-# legitimately say a door fills an opening in the wall - this list is only for
-# deciding what an unknown kind's own words may keep.
+# has no top face to draw. The side-on list carries the wall phrases now; the
+# extra mount words here are the shapes only a prop kind's own compressed
+# name takes ("on_a_nail"), where there is never a negation to find.
 _PROP_MOUNT_WORDS = _SIDE_ON_WORDS + (
     "in the wall", "into the wall", "in a wall", "into a wall",
     "on a nail", "on nails",
@@ -938,7 +945,7 @@ def build_caption(map_data, style=None, base=None):
     # "door leaf with a ring handle" asks for a front view, which is what made
     # the intended doors come out tilted and arched.
     door_word = style.get("door") or (
-        "A closed door filling this opening in the wall, seen from directly overhead so "
+        "A closed door filling this opening in the stonework, seen from directly overhead so "
         "only the flat top face of the door leaf is visible: a plain rectangular "
         "timber panel with dark iron bands across it, lying flush inside the wall "
         "opening and squared up with the wall, exactly as wide as the wall is thick. "
@@ -951,7 +958,7 @@ def build_caption(map_data, style=None, base=None):
     window_word = style.get("window") or wording["window"]
     for (x, y, w, h) in _merge_runs(grid, A.WINDOW):
         structure.append({"type": "obj", "bbox": _bbox(x, y, w, h, cols, rows),
-                         "desc": f"{window_word}, filling the whole opening in the wall "
+                         "desc": f"{window_word}, filling the whole opening through the wall "
                                  f"and set flush into it, with solid wall continuing on "
                                  f"both sides. {exact}"})
 
@@ -1061,10 +1068,10 @@ def build_caption(map_data, style=None, base=None):
             # encoders handle negation badly, and a count attached to the wall
             # it belongs to holds far better than one stated for the whole map.
             door_note = (
-                f"One single plank-filled gap sits in its wall and the rest of that wall is "
+                f"One single plank-filled gap breaks that wall and the rest of that wall is "
                 f"one continuous face of {enc['face']} running corner to corner"
                 if doors_here == 1 else
-                f"{doors_here} plank-filled gaps sit in its wall and the rest of that wall "
+                f"{doors_here} plank-filled gaps break that wall and the rest of that wall "
                 f"is one continuous face of {enc['face']} running corner to corner"
                 if doors_here else
                 f"All four of its walls are one continuous face of {enc['face']} running "

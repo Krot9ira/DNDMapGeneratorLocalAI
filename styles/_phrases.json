@@ -3,7 +3,7 @@
   "name": "Object wording",
   "description": "What the renderer is told about each kind of thing. These are the defaults; a style file may override door, window, wall and ground for itself. Every phrase is joined into a sentence that already ends with the rectangle it applies to, so write them as descriptions of a thing, not as commands.",
   "structure": {
-    "door": "A closed door filling this opening in the wall, seen from directly overhead so only the flat top face of the door leaf is visible: a plain rectangular timber panel with dark iron bands across it, lying flush inside the wall opening and squared up with the wall, exactly as wide as the wall is thick. It is drawn flat, straight on and level with everything around it, with no perspective, no tilt, no arch or vault above it, no door frame standing proud, no steps and no visible handle",
+    "door": "A closed door filling this opening in the stonework, seen from directly overhead so only the flat top face of the door leaf is visible: a plain rectangular timber panel with dark iron bands across it, lying flush inside the wall opening and squared up with the wall, exactly as wide as the wall is thick. It is drawn flat, straight on and level with everything around it, with no perspective, no tilt, no arch or vault above it, no door frame standing proud, no steps and no visible handle",
     "window": "a window set into the wall: a stone or timber frame holding small panes of glass, its sill and lintel clearly drawn",
     "wall": "solid stone wall with visible courses",
     "wall_organic": "solid rough rock wall",

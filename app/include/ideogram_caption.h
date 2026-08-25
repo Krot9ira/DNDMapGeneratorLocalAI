@@ -261,8 +261,8 @@ public:
 
     // Repeated on everything whose position is load-bearing.
     static constexpr const char* WINDOW_TEXT =
-        "a window set into the wall: a stone or timber frame holding small panes of glass, "
-        "its sill and lintel clearly drawn, filling the whole opening in the wall and set "
+        "a window set into the stonework: a stone or timber frame holding small panes of glass, "
+        "its sill and lintel clearly drawn, filling the whole opening through the wall and set "
         "flush into it, with solid wall continuing on both sides.";
 
     static constexpr const char* kExact =
@@ -278,7 +278,7 @@ public:
     // "door leaf with a ring handle" asks for a front view, which is what made
     // the intended doors come out tilted and arched.
     static constexpr const char* DOOR_TEXT =
-        "A closed door filling this opening in the wall, seen from directly overhead so only "
+        "A closed door filling this opening in the stonework, seen from directly overhead so only "
         "the flat top face of the door leaf is visible: a plain rectangular timber panel with "
         "dark iron bands across it, lying flush inside the wall opening and squared up with "
         "the wall, exactly as wide as the wall is thick. It is drawn flat, straight on and "
@@ -378,7 +378,14 @@ public:
             // no ceiling". They judge by SideOnHit below now, which skips
             // exactly those negated mentions, so the bare words can carry the
             // weight. Mirrors ideogram_prompt._SIDE_ON_WORDS.
-            "ceiling", "roof"};
+            "ceiling", "roof",
+            // "in the wall(s)" and kin were kept out for the same reason: the
+            // door sentence said a door fills an opening in the wall. The
+            // pipeline's own door/window/gap wordings were rewritten out of
+            // that shape so these could join - an Ollama room whose "niches
+            // are set high in the walls" was passing silently.
+            "in the walls", "in the wall", "in its walls", "in its wall",
+            "in a wall", "into the walls", "into the wall"};
         return v;
     }
 
@@ -813,14 +820,14 @@ public:
                 // text encoders handle negation badly.
                 std::string doorNote =
                     doorsHere == 1
-                        ? "One single plank-filled gap sits in its wall and the rest of that "
+                        ? "One single plank-filled gap breaks that wall and the rest of that "
                           "wall is one continuous face of " + encFace + " running corner to "
                           "corner"
                   : doorsHere == 0
                         ? "All four of its walls are one continuous face of " + encFace +
                           " running corner to corner"
                         : std::to_string(doorsHere) +
-                          " plank-filled gaps sit in its wall and the rest of that wall is "
+                          " plank-filled gaps break that wall and the rest of that wall is "
                           "one continuous face of " + encFace + " running corner to corner";
                 // Match a name to a footprint by where it sits, not by list
                 // order - the areas include things that are not buildings, which
@@ -1748,9 +1755,9 @@ private:
             {"chandelier", "candelabra"}};
         static const std::vector<std::string> mountWords = [] {
             // The style-field list, then mountings that only show up inside
-            // invented prop names. Kept separate because captions legitimately
-            // say a door fills an opening in the wall; this list is only for
-            // deciding what an unknown kind's own words may keep.
+            // invented prop names. Kept separate because a prop kind's own
+            // compressed name never carries a negation, so the extra shapes
+            // only that name takes ("on_a_nail") are added without context.
             std::vector<std::string> v = SideOnWords();
             for (const char* extra : {"in the wall", "into the wall", "in a wall",
                                       "into a wall", "on a nail", "on nails"})
