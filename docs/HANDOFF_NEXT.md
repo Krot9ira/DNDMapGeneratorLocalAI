@@ -1,5 +1,15 @@
 # Handoff: prompt-adherence work, current state
 
+## Night session (autonomous batch — newest entries at the bottom)
+
+Log format: one line per finished unit of work (planner test, render verdict,
+fix), each committed as it lands. If work stops mid-item, the last line here
+says exactly where.
+
+- batch opened: tree clean at `e596e66`, Ollama up (qwen3.8:27b), ComfyUI up
+  (0.33.4). Queue: A) five planner stress tests; B) full 13-scene re-render;
+  C) close-out sweep.
+
 Written for whichever model picks this up next. Read [AGENTS.md](../AGENTS.md)
 first — "How the renderer reads what you give it" is the accumulated rulebook
 this whole effort has been building, and every fix below is recorded there
