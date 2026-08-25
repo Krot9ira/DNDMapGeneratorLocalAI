@@ -15,6 +15,11 @@ says exactly where.
   zero non-negated side-on hits; raw "in the wall" x12 are all the
   documented legitimate door wording ("a closed door filling this opening
   in the wall"). Artifacts output/_ollama_test/tavern/.
+- A2 harbour DONE (600s timeout on first try, retry at 900s planned in
+  157s): layout harbour, areas Moored Ship / Wet Quay / Timber Store / Quay,
+  25 floor-safe kinds (bollard, mast, capstan, crate_stack...). Zero
+  warnings, caption scan clean (one legitimate door wording hit only).
+  Artifacts output/_ollama_test/harbour/.
 
 Written for whichever model picks this up next. Read [AGENTS.md](../AGENTS.md)
 first — "How the renderer reads what you give it" is the accumulated rulebook
