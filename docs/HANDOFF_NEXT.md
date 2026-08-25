@@ -46,12 +46,18 @@ The OPEN ISSUE at the bottom of this file was picked up and closed:
 
 Still open after this session:
 
-1. **cavern_lake / magic_hall confirmation renders** were queued at the end of
-   the session — check `output/scene_cavern_lake/` and
-   `output/scene_magic_hall/` timestamps, look at the **top edge** of each PNG
-   for the 3/4-view leak, and ask the user to confirm.
+1. **cavern_lake / magic_hall confirmation renders** were rendered at the end
+   of the session (`output/scene_cavern_lake/battlemap_00090_.png`,
+   `output/scene_magic_hall/battlemap_00091_.png`). Inspected against the
+   top-edge rule and clean — no 3/4-view leak anywhere, structures match their
+   plans. The user has not yet eyeballed them; that sign-off is theirs to give.
 2. The Goblin Cave scene should be re-planned through the app by the user
-   (their original description), now drawing warnings about its prose.
+   (their original description); the app now logs warnings about its prose,
+   e.g. the cauldron that hangs over the flames. A stand-in reconstruction of
+   the map lost to the packaging wipe lives in `output/battlemap/` and
+   `dist/DndBattlemapGenerator/output/goblin_cave/` — same style, layout, grid
+   and terrain as the original; the room plan is the agent's own, since the
+   Ollama rooms of the deleted map are gone with it.
 
 ---
 
