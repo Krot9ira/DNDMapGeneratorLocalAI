@@ -55,9 +55,14 @@ set(DIST_DIR "${CMAKE_CURRENT_SOURCE_DIR}/dist/DndBattlemapGenerator")
 add_custom_command(TARGET DndBattlemapGenerator POST_BUILD
     COMMENT "Assembling shippable package in dist/DndBattlemapGenerator"
 
-    COMMAND ${CMAKE_COMMAND} -E rm -rf "${DIST_DIR}"
+    # Refreshed in place, never rm -rf'd whole: output/ beside the executable
+    # is where the app saves maps, and a rebuild must never throw a player's
+    # work away. Only the folders we ship are cleared, so nothing stale
+    # survives and nothing user-made is lost.
     COMMAND ${CMAKE_COMMAND} -E make_directory "${DIST_DIR}"
     COMMAND ${CMAKE_COMMAND} -E make_directory "${DIST_DIR}/output"
+    COMMAND ${CMAKE_COMMAND} -E rm -rf "${DIST_DIR}/styles"   "${DIST_DIR}/presets"
+    COMMAND ${CMAKE_COMMAND} -E rm -rf "${DIST_DIR}/tools"    "${DIST_DIR}/docs"
 
     COMMAND ${CMAKE_COMMAND} -E copy
             "$<TARGET_FILE:DndBattlemapGenerator>" "${DIST_DIR}/"
