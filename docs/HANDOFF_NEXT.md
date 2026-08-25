@@ -35,6 +35,24 @@ says exactly where.
   (sewer_tunnels rungs, magic_hall crystal threads, temple_altar and
   flooded_palace doors) - reworded. Re-planning the crypt spec now warns
   'in the walls' for Candlelit Niche Chamber. All checks + parity green.
+- HARDENING (`51a92e8`): an unknown style id now reports "not installed"
+  in problems instead of silently building a map with no style block -
+  found because my own test guessed two style ids that don't exist
+  (misty_swamp -> marsh_bog; burning_quarter is a scene, its style is
+  city_streets). The app has no free-text style path, so tools-side only.
+- A4 swamp_shrine DONE after style-id fix (marsh_bog, 210s): 40 kinds,
+  ONE warning - "the render details says 'hanging'" - the promoted hang
+  words catching live LLM prose ("thick hanging moss") that previously
+  passed silent; helper sees it in background + element too. Caption
+  otherwise clean. Artifacts output/_ollama_test/swamp_shrine/.
+- A5 burning_street DONE after style-id fix (city_streets, 217s): 42
+  kinds, ONE warning ("the Smoking Crossroads says 'hangs'", again the new
+  words working); caption scan fully clean. Artifacts
+  output/_ollama_test/burning_street/.
+- ITEM A CLOSED: five plans built and verified; every warning that fired
+  was the LLM's own side-view prose being caught (flank x2, vaulted,
+  on-the-wall, hanging, hangs); two gaps found and fixed en route
+  (in/into-the-wall promotion `a047074`, unknown-style guard `51a92e8`).
 
 Written for whichever model picks this up next. Read [AGENTS.md](../AGENTS.md)
 first — "How the renderer reads what you give it" is the accumulated rulebook
