@@ -59,6 +59,17 @@ Still open after this session:
    and terrain as the original; the room plan is the agent's own, since the
    Ollama rooms of the deleted map are gone with it.
 
+Closed while this session was running:
+
+- **Zone fragmentation was a red herring**, as suspected. Zone counts by
+  themselves mean nothing: a 74x58 cavern plan carries ~250-300 zones of
+  which ~85% are one-cell-wide strips, a 36x30 carries 61 at the same ratio,
+  and two different styles on the same seed and size produce *identical*
+  geometry — the style has no say in shape, only in props and wording. The
+  strips merge into wall runs and open-ground blocks before any element is
+  built, so the caption stays inside its budget and the renders read as
+  caves. Nothing to fix.
+
 ---
 
 # Previous handoff text (context for everything above)
