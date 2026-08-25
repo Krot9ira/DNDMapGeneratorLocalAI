@@ -53,6 +53,10 @@ says exactly where.
   was the LLM's own side-view prose being caught (flank x2, vaulted,
   on-the-wall, hanging, hangs); two gaps found and fixed en route
   (in/into-the-wall promotion `a047074`, unknown-style guard `51a92e8`).
+- B1 magic_hall PASS (battlemap_00092_): strictly top-down, top edge a flat
+  wall band with no far-side recession; crystal dais, four platforms on
+  bridges, south chasm and library corridor all match the plan; clean of
+  figures, lettering and grid.
 
 Written for whichever model picks this up next. Read [AGENTS.md](../AGENTS.md)
 first — "How the renderer reads what you give it" is the accumulated rulebook
