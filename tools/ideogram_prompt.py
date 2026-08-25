@@ -565,7 +565,28 @@ _SIDE_ON_WORDS = (
     # so the compounds carry the weight: these are the shapes the word takes
     # when something is really being hung.
     "hangs over", "hangs from", "hangs above", "hanging in the air",
+    # Bare "ceiling" and "roof" were left out while consumers judged by raw
+    # substring, because every caption legitimately says "no roof, no
+    # ceiling". They judge by side_on_hit below now, which skips exactly
+    # those negated mentions, so the bare words can carry the weight.
+    "ceiling", "roof",
 )
+
+_NEGATIONS = (" no ", "not ", "never", "without", "nor ", "n't ", "nothing ",
+              "none ", "zero ")
+
+
+def side_on_hit(text):
+    """The first wall/overhead phrase said as an instruction, not a negation."""
+    low = str(text).lower()
+    for bad in _SIDE_ON_WORDS:
+        at = low.find(bad)
+        while at != -1:
+            lead = low[max(0, at - 30):at]
+            if not any(n in lead for n in _NEGATIONS):
+                return bad
+            at = low.find(bad, at + 1)
+    return None
 
 
 # A prop kind nobody wrote a phrase for becomes words by replacing underscores.
@@ -681,16 +702,14 @@ def style_warnings(map_data, style):
                 f"says what the light is like, not where anything stands: this one puts "
                 f"that thing on every map the style touches, whatever the plan says.")
             break
-    for phrase in _SIDE_ON_WORDS:
-        for key in ("materials", "ground", "lighting", "boundary", "description"):
-            body = str(style.get(key, "")).lower()
-            if phrase in body:
-                out.append(
-                    f"style '{style.get('id', '?')}' says '{phrase}' in its {key}. Nothing "
-                    f"can be shown on a wall or overhead from directly above, so the "
-                    f"renderer draws the wall from the side to fit it in and the map comes "
-                    f"back in perspective. Say where the thing stands on the floor instead.")
-                break
+    for key in ("materials", "ground", "lighting", "boundary", "description"):
+        hit = side_on_hit(str(style.get(key, "")))
+        if hit:
+            out.append(
+                f"style '{style.get('id', '?')}' says '{hit}' in its {key}. Nothing "
+                f"can be shown on a wall or overhead from directly above, so the "
+                f"renderer draws the wall from the side to fit it in and the map comes "
+                f"back in perspective. Say where the thing stands on the floor instead.")
 
     # Prop kinds a planner invented on the fly can carry the mounting in the
     # name - "small_iron_hook_in_the_wall", read back as caption text, is a
@@ -723,8 +742,7 @@ def style_warnings(map_data, style):
               for a in (map_data.get("annotations") or []) + (map_data.get("areas") or [])]
     said = set()
     for where, body in prose:
-        low = str(body).lower()
-        hit = next((p for p in _SIDE_ON_WORDS if p in low), None)
+        hit = side_on_hit(body)
         if hit and hit not in said:
             said.add(hit)
             out.append(
@@ -1061,9 +1079,9 @@ def build_caption(map_data, style=None, base=None):
                      f", standing alone inside "
                      f"this rectangle and nowhere else: one unbroken outer wall running "
                      f"right round the edges of the rectangle, drawn as a narrow line about "
-                     f"{share} percent of the width of this rectangle and no wider - a line, "
-                     f"not a band - with its roof removed so the furnished floor inside is "
-                     f"fully visible from above.")
+                      f"{share} percent of the width of this rectangle and no wider - a line, "
+                      f"not a band - open above so the furnished floor inside is "
+                      f"fully visible from above.")
             outside_note = (f"{door_note}. The inner face of those outer walls is flat and "
                             f"plain the whole way round, and the floor runs right up to it "
                             f"everywhere. The ground immediately outside the building on "
@@ -1413,8 +1431,8 @@ def build_caption(map_data, style=None, base=None):
             "no interior wall, no partition, no screen, no alcove, no niche, no recess, no "
             "booth and no smaller room anywhere inside it. Nothing of the building's own "
             "structure stands on that floor either: no beam, no joist, no tie, no brace and "
-            "no timber frame crosses it or runs round the inside of its walls, because the "
-            "roof they would have carried is gone")
+            "no timber frame crosses it or runs round the inside of its walls, and nothing "
+            "stands over the room - it is open to the sky")
         shell_here = None
         for j in host_i:
             if j in single_room_shell:
@@ -1450,7 +1468,7 @@ def build_caption(map_data, style=None, base=None):
                         if not host and enclosure != "masonry"
                         and not _is_walled_in(grid, area["x"], area["y"], area["w"],
                                               area["h"], site_edge) else
-                        "the roofless interior of a room seen from directly "
+                        "the open interior of a room seen from directly "
                         "above, its floor and furniture fully visible and filling this "
                         "rectangle, with no roof, no ceiling and nothing overhanging it")
                      + one_room

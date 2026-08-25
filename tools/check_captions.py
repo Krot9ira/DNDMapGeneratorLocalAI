@@ -27,23 +27,6 @@ def fail(where, msg):
     problems.append(f"{where:28} {msg}")
 
 
-_NEGATIONS = (" no ", "not ", "never", "without", "nor ", "n't ", "nothing ",
-              "none ", "zero ")
-
-
-def side_on_hit(text):
-    """The first wall/overhead phrase said as an instruction, not a negation."""
-    low = str(text).lower()
-    for bad in IP._SIDE_ON_WORDS:
-        at = low.find(bad)
-        while at != -1:
-            lead = low[max(0, at - 30):at]
-            if not any(n in lead for n in _NEGATIONS):
-                return bad
-            at = low.find(bad, at + 1)
-    return None
-
-
 def check_caption(where, cap, cols, rows, map_data=None):
     head = cap.get("high_level_description", "")
     if not head:
@@ -74,7 +57,7 @@ def check_caption(where, cap, cols, rows, map_data=None):
     # This is what would have caught the cave style whose crystals grew "from
     # the walls", and the banner phrase that still said "hanging flat against
     # the wall" long after the styles were cleaned.
-    hit = side_on_hit(bg)
+    hit = IP.side_on_hit(bg)
     if hit:
         fail(where, f"background asks for something seen from the side: '{hit}'")
 
@@ -103,7 +86,7 @@ def check_caption(where, cap, cols, rows, map_data=None):
             fail(where, f"element {i} repeats a sentence: {dupes[0][:60]}...")
         seen[desc] += 1
 
-        hit = side_on_hit(desc)
+        hit = IP.side_on_hit(desc)
         if hit:
             fail(where, f"element {i} asks for something seen from the side: "
                         f"'{hit}' - {desc[:70]}")

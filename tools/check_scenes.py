@@ -75,12 +75,11 @@ def check(path):
              {"label": "render_details", "description": m["meta"].get("render_details", "")},
              {"label": "lighting", "description": m["meta"].get("lighting", "")}]
     for note in m["annotations"] + [dict(a) for a in m["areas"]] + prose:
-        body = (str(note.get("description", "")) + " " + str(note.get("label", ""))).lower()
-        for phrase in IP._SIDE_ON_WORDS:
-            if phrase in body:
-                fail(scene, f"'{note.get('label', '?')}' says '{phrase}' - nothing can be "
-                            f"shown on a wall or overhead from directly above")
-                break
+        body = str(note.get("description", "")) + " " + str(note.get("label", ""))
+        hit = IP.side_on_hit(body)
+        if hit:
+            fail(scene, f"'{note.get('label', '?')}' says '{hit}' - nothing can be "
+                        f"shown on a wall or overhead from directly above")
 
     # A description that names something solid - a cliff, a wall, a barricade -
     # has to have it in the plan too, or the renderer is told there is a sheer

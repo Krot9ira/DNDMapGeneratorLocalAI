@@ -372,14 +372,46 @@ public:
             // Bare "hanging" would catch the captions' own "nothing
             // overhanging it", so the compounds carry the weight: these are the
             // shapes the word takes when something is really being hung.
-            "hangs over", "hangs from", "hangs above", "hanging in the air"};
+            "hangs over", "hangs from", "hangs above", "hanging in the air",
+            // Bare "ceiling" and "roof" were left out while consumers judged by
+            // raw substring, because every caption legitimately says "no roof,
+            // no ceiling". They judge by SideOnHit below now, which skips
+            // exactly those negated mentions, so the bare words can carry the
+            // weight. Mirrors ideogram_prompt._SIDE_ON_WORDS.
+            "ceiling", "roof"};
         return v;
+    }
+
+    // The first side-on phrase said as an instruction rather than a negation:
+    // a mention with a denial in the thirty characters before it is the
+    // caption's own "no roof, no ceiling" and passes. Mirrors
+    // ideogram_prompt.side_on_hit, down to the window and the word list.
+    static std::string SideOnHit(const std::string& text) {
+        static const char* kNegations[] = {" no ", "not ", "never", "without",
+                                           "nor ", "n't ", "nothing ", "none ",
+                                           "zero "};
+        const std::string low = arch::Lower(text);
+        for (const std::string& w : SideOnWords()) {
+            std::size_t at = low.find(w);
+            while (at != std::string::npos) {
+                const std::size_t start = at > 30 ? at - 30 : 0;
+                const std::string lead = low.substr(start, at - start);
+                bool negated = false;
+                for (const char* n : kNegations)
+                    if (lead.find(n) != std::string::npos) {
+                        negated = true;
+                        break;
+                    }
+                if (!negated) return w;
+                at = low.find(w, at + 1);
+            }
+        }
+        return "";
     }
 
     static std::vector<std::string> StyleWarnings(const StyleDef* style) {
         std::vector<std::string> out;
         if (!style) return out;
-        const std::vector<std::string>& sideOn = SideOnWords();
         static const std::vector<std::string> placing = {
             "central ", "in the middle", "round the", "along the", "down the",
             "beyond the", "at the far", "on one side", "in the centre"};
@@ -398,19 +430,14 @@ public:
                               "touches, whatever the plan says.");
                 break;
             }
-        for (const std::string& w : sideOn) {
-            bool said = false;
-            for (const auto& f : fields) {
-                if (arch::Lower(f.second).find(w) == std::string::npos) continue;
-                out.push_back("style '" + style->id + "' says '" + w + "' in its " +
-                              f.first + ". Nothing can be shown on a wall or overhead from "
-                              "directly above, so the renderer draws the wall from the side "
-                              "to fit it in and the map comes back tilted. Say where the "
-                              "thing stands on the floor instead.");
-                said = true;
-                break;
-            }
-            if (said) break;
+        for (const auto& f : fields) {
+            const std::string hit = SideOnHit(f.second);
+            if (hit.empty()) continue;
+            out.push_back("style '" + style->id + "' says '" + hit + "' in its " +
+                          f.first + ". Nothing can be shown on a wall or overhead from "
+                          "directly above, so the renderer draws the wall from the side "
+                          "to fit it in and the map comes back tilted. Say where the "
+                          "thing stands on the floor instead.");
         }
         return out;
     }
@@ -455,18 +482,15 @@ public:
                              a.description + " " + a.label});
         std::vector<std::string> said;
         for (const auto& w : prose) {
-            std::string low = arch::Lower(w.second);
-            for (const std::string& bad : SideOnWords()) {
-                if (low.find(bad) == std::string::npos) continue;
-                if (std::find(said.begin(), said.end(), bad) == said.end()) {
-                    said.push_back(bad);
-                    out.push_back("the " + w.first + " says '" + bad +
-                                  "'. Nothing can be shown on a wall or overhead from "
-                                  "directly above, and this is the strongest text in the "
-                                  "caption - reword it as the top face of the thing.");
-                }
-                break;
-            }
+            const std::string bad = SideOnHit(w.second);
+            if (bad.empty() ||
+                std::find(said.begin(), said.end(), bad) != said.end())
+                continue;
+            said.push_back(bad);
+            out.push_back("the " + w.first + " says '" + bad +
+                          "'. Nothing can be shown on a wall or overhead from "
+                          "directly above, and this is the strongest text in the "
+                          "caption - reword it as the top face of the thing.");
         }
         return out;
     }
@@ -864,7 +888,7 @@ public:
                                     "edges of the rectangle, drawn as a narrow line about " +
                                     std::to_string(wallShare) +
                                     " percent of the width of this rectangle and no wider - "
-                                    "a line, not a band - with its roof removed so the "
+                                    "a line, not a band - open above so the "
                                     "furnished floor inside is fully visible from above.";
                 std::string outsideNote =
                     doorNote + ". The inner face of those outer walls is flat and plain the "
@@ -1234,7 +1258,8 @@ public:
                 "niche, no recess, no booth and no smaller room anywhere inside it. Nothing "
                 "of the building's own structure stands on that floor either: no beam, no "
                 "joist, no tie, no brace and no timber frame crosses it or runs round the "
-                "inside of its walls, because the roof they would have carried is gone";
+                "inside of its walls, and nothing stands over the room - it is open to "
+                "the sky";
             auto shellIt = host ? singleRoomShell.find(hostIndex) : singleRoomShell.end();
             if (host && shellIt != singleRoomShell.end()) {
                 const Rect& b = buildings[hostIndex];
@@ -1289,7 +1314,7 @@ public:
                       "open ground and nothing is built round the edge of it: no wall, no "
                       "fence, no railing and no kerb marks where it ends, and the ground "
                       "carries straight on past it on every side"
-                    : "the roofless interior of a room seen from directly above, its floor "
+                    : "the open interior of a room seen from directly above, its floor "
                       "and furniture fully visible and filling this rectangle, with no roof, "
                       "no ceiling and nothing overhanging it";
             normal.push_back({
