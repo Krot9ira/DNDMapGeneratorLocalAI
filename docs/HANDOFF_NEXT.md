@@ -28,6 +28,13 @@ says exactly where.
   out of _SIDE_ON_WORDS to protect the pipeline's own door wording. Fixing
   next: reword the pipeline door/window/gap sentences out of that shape,
   then promote the phrase family into the lint in both ports.
+- FIX COMMITTED (`a047074`): doors now fill "an opening in the stonework",
+  windows open through the wall, building gaps "break that wall" (both
+  ports + _phrases.json), and in/into-the-wall(s) joined the side-on list.
+  The widened words at once caught four more committed users
+  (sewer_tunnels rungs, magic_hall crystal threads, temple_altar and
+  flooded_palace doors) - reworded. Re-planning the crypt spec now warns
+  'in the walls' for Candlelit Niche Chamber. All checks + parity green.
 
 Written for whichever model picks this up next. Read [AGENTS.md](../AGENTS.md)
 first — "How the renderer reads what you give it" is the accumulated rulebook
