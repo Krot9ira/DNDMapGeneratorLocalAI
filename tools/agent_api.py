@@ -82,6 +82,14 @@ def build_map(spec, seed=None, cols=None, rows=None):
     """Spec -> map dict + caption inputs. No network calls, no LLM."""
     planner = MapPlanner()
     result = planner.compose(spec, seed=seed, cols=cols, rows=rows)
+    known = planner.load_styles()
+    wanted = str((result["map_json"].get("meta") or {}).get("style") or "")
+    # A style nobody wrote leaves the caption without its materials, ground
+    # and lighting entirely - say so instead of shipping a bare map.
+    if wanted and wanted not in known:
+        result.setdefault("problems", []).append(
+            f"style '{wanted}' is not installed; available: {', '.join(sorted(known))}. "
+            f"This plan was built with no style wording at all.")
     # A style whose own text argues with the plan beats anything the caption
     # says about it, so it is worth saying out loud before the GPU is spent.
     try:
