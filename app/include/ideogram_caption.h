@@ -16,6 +16,8 @@
 
 #include <map>
 #include <numeric>
+#include <algorithm>
+#include <cstring>
 #include <string>
 #include <vector>
 
@@ -352,10 +354,11 @@ public:
     // something that can only be seen from the side. Mirrors
     // ideogram_prompt.style_warnings, so the app warns about a style somebody
     // writes here exactly as the tools do.
-    static std::vector<std::string> StyleWarnings(const StyleDef* style) {
-        std::vector<std::string> out;
-        if (!style) return out;
-        static const std::vector<std::string> sideOn = {
+    //
+    // The shared word list, so the style lint, the map lint and the prop-name
+    // sanitiser all judge by the same words.
+    static const std::vector<std::string>& SideOnWords() {
+        static const std::vector<std::string> v = {
             "on the wall", "from the wall", "up the wall", "wall-mounted", "wall-hung",
             "mounted on", "hanging from", "hanging over", "hanging above", "hung on",
             "hung from", "hung above", "from the ceiling", "on the ceiling",
@@ -365,7 +368,18 @@ public:
             "taller than a man", "taller than a person", "seen from the side", "in profile",
             "silhouette", "elevation", "to the roof", "to the ceiling", "floor to roof",
             "head height", "upper level", "upper storey", "tall window",
-            "standing upright"};
+            "standing upright",
+            // Bare "hanging" would catch the captions' own "nothing
+            // overhanging it", so the compounds carry the weight: these are the
+            // shapes the word takes when something is really being hung.
+            "hangs over", "hangs from", "hangs above", "hanging in the air"};
+        return v;
+    }
+
+    static std::vector<std::string> StyleWarnings(const StyleDef* style) {
+        std::vector<std::string> out;
+        if (!style) return out;
+        const std::vector<std::string>& sideOn = SideOnWords();
         static const std::vector<std::string> placing = {
             "central ", "in the middle", "round the", "along the", "down the",
             "beyond the", "at the far", "on one side", "in the centre"};
@@ -401,6 +415,62 @@ public:
         return out;
     }
 
+    // Places where the map's own content asks for something only a side view
+    // can show: a prop kind a planner invented with the mounting baked into its
+    // name, or scene prose, which is the strongest text in the caption. The
+    // caption builder cuts the prop names down; this says so before the GPU is
+    // spent, so the loss can be made up in the scene description. Mirrors the
+    // prop-kind and prose checks in ideogram_prompt.style_warnings.
+    static std::vector<std::string> MapWarnings(const MapData& map,
+                                                const Phrasebook* ph = nullptr) {
+        std::vector<std::string> out;
+        std::map<std::string, std::string> renamed;
+        for (const Feature& f : map.features) {
+            std::string kind = f.kind;
+            while (!kind.empty() && kind.back() == ' ') kind.pop_back();
+            if (kind.empty()) continue;
+            // A phrase somebody wrote by hand was written deliberately.
+            if (ph && !ph->Get("props", arch::Lower(kind), "").empty()) continue;
+            if (!PropPhrase(arch::Lower(kind)).empty()) continue;
+            std::string words = PropKindWords(kind);
+            if (words == kind) continue;
+            for (auto& c : kind)
+                if (c == '_') c = ' ';
+            renamed[kind] = words;
+        }
+        for (const auto& kv : renamed)
+            out.push_back("prop '" + kv.first + "' reads as something mounted on a wall "
+                          "or overhead; the caption describes '" + kv.second + "' instead. "
+                          "Rename the prop in the scene description so nothing is lost.");
+
+        std::vector<std::pair<std::string, std::string>> prose = {
+            {"scene summary", map.meta.scene_summary},
+            {"render details", map.meta.render_details},
+            {"lighting", map.meta.lighting}};
+        for (const Annotation& n : map.annotations)
+            prose.push_back({n.label.empty() ? std::string("annotation") : n.label,
+                             n.description + " " + n.label});
+        for (const Area& a : map.areas)
+            prose.push_back({a.label.empty() ? std::string("area") : a.label,
+                             a.description + " " + a.label});
+        std::vector<std::string> said;
+        for (const auto& w : prose) {
+            std::string low = arch::Lower(w.second);
+            for (const std::string& bad : SideOnWords()) {
+                if (low.find(bad) == std::string::npos) continue;
+                if (std::find(said.begin(), said.end(), bad) == said.end()) {
+                    said.push_back(bad);
+                    out.push_back("the " + w.first + " says '" + bad +
+                                  "'. Nothing can be shown on a wall or overhead from "
+                                  "directly above, and this is the strongest text in the "
+                                  "caption - reword it as the top face of the thing.");
+                }
+                break;
+            }
+        }
+        return out;
+    }
+
     static nlohmann::json Build(const MapData& map, const StyleDef* style,
                                 const BaseStyle& base, const Phrasebook& ph = {}) {
         // Every phrase below can be overridden in styles/_phrases.json; the
@@ -424,8 +494,8 @@ public:
         if (enclosure == "rock") {
             encWall = "solid rough rock wall";
             encFace = "raw rock";
-            encBoundary = "sheer natural rock closing the site in on all four sides, its "
-                          "face broken and irregular, and nowhere a course of laid stone";
+            encBoundary = "sheer natural rock closing the site in on all four sides, "
+                          "broken and irregular, and nowhere a course of laid stone";
         } else if (enclosure == "timber") {
             encWall = "solid timber bulwark of close-fitted planking";
             encFace = "close-fitted planking";
@@ -999,7 +1069,7 @@ public:
                         {"type", "obj"},
                         {"bbox", Bbox(r.x, r.y, r.w, r.h, cols, rows)},
                         {"desc", std::string("A mass of " + encWall + " filling this "
-                                 "whole rectangle solidly, its face irregular and broken but "
+                                 "whole rectangle solidly, irregular and broken but "
                                  "with no passage, gap or opening through it anywhere. ") +
                                  kExactS}});
                     continue;
@@ -1242,9 +1312,8 @@ public:
             // one sentence with no chest anywhere in particular.
             bool askedFor = !f.filler;
             if (!f.structural && !askedFor) {
-                std::string pretty = f.kind;
-                std::replace(pretty.begin(), pretty.end(), '_', ' ');
-                loose[pretty]++;
+                std::string pretty = PropKindWords(f.kind);
+                if (!pretty.empty()) ++loose[pretty];
                 continue;
             }
             if (!f.label.empty()) {
@@ -1286,18 +1355,16 @@ public:
                     if (f.x >= n.x && f.x < n.x + std::max(1, n.w) &&
                         f.y >= n.y && f.y < n.y + std::max(1, n.h)) onNote = true;
                 if (hugsWall || onNote) {
-                    std::string pretty = f.kind;
-                    std::replace(pretty.begin(), pretty.end(), '_', ' ');
-                    ++loose[pretty];
+                    std::string pretty = PropKindWords(f.kind);
+                    if (!pretty.empty()) ++loose[pretty];
                     continue;
                 }
                 // Past a few, identical filler elements stop saying "there are
                 // several of these" and start saying "this map is a repeating
                 // pattern", which the renderer obliges by mirroring the layout.
                 if (++pinned[f.kind] > kMaxSameProp) {
-                    std::string pretty = f.kind;
-                    std::replace(pretty.begin(), pretty.end(), '_', ' ');
-                    ++loose[pretty];
+                    std::string pretty = PropKindWords(f.kind);
+                    if (!pretty.empty()) ++loose[pretty];
                     continue;
                 }
             }
@@ -1305,10 +1372,12 @@ public:
             if (phrase.empty()) {
                 if (!askedFor) continue;
                 // Asked for by name but nobody wrote a description for it. Its
-                // own name is a poor description, and still better than silence.
-                std::string pretty = f.kind;
-                std::replace(pretty.begin(), pretty.end(), '_', ' ');
-                phrase = "a " + pretty;
+                // own name is a poor description, and still better than
+                // silence - but only after anything that reads as mounted on a
+                // wall or overhead is out of it, or the picture tips into
+                // perspective to show it.
+                std::string safe = PropKindWords(f.kind, true);
+                phrase = "a " + (safe.empty() ? "small curiosity lying on the floor" : safe);
             }
             if (phrase.empty()) continue;
             // Several of one kind described in identical words read as one
@@ -1479,7 +1548,7 @@ private:
             {"fog", "a low bank of pale drifting fog, thinning at its edges, the ground still "
                     "readable beneath it"},
             {"mist", "thin silver mist clinging low to the ground"},
-            {"fireflies", "a scatter of tiny warm yellow-green points of light hanging in the air"},
+            {"fireflies", "a scatter of tiny warm yellow-green points of light drifting low over the ground"},
             {"magic_glow", "a soft violet arcane glow washing over the ground, brightest at "
                            "its centre"},
             {"holy_light", "a shaft of pale golden light falling from above onto the ground"},
@@ -1635,6 +1704,89 @@ private:
         }
     }
 
+    // A prop kind nobody wrote a phrase for becomes words by replacing
+    // underscores. Language models planning a scene bake the mounting into the
+    // name itself - "faint_chalk_mark_on_the_wall", "rusted_iron_sword_on_a_nail"
+    // - and read back as caption text that puts the thing on a wall, which tips
+    // the whole picture into perspective. Reword what can be reworded into
+    // something the floor can show, cut what can only be cut. Mirrors
+    // ideogram_prompt.prop_kind_words, so both ports mangle a bad name the
+    // same way.
+    static std::string PropKindWords(const std::string& kind, bool ground = false) {
+        static const std::pair<const char*, const char*> rewrites[] = {
+            {"stalactite cluster", "ring of broken rock spires"},
+            {"stalactites", "broken rock spires"},
+            {"stalactite", "broken rock spire"},
+            {"support beam", "fallen timber beam"},
+            {"ceiling beam", "fallen timber beam"},
+            {"roof beam", "fallen timber beam"},
+            {"chandelier", "candelabra"}};
+        static const std::vector<std::string> mountWords = [] {
+            // The style-field list, then mountings that only show up inside
+            // invented prop names. Kept separate because captions legitimately
+            // say a door fills an opening in the wall; this list is only for
+            // deciding what an unknown kind's own words may keep.
+            std::vector<std::string> v = SideOnWords();
+            for (const char* extra : {"in the wall", "into the wall", "in a wall",
+                                      "into a wall", "on a nail", "on nails"})
+                v.push_back(extra);
+            return v;
+        }();
+        static const char* dangling[] = {"a",  "an",   "the", "on",    "in", "into",
+                                         "from", "under", "above", "across", "against", "by",
+                                         "at", "near"};
+
+        std::string words;
+        for (char c : kind) words.push_back(c == '_' ? ' ' : c);
+        while (!words.empty() && words.front() == ' ') words.erase(words.begin());
+        while (!words.empty() && words.back() == ' ') words.pop_back();
+        const std::string original = words;
+
+        for (const auto& rw : rewrites) {
+            std::string low = arch::Lower(words);
+            std::size_t at = low.find(rw.first);
+            if (at != std::string::npos)
+                words = words.substr(0, at) + rw.second + words.substr(at + strlen(rw.first));
+        }
+        bool cut = false;
+        std::size_t atCut = std::string::npos;
+        {
+            // Searches run on a lowercased copy; what is kept keeps its case,
+            // as the Python port does.
+            std::string low = arch::Lower(words);
+            for (const std::string& w : mountWords) {
+                std::size_t at = low.find(w);
+                while (at != std::string::npos) {
+                    atCut = std::min(atCut, at);
+                    at = low.find(w, at + 1);
+                }
+            }
+        }
+        if (atCut != std::string::npos) {
+            cut = true;
+            words = words.substr(0, atCut);
+            while (!words.empty() &&
+                   (words.back() == ' ' || words.back() == ',' || words.back() == '.' ||
+                    words.back() == '-' || words.back() == ';'))
+                words.pop_back();
+            // A name cut mid-phrase can leave its article or preposition
+            // behind: "small iron hook in" says nothing.
+            for (int pass = 0; pass < 2; ++pass) {
+                std::size_t sp = words.rfind(' ');
+                if (sp == std::string::npos) break;
+                std::string last = arch::Lower(words.substr(sp + 1));
+                bool dangly = false;
+                for (const char* d : dangling)
+                    if (last == d) dangly = true;
+                if (!dangly) break;
+                words = words.substr(0, sp);
+                while (!words.empty() && words.back() == ' ') words.pop_back();
+            }
+        }
+        if (!ground || !cut || words.empty()) return words;
+        return words + " lying on the ground";
+    }
+
     static std::string PropPhrase(const std::string& kind) {
         static const std::map<std::string, std::string> m = {
             {"pillar", "a thick round stone pillar"},
@@ -1662,6 +1814,7 @@ private:
             {"tree", "a broad tree seen from above, its canopy spreading wide"},
             {"boulder", "a moss-covered boulder"},
             {"stalagmite", "a jagged rock spire"},
+            {"stalactite", "a broken rock spire standing on the floor, its wide base rooted among the stones"},
             {"crystal", "a cluster of glowing crystal shards"},
             {"mast", "the base of a timber mast with coiled rigging"},
             {"capstan", "a timber capstan with protruding bars"},

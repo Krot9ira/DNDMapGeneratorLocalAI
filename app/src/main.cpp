@@ -540,11 +540,18 @@ static void StartQuickBlueprint() {
     // into the worker with everything else.
     std::vector<std::string> styleWarnings =
         IdeogramCaption::StyleWarnings(g_app.styles.Find(spec.style));
+    // Copied here where the style table is safe to touch; the worker only
+    // reads its own copy.
+    Phrasebook phrasebook = g_app.styles.phrases;
     uint32_t seed = PickSeed();
-    std::thread([spec, seed, styleWarnings]() {
+    std::thread([spec, seed, styleWarnings, phrasebook]() {
         Job& job = g_app.job;
         for (const auto& warn : styleWarnings) job.Log("[warn] " + warn);
         MapData map = arch::Build(spec, seed);
+        // A prop kind or a line of scene prose that only a side view can show
+        // is worth saying out loud before the render is spent on it.
+        for (const auto& warn : IdeogramCaption::MapWarnings(map, &phrasebook))
+            job.Log("[warn] " + warn);
         job.Log("Built " + std::to_string(map.grid.cols) + "x" +
                 std::to_string(map.grid.rows) + " " + spec.layout + " map, " +
                 std::to_string(map.areas.size()) + " areas, " +
@@ -593,6 +600,9 @@ static void StartPlanAndRender(bool alsoRender) {
         styleWarn[kv.first] = IdeogramCaption::StyleWarnings(&kv.second);
         styleLayout[kv.first] = kv.second.default_layout;
     }
+    // Snapshotted on the UI thread like the rest: the worker must not reach
+    // into g_app.styles.
+    Phrasebook phrasebook = g_app.styles.phrases;
 
     std::string comfyUrl = g_app.config.comfy.base_url;
     bool comfyUp = g_app.comfyOk;
@@ -640,6 +650,10 @@ static void StartPlanAndRender(bool alsoRender) {
         // caption says about it, so it is worth saying out loud before the GPU
         // is spent. The tools have said this for a while; now the app does too.
         for (const auto& warn : planStyleWarnings) job.Log("[warn] " + warn);
+        // So do prop kinds invented on the fly with their mounting in the name,
+        // and scene prose asking for a side view.
+        for (const auto& warn : IdeogramCaption::MapWarnings(map, &phrasebook))
+            job.Log("[warn] " + warn);
         {
             std::lock_guard<std::mutex> lock(job.mtx);
             job.map = map;

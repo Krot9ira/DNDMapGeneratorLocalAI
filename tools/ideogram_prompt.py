@@ -21,6 +21,7 @@ The spec bans hedging ("various", "such as", "or similar") and demands one
 committed value per property, so every string built here is concrete.
 """
 import json
+import re
 from math import gcd
 
 import architect as A
@@ -129,8 +130,8 @@ _ENCLOSURE_WORDS = {
     "rock": {
         "wall": "solid rough rock wall",
         "face": "raw rock",
-        "boundary": ("sheer natural rock closing the site in on all four sides, its face "
-                     "broken and irregular, and nowhere a course of laid stone"),
+        "boundary": ("sheer natural rock closing the site in on all four sides, broken "
+                     "and irregular, and nowhere a course of laid stone"),
     },
     "timber": {
         "wall": "solid timber bulwark of close-fitted planking",
@@ -560,7 +561,70 @@ _SIDE_ON_WORDS = (
     "taller than a man", "taller than a person", "seen from the side", "in profile",
     "silhouette", "elevation", "to the roof", "to the ceiling", "floor to roof",
     "head height", "upper level", "upper storey", "tall window", "standing upright",
+    # Bare "hanging" would catch the captions' own "nothing overhanging it",
+    # so the compounds carry the weight: these are the shapes the word takes
+    # when something is really being hung.
+    "hangs over", "hangs from", "hangs above", "hanging in the air",
 )
+
+
+# A prop kind nobody wrote a phrase for becomes words by replacing underscores.
+# Language models planning a scene bake the mounting into the name itself -
+# "faint_chalk_mark_on_the_wall", "rusted_iron_sword_on_a_nail" - and read back
+# as caption text that puts the thing on a wall, which tips the whole picture
+# into perspective. Reword what can be reworded into something the floor can
+# show, cut what can only be cut.
+_PROP_REWRITES = (
+    ("stalactite cluster", "ring of broken rock spires"),
+    ("stalactites", "broken rock spires"),
+    ("stalactite", "broken rock spire"),
+    ("support beam", "fallen timber beam"),
+    ("ceiling beam", "fallen timber beam"),
+    ("roof beam", "fallen timber beam"),
+    ("chandelier", "candelabra"),
+)
+
+_DANGLING_WORDS = ("a", "an", "the", "on", "in", "into", "from", "under",
+                   "above", "across", "against", "by", "at", "near")
+
+# Mountings that show up inside invented prop names but not in prose: a nail
+# is only ever holding something to a vertical surface, and a hook in a wall
+# has no top face to draw. Kept out of _SIDE_ON_WORDS itself because captions
+# legitimately say a door fills an opening in the wall - this list is only for
+# deciding what an unknown kind's own words may keep.
+_PROP_MOUNT_WORDS = _SIDE_ON_WORDS + (
+    "in the wall", "into the wall", "in a wall", "into a wall",
+    "on a nail", "on nails",
+)
+
+
+def prop_kind_words(kind, ground=False):
+    """Floor-safe words for a prop kind, however badly it was named.
+
+    `ground` adds a clause putting what is left on the floor, for a phrase
+    standing alone; clutter sentences already say where things are."""
+    words = str(kind).replace("_", " ").strip()
+    low = words.lower()
+    for bad, good in _PROP_REWRITES:
+        at = low.find(bad)
+        if at != -1:
+            words = words[:at] + good + words[at + len(bad):]
+            low = words.lower()
+    cut = len(words)
+    for phrase in _PROP_MOUNT_WORDS:
+        at = low.find(phrase)
+        while at != -1:
+            cut = min(cut, at)
+            at = low.find(phrase, at + 1)
+    if cut < len(words):
+        words = words[:cut]
+        words = words.rstrip(" ,.-;")
+        parts = words.rsplit(" ", 1)
+        if len(parts) == 2 and parts[1].lower() in _DANGLING_WORDS:
+            words = parts[0].rstrip(" ,.-;")
+    else:
+        return words
+    return f"{words} lying on the ground" if ground and words else words
 
 
 # Things a lighting line has no business claiming: they are layout, and they end
@@ -627,6 +691,46 @@ def style_warnings(map_data, style):
                     f"renderer draws the wall from the side to fit it in and the map comes "
                     f"back in perspective. Say where the thing stands on the floor instead.")
                 break
+
+    # Prop kinds a planner invented on the fly can carry the mounting in the
+    # name - "small_iron_hook_in_the_wall", read back as caption text, is a
+    # thing hanging on a wall. The caption builder cuts these out; say so here,
+    # so the loss can be made up in the scene description instead.
+    known = load_phrases()["props"]
+    renamed = {}
+    for f in map_data.get("features") or []:
+        raw = str(f.get("kind", "")).strip()
+        kind = raw.lower()
+        if not kind or kind in known:
+            continue
+        words = prop_kind_words(kind)
+        if words != raw.replace("_", " ").strip():
+            renamed[raw.replace("_", " ").strip()] = words
+    for bad, good in sorted(renamed.items()):
+        out.append(
+            f"prop '{bad}' reads as something mounted on a wall or overhead; the caption "
+            f"describes '{good}' instead. Rename the prop in the scene description so "
+            f"nothing is lost.")
+
+    # The scene's own prose goes straight into the caption background, where it
+    # outweighs any rectangle. An Ollama scene that says the cauldron "hangs
+    # over the flames" is asking for a side view in the strongest text there is.
+    meta = map_data.get("meta") or {}
+    prose = [("scene summary", meta.get("scene_summary", "")),
+             ("render details", meta.get("render_details", "")),
+             ("lighting", meta.get("lighting", ""))]
+    prose += [(a.get("label", "?"), str(a.get("description", "")) + " " + str(a.get("label", "")))
+              for a in (map_data.get("annotations") or []) + (map_data.get("areas") or [])]
+    said = set()
+    for where, body in prose:
+        low = str(body).lower()
+        hit = next((p for p in _SIDE_ON_WORDS if p in low), None)
+        if hit and hit not in said:
+            said.add(hit)
+            out.append(
+                f"the {where} says '{hit}'. Nothing can be shown on a wall or overhead "
+                f"from directly above, and this is the strongest text in the caption - "
+                f"reword it as the top face of the thing.")
     return out
 
 
@@ -1168,8 +1272,8 @@ def build_caption(map_data, style=None, base=None):
             walls.append({
                 "type": "obj",
                 "bbox": _bbox(x, y, w, h, cols, rows),
-                "desc": (f"A mass of {wall_word} filling this whole rectangle solidly, its "
-                         f"face irregular and broken but with no passage, gap or opening "
+                "desc": (f"A mass of {wall_word} filling this whole rectangle solidly, "
+                         f"irregular and broken but with no passage, gap or opening "
                          f"through it anywhere. {exact}")})
             continue
         fx, fy = (x + w / 2.0) / max(1, cols), (y + h / 2.0) / max(1, rows)
@@ -1365,7 +1469,9 @@ def build_caption(map_data, style=None, base=None):
         kind = str(f.get("kind", "")).lower()
         asked_for = not f.get("filler", False)
         if not f.get("structural", True) and not asked_for:
-            loose.append(kind.replace("_", " "))
+            words = prop_kind_words(kind)
+            if words:
+                loose.append(words)
             continue
         label = str(f.get("label", "")).strip()
         if label:
@@ -1383,8 +1489,11 @@ def build_caption(map_data, style=None, base=None):
             if not asked_for:
                 continue
             # Asked for by name but nobody wrote a description for it. Its own
-            # name is a poor description, and still better than silence.
-            phrase = "a " + kind.replace("_", " ")
+            # name is a poor description, and still better than silence - but
+            # only after anything that reads as mounted on a wall or overhead
+            # is out of it, or the picture tips into perspective to show it.
+            phrase = "a " + (prop_kind_words(kind, ground=True)
+                             or "small curiosity lying on the floor")
         if f.get("filler"):
             # Filler standing against a wall does not get a rectangle of its
             # own. A dozen small boxes ringing the inside of a room reads as a
@@ -1396,7 +1505,9 @@ def build_caption(map_data, style=None, base=None):
             fx, fy = int(f["x"]), int(f["y"])
             if any(grid.get(fx + dx, fy + dy) in (A.WALL, A.DOOR, A.WINDOW)
                    for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1))):
-                loose.append(kind.replace("_", " "))
+                words = prop_kind_words(kind)
+                if words:
+                    loose.append(words)
                 continue
             # Nor does filler get a box of its own on top of something the
             # scene has already described. Five heaps of rubble pinned inside
@@ -1405,11 +1516,15 @@ def build_caption(map_data, style=None, base=None):
             if any(int(n.get("x", 0)) <= fx < int(n.get("x", 0)) + int(n.get("w", 1))
                    and int(n.get("y", 0)) <= fy < int(n.get("y", 0)) + int(n.get("h", 1))
                    for n in (map_data.get("annotations") or [])):
-                loose.append(kind.replace("_", " "))
+                words = prop_kind_words(kind)
+                if words:
+                    loose.append(words)
                 continue
             pinned[kind] = pinned.get(kind, 0) + 1
             if pinned[kind] > MAX_SAME_PROP:
-                loose.append(kind.replace("_", " "))
+                words = prop_kind_words(kind)
+                if words:
+                    loose.append(words)
                 continue
         body = phrase if "from directly above" in phrase             else phrase + ", seen from directly above"
         if kind_counts.get(kind, 0) > 1:
