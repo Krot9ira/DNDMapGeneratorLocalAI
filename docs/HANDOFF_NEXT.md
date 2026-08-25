@@ -51,13 +51,38 @@ Still open after this session:
    `output/scene_magic_hall/battlemap_00091_.png`). Inspected against the
    top-edge rule and clean — no 3/4-view leak anywhere, structures match their
    plans. The user has not yet eyeballed them; that sign-off is theirs to give.
-2. The Goblin Cave scene should be re-planned through the app by the user
-   (their original description); the app now logs warnings about its prose,
-   e.g. the cauldron that hangs over the flames. A stand-in reconstruction of
-   the map lost to the packaging wipe lives in `output/battlemap/` and
+2. The Goblin Cave scene should still be re-planned through the app by the
+   user (their original description). The tools-side equivalent has now been
+   run for real: qwen3.8:27b planned the cave description through
+   `MapPlanner.plan_map` into natural_cave/cavern, and exactly one warning
+   fired — "the Central Campfire says 'suspended'" — against an annotation
+   the model wrote as "a black iron cauldron suspended over the flames", the
+   very prose this work predicts. No invented wall-mounted prop kinds this
+   time; the caption scanned clean of side-on phrasing (see below). Run
+   artifacts sit in `output/_ollama_test/`. A stand-in reconstruction of the
+   map lost to the packaging wipe lives in `output/goblin_cave/` and
    `dist/DndBattlemapGenerator/output/goblin_cave/` — same style, layout, grid
    and terrain as the original; the room plan is the agent's own, since the
    Ollama rooms of the deleted map are gone with it.
+3. Residual gap the live run exposed, not yet fixed: the Smoke Haze
+   annotation said "coating the ceiling in soot" and passed the gate, because
+   `_SIDE_ON_WORDS` only lists the compounds "to/from/on the ceiling". A bare
+   mention of a ceiling probably wants catching too.
+
+Closed in the latest batch:
+
+- **A seed in the spec is honored now.** `compose()` falls back to
+  `spec["seed"]` when no seed argument is passed, and `architect.build()`
+  records the random seed it actually used instead of writing None, so any
+  plan reproduces from its own meta.seed. The C++ app has no matching gap:
+  `DesignSpec` carries no seed field and `PickSeed()` always passes one.
+- The prop-name rule joined the AGENTS.md rulebook ("A prop's own name can
+  carry the wall into the caption").
+- The tools-side planner was exercised end-to-end against live Ollama
+  (item 2 above): 26 prop kinds planned, all floor-safe; the one warning
+  quoted there; negation-aware scan of the built caption found zero
+  non-negated occurrences of on/in-the-wall, nail, hanging, stalactite,
+  support beam, or "its face".
 
 Closed while this session was running:
 
