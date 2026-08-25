@@ -57,6 +57,9 @@ says exactly where.
   wall band with no far-side recession; crystal dais, four platforms on
   bridges, south chasm and library corridor all match the plan; clean of
   figures, lettering and grid.
+- B2 cavern_lake PASS (battlemap_00093_): flat rock rim all round, lake
+  south with central causeway, floor spires as top-down pillars, platform
+  and lit cave mouth where the plan puts them; clean.
 
 Written for whichever model picks this up next. Read [AGENTS.md](../AGENTS.md)
 first — "How the renderer reads what you give it" is the accumulated rulebook
