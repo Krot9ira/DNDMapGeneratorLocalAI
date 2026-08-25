@@ -1,0 +1,50 @@
+{
+  "id": "natural_cave",
+  "name": "Natural Cave",
+  "category": "Underground",
+  "description": "A natural underground cavern system with winding passages, large chambers, rocky formations and underground water.",
+  "palette": "natural stone grey, dark charcoal, muted brown, moss green, mineral beige, warm torch amber",
+  "lighting": "dim underground darkness, soft warm pools of torchlight, subtle cool ambient light from cracks, fungi or crystals",
+  "default_layout": "cavern",
+  "props": [
+    "boulder",
+    "stalactite",
+    "stalagmite",
+    "rock_pile",
+    "underground_pool",
+    "underground_stream",
+    "small_mushroom_cluster",
+    "large_mushroom",
+    "glowing_crystal",
+    "rock_ledge",
+    "fallen_rock",
+    "bones",
+    "ancient_stone",
+    "wooden_bridge",
+    "rope_bridge",
+    "torch"
+  ],
+  "tags": [
+    "cave",
+    "cavern",
+    "underground",
+    "natural",
+    "rock",
+    "stalactite",
+    "stalagmite",
+    "underground_water",
+    "dungeon",
+    "tunnels"
+  ],
+  "aesthetics": "Hand-painted fantasy cartography, rough painterly brushwork with visible strokes, strong dark ink outlines around every natural rock formation, wall and object, subtle black and brown linework, restrained desaturated colour, flat orthographic projection with every object drawn as its top surface and a short soft shadow cast beside it on the floor, inked line art over watercolour and gouache, premium hand-drawn D&D virtual tabletop map, dense natural environmental storytelling",
+  "hex_palette": [
+    "#68635A",
+    "#3D3933",
+    "#756653",
+    "#35332F",
+    "#85877D"
+  ],
+  "ground": "uneven natural cave floor of rough stone, gravel, cracks, loose rocks and patches of damp earth, with occasional shallow water and moss",
+  "materials": "A natural fantasy cave seen from above. Irregular hand-carved-by-nature rock chambers and winding passages with rough uneven walls, jagged stalagmite spires and broken rock stubs jutting up from the floor, scattered boulders and rock piles, small underground pools and streams, rocky ledges and uneven changes of floor level, clusters of mushrooms and subtle glowing minerals, occasional bones and ancient stones, narrow passages opening into larger combat chambers, natural stone bridges crossing underground water, and partially collapsed passages filled with fallen rock.",
+  "boundary": "raw natural rock, irregular and organic, heavily eroded and uneven, with jagged edges, cracks and occasional protruding stone formations"
+}

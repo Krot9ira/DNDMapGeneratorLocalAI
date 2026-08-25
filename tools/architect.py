@@ -92,7 +92,7 @@ EFFECTS = {
     "fog": "a low bank of pale drifting fog, thinning at its edges, the ground still readable "
            "beneath it",
     "mist": "thin silver mist clinging low to the ground",
-    "fireflies": "a scatter of tiny warm yellow-green points of light hanging in the air",
+    "fireflies": "a scatter of tiny warm yellow-green points of light drifting low over the ground",
     "magic_glow": "a soft violet arcane glow washing over the ground, brightest at its centre",
     "holy_light": "a shaft of pale golden light falling from above onto the ground",
     "poison_gas": "a sickly yellow-green vapour lying heavy and low",
