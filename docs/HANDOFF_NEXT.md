@@ -64,13 +64,18 @@ Still open after this session:
    `dist/DndBattlemapGenerator/output/goblin_cave/` — same style, layout, grid
    and terrain as the original; the room plan is the agent's own, since the
    Ollama rooms of the deleted map are gone with it.
-3. Residual gap the live run exposed, not yet fixed: the Smoke Haze
-   annotation said "coating the ceiling in soot" and passed the gate, because
-   `_SIDE_ON_WORDS` only lists the compounds "to/from/on the ceiling". A bare
-   mention of a ceiling probably wants catching too.
 
 Closed in the latest batch:
 
+- **A bare mention of a roof or a ceiling is caught now** (was "Still open"
+  item 3, from the live run's "coating the ceiling in soot"). Both words
+  joined `_SIDE_ON_WORDS`, and every consumer — style_warnings' field and
+  prose scans, check_scenes, and the C++ StyleWarnings/MapWarnings — judges
+  by a negation-aware hit test (`side_on_hit` / `SideOnHit`), so the
+  captions' own "no roof, no ceiling" passes while the Smoke Haze prose now
+  warns at plan time and fails the caption gate. The widened lint flushed
+  out 27 non-negated mentions across 13 styles and 7 scenes ("with the roof
+  taken off", "roofless cottages", "flat rooftops"), all reworded in place.
 - **A seed in the spec is honored now.** `compose()` falls back to
   `spec["seed"]` when no seed argument is passed, and `architect.build()`
   records the random seed it actually used instead of writing None, so any
