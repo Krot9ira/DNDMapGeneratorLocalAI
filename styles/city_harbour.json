@@ -33,6 +33,6 @@
     "#C3B99E"
   ],
   "ground": "wet grey cobblestone paving with tar stains, rope scuffs and standing puddles",
-  "materials": "A fantasy city harbour district seen from above. A heavy stone quay of worn wet cobbles with iron mooring bollards, a large moored wooden sailing ship floating on the water with a planked deck, hatches, coiled rigging and a capstan, a timber gangway running from the deck onto the quay, stacked cargo crates, barrels, fishing nets and rope coils along the dock, roofless timber-and-plaster dockside warehouses seen from above, their plank floors packed with cargo, tar stains and puddles on the stone, dark green harbour water.",
-  "boundary": "open harbour water on one side and the flat rooftops of warehouses on the others"
+  "materials": "A fantasy city harbour district seen from above. A heavy stone quay of worn wet cobbles with iron mooring bollards, a large moored wooden sailing ship floating on the water with a planked deck, hatches, coiled rigging and a capstan, a timber gangway running from the deck onto the quay, stacked cargo crates, barrels, fishing nets and rope coils along the dock, timber-and-plaster dockside warehouses opened to the sky, seen from above, their plank floors packed with cargo, tar stains and puddles on the stone, dark green harbour water.",
+  "boundary": "open harbour water on one side and the flat tops of warehouses on the others"
 }

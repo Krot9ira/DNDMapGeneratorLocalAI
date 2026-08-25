@@ -48,7 +48,7 @@
     },
     {
       "label": "Watch Tower",
-      "description": "The lower storey of a round watch tower, its roof and upper floors gone, one gap in the ring of its wall opening to the courtyard, a stone spiral stair inside it winding up along the wall and seen from directly above as a ring of wedge-shaped treads",
+      "description": "The lower storey of a round watch tower, opened to the sky, its upper floors gone, one gap in the ring of its wall opening to the courtyard, a stone spiral stair inside it winding up along the wall and seen from directly above as a ring of wedge-shaped treads",
       "elaboration": "exact",
       "x": 1,
       "y": 7,
@@ -57,7 +57,7 @@
     },
     {
       "label": "Ruined Colonnade",
-      "description": "A row of thick stone columns left standing from a covered walk that has otherwise fallen, each column a separate block of stone with floor visible all round it and clear gaps between them, the roof they carried gone entirely",
+      "description": "A row of thick stone columns left standing from a covered walk that has otherwise fallen, each column a separate block of stone with floor visible all round it and clear gaps between them, the covering they carried gone entirely",
       "elaboration": "exact",
       "x": 26,
       "y": 5,

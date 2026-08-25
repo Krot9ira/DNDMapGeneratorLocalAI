@@ -7,13 +7,13 @@
     "cols": 44,
     "rows": 34
   },
-  "scene_summary": "The ruins of an ancient palace half swallowed by cold murky water, its ceilings fallen in: a flooded vestibule, a library, a throne hall and a small round treasury, each deeper in the water than the last.",
-  "render_details": "Dark stone furred with green weed, cold murky green-brown water with a dull sheen, fallen ceiling slabs, drowned timber and swollen books floating, tarnished gold, mould-blackened red cloth, pale daylight falling through the broken roof",
+  "scene_summary": "The ruins of an ancient palace half swallowed by cold murky water, collapsed from above: a flooded vestibule, a library, a throne hall and a small round treasury, each deeper in the water than the last.",
+  "render_details": "Dark stone furred with green weed, cold murky green-brown water with a dull sheen, fallen slabs of stone, drowned timber and swollen books floating, tarnished gold, mould-blackened red cloth, pale daylight falling through the broken vault above",
   "prop_density": "medium",
   "rooms": [
     {
       "label": "Flooded Vestibule",
-      "description": "A vast entrance hall with half its floor under knee-deep water that catches the pale light falling through the broken ceiling, colossal stone kings standing along both side walls and two of them fallen full length into the water.",
+      "description": "A vast entrance hall with half its floor under knee-deep water that catches the pale light falling through the broken vault above, colossal stone kings standing along both side walls and two of them fallen full length into the water.",
       "size": "l",
       "props": [
         "statue",

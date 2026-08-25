@@ -4,7 +4,7 @@
   "style": "cozy_tavern",
   "layout": "custom",
   "grid": { "cols": 30, "rows": 24 },
-  "scene_summary": "The common room of a tavern abandoned years ago, seen from above with the roof off: one single undivided hall, its board floor deep in dust, broken glass and splinters, with overturned tables in the middle, a long bar down the left side and a stone stair up the right side.",
+  "scene_summary": "The common room of a tavern abandoned years ago, seen from above, open to the sky: one single undivided hall, its board floor deep in dust, broken glass and splinters, with overturned tables in the middle, a long bar down the left side and a stone stair up the right side.",
   "render_details": "Grey dust lying thick on dark board flooring, splinters and broken glass, heavy oak tables, some overturned and one split in half, scattered stools, tipped barrels, a long dark bar counter, shelves of broken bottles, a broad stone stair with cracked treads, a broken timber banister, two shattered windows, iron-bound chests, cold grey daylight falling through the windows",
   "prop_density": "medium",
   "rooms": [

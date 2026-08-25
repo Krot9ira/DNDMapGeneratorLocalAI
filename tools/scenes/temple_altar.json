@@ -4,7 +4,7 @@
   "style": "grand_temple",
   "layout": "custom",
   "grid": { "cols": 30, "rows": 28 },
-  "scene_summary": "The great hall of an ancient temple seen from above with the roof gone: one enormous undivided hall, a broad processional aisle running its length to a ruined altar on a stepped platform, with rows of benches either side.",
+  "scene_summary": "The great hall of an ancient temple seen from above, open to the sky: one enormous undivided hall, a broad processional aisle running its length to a ruined altar on a stepped platform, with rows of benches either side.",
   "render_details": "Worn grey flagstones, a paler processional aisle down the middle, broken column drums lying across the floor, rows of dark stone benches, a cracked altar slab, a colossal broken statue, iron braziers with live coals, dust and grit",
   "prop_density": "low",
   "rooms": [
