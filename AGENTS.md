@@ -400,6 +400,18 @@ five heaps of rubble ended up inside "a round stone well head standing alone".
 Things you asked for by name keep their rectangles. This only applies to what the
 generator added on its own.
 
+### A prop's own name can carry the wall into the caption
+
+Left to plan a room, a language model invents prop kinds with the mounting baked
+into the name: "faint_chalk_mark_on_the_wall", "rusted_iron_sword_on_a_nail".
+Spelled out as a phrase, those say exactly what no caption may say, and the old
+lint never looked at prop names. Every kind is now reworded or cut down to
+floor-safe words before it reaches the renderer - the chalk mark keeps its chalk
+and loses its wall - identically in the tools and the app. What cannot be
+rewritten is scene prose asking for the side view itself: a cauldron that "hangs
+over the flames" is warned about when the plan is built, so the wording can be
+fixed where it was written.
+
 ### The edge of the site is not the walls inside it
 
 What closes a site in decides what its boundary is made of and nothing else. A
