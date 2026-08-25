@@ -345,6 +345,14 @@ class MapPlanner:
     def compose(self, spec, seed=None, cols=None, rows=None, requested_style=None, raw=""):
         """Turn a spec (from the LLM, an agent or a preset) into a finished map."""
         spec = dict(spec)
+        # A spec may carry its own seed, as AGENTS.md promises it can. An
+        # explicit argument outranks it; without either the layout randomises
+        # and meta.seed used to record None.
+        if seed is None and spec.get("seed") is not None:
+            try:
+                seed = int(spec["seed"])
+            except (TypeError, ValueError):
+                pass
         if requested_style:
             spec["style"] = requested_style
         style = self.load_style(spec.get("style"))

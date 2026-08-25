@@ -2010,7 +2010,11 @@ def playable_rect(map_data):
 def build(spec, seed=None):
     """Turn a semantic scene spec into a complete, valid map."""
     spec = normalize_spec(spec)
-    rng = random.Random(seed if seed is not None else random.randrange(1 << 30))
+    # Whatever seed the layout actually grew from is recorded, so a plan can be
+    # rebuilt exactly - including one nobody seeded, which used to write None.
+    if seed is None:
+        seed = random.randrange(1 << 30)
+    rng = random.Random(seed)
 
     grid = TileGrid(spec["cols"], spec["rows"], VOID)
     rooms, paths = _GENERATORS[spec["layout"]](grid, spec, rng)
