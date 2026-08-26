@@ -161,6 +161,7 @@ struct Area {
     std::string label;
     std::string description;
     int x = 0, y = 0, w = 1, h = 1;
+    bool enclosed = false;
 };
 
 struct MapData {

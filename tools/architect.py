@@ -2086,9 +2086,12 @@ def build(spec, seed=None):
     for room in rooms:
         rx, ry, rw, rh = room["rect"]
         label = room["spec"].get("label", "")
-        map_data["areas"].append({"id": room["spec"].get("id", ""), "label": label,
-                                  "description": room["spec"].get("description", ""),
-                                  "x": rx, "y": ry, "w": rw, "h": rh})
+        entry = {"id": room["spec"].get("id", ""), "label": label,
+                 "description": room["spec"].get("description", ""),
+                 "x": rx, "y": ry, "w": rw, "h": rh}
+        if "enclosed" in room["spec"]:
+            entry["enclosed"] = bool(room["spec"]["enclosed"])
+        map_data["areas"].append(entry)
         if label:
             map_data["labels"].append({"text": label, "x": rx + rw // 2,
                                        "y": ry + rh // 2, "size": "md"})

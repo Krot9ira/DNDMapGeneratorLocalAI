@@ -843,10 +843,16 @@ public:
                 // Caves and woodland have no buildings in them; the loop runs
                 // only to find the boundary of the site.
                 if (organic) continue;
-                // A wall is a building when you cannot get into what it
-                // surrounds without going through it. A cliff down one side of
-                // a gorge surrounds nothing.
-                if (EnclosesFloor(g, b.at) < 6) continue;
+                bool hasEnclosedRoom = false;
+                for (const auto& a : map.areas) {
+                    if (a.enclosed &&
+                        b.rect.x <= a.x + a.w / 2.0 && a.x + a.w / 2.0 <= b.rect.x + b.rect.w &&
+                        b.rect.y <= a.y + a.h / 2.0 && a.y + a.h / 2.0 <= b.rect.y + b.rect.h) {
+                        hasEnclosedRoom = true;
+                        break;
+                    }
+                }
+                if (EnclosesFloor(g, b.at) < 6 && !hasEnclosedRoom) continue;
                 buildings.push_back(b.rect);
                 double share = (double)b.rect.w * b.rect.h / std::max(1, cols * rows);
                 std::string sizeWord = share > 0.12 ? "large"
@@ -889,22 +895,27 @@ public:
                     // without this its description would be thrown away.
                     inside = Trim(held[0]->description);
                 } else if (held.size() > 1) {
-                    // Naming it after one of its rooms was a lie that cost the
-                    // other rooms their place in the caption.
                     std::string names;
                     for (size_t k = 0; k < held.size(); ++k) {
                         if (k) names += (k + 1 == held.size()) ? " and " : ", ";
                         names += held[k]->label;
                     }
+                    double fx = (b.rect.x + b.rect.w / 2.0) / std::max(1, cols);
+                    double fy = (b.rect.y + b.rect.h / 2.0) / std::max(1, rows);
+                    std::string band = fy < 0.38 ? "north" : (fy > 0.62 ? "south" : "");
+                    std::string side = fx < 0.38 ? "west" : (fx > 0.62 ? "east" : "");
+                    std::string where = band;
+                    if (!band.empty() && !side.empty()) where += "-";
+                    where += side;
+                    std::string loc = where.empty() ? "the middle building"
+                                                    : "the " + where + " building";
+                    label = loc + " holding " + names;
                     inside = "Inside it, divided from each other by the interior walls "
                              "listed below, are exactly " + std::to_string(held.size()) +
                              " rooms and no others: " + names +
                              ". Each is described separately with its own rectangle";
                 }
                 if (label.empty() && held.empty()) {
-                    // Nothing named it, so name it by where it stands. Five
-                    // buildings all called "a building" read as one building
-                    // drawn five times.
                     double fx = (b.rect.x + b.rect.w / 2.0) / std::max(1, cols);
                     double fy = (b.rect.y + b.rect.h / 2.0) / std::max(1, rows);
                     std::string band = fy < 0.38 ? "north" : (fy > 0.62 ? "south" : "");
@@ -1641,17 +1652,26 @@ public:
                 tail += " Every part of the ground that is not inside one of the rectangles "
                         "listed below is open ground of the same kind, and the ground "
                         "carries straight on between them.";
-            if (buildings.size() > 1)
-                tail += " The buildings are of different sizes and stand in an irregular "
-                        "arrangement.";
-            else if (buildings.size() == 1)
+            if (buildings.size() > 1) {
+                std::string names;
+                for (size_t k = 0; k < buildingNames.size(); ++k) {
+                    if (k) names += (k + 1 == buildingNames.size()) ? " and " : ", ";
+                    names += buildingNames[k];
+                }
+                tail += " There are exactly " + std::to_string(buildingNames.size()) +
+                        " buildings in this picture (" + names +
+                        "), each located in its own rectangle as described below, and no other building or wall exists anywhere "
+                        "on this map. Every other part of the picture is completely open, unbroken ground "
+                        "with no walls, no buildings, and no partitions.";
+            } else if (buildings.size() == 1) {
                 tail += (claimsBuildings && !onlyLabel.empty())
                             ? " The only building in this picture is " + onlyLabel +
                                   ", and no second building stands anywhere on the map."
                             : " There is exactly one building in this picture and no second "
                               "building anywhere.";
-            else if (claimsBuildings)
+            } else if (claimsBuildings) {
                 tail += " No building stands anywhere in this picture.";
+            }
             cap["high_level_description"] =
                 cap["high_level_description"].get<std::string>() + tail;
         }

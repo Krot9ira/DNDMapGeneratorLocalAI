@@ -67,11 +67,13 @@ public:
                                     {"intensity", e.intensity},
                                     {"x", e.x}, {"y", e.y}, {"w", e.w}, {"h", e.h}});
 
-        j["areas"] = nlohmann::json::array();
-        for (const auto& a : map.areas)
-            j["areas"].push_back({{"id", a.id}, {"label", a.label},
-                                  {"description", a.description},
-                                  {"x", a.x}, {"y", a.y}, {"w", a.w}, {"h", a.h}});
+        for (const auto& a : map.areas) {
+            nlohmann::json aj = {{"id", a.id}, {"label", a.label},
+                                 {"description", a.description},
+                                 {"x", a.x}, {"y", a.y}, {"w", a.w}, {"h", a.h}};
+            if (a.enclosed) aj["enclosed"] = true;
+            j["areas"].push_back(aj);
+        }
 
         // Labels exist for the human preview only and are never rendered into
         // the control image.
@@ -190,6 +192,7 @@ public:
                     a.y = aj.value("y", 0);
                     a.w = aj.value("w", 1);
                     a.h = aj.value("h", 1);
+                    a.enclosed = aj.value("enclosed", false);
                     out.areas.push_back(a);
                 }
             }

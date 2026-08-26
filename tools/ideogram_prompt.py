@@ -1019,10 +1019,14 @@ def build_caption(map_data, style=None, base=None):
             named = _the(held[0][0])
             return named[0].lower() + named[1:], held[0][1]
         if len(held) > 1:
-            # Naming it after one of its rooms was a lie that cost the other
-            # rooms their place in the caption. Say what it really is.
             names = ", ".join(name for name, _ in held[:-1]) + " and " + held[-1][0]
-            return ("", 
+            fx = (bx + bw / 2.0) / max(1, cols)
+            fy = (by + bh / 2.0) / max(1, rows)
+            band = ("north" if fy < 0.38 else "south" if fy > 0.62 else "middle")
+            side = ("west" if fx < 0.38 else "east" if fx > 0.62 else "centre")
+            where = (band if band != "middle" else "") + ("-" if band != "middle" and side != "centre" else "") + (side if side != "centre" else "")
+            loc = f"the {where} building" if where else "the middle building"
+            return (f"{loc} holding {names}", 
                     f"Inside it, divided from each other by the interior walls listed "
                     f"below, are exactly {len(held)} rooms and no others: {names}. Each is "
                     f"described separately with its own rectangle")
@@ -1076,11 +1080,14 @@ def build_caption(map_data, style=None, base=None):
                 # Caves and woodland have no buildings in them; the loop runs
                 # only to find the boundary of the site.
                 continue
-            # A wall is a building when you cannot get into what it surrounds
-            # without going through it. A cliff down one side of a gorge
-            # surrounds nothing, and calling it a building is how the gorge kept
-            # coming back as a walled compound.
-            if _encloses_floor(grid, cells) < 6:
+            encloses = _encloses_floor(grid, cells)
+            has_enclosed_room = any(
+                bool(a.get("enclosed"))
+                and bx <= int(a.get("x", 0)) + int(a.get("w", 1)) / 2.0 <= bx + bw
+                and by <= int(a.get("y", 0)) + int(a.get("h", 1)) / 2.0 <= by + bh
+                for a in (map_data.get("areas") or [])
+            )
+            if encloses < 6 and not has_enclosed_room:
                 continue
             building_rects.append((bx, by, bw, bh))
             size_word = ("large" if bw * bh > cols * rows * 0.12 else
@@ -1735,8 +1742,12 @@ def build_caption(map_data, style=None, base=None):
             "below is open ground of the same kind, and the ground carries straight on "
             "between them.")
     if count > 1:
+        names = ", ".join(building_names[:-1]) + " and " + building_names[-1] if len(building_names) > 1 else (building_names[0] if building_names else "")
         caption["high_level_description"] += (
-            " The buildings are of different sizes and stand in an irregular arrangement.")
+            f" There are exactly {len(building_names)} buildings in this picture ({names}), each located in "
+            f"its own rectangle as described below, and no other building or wall exists anywhere "
+            f"on this map. Every other part of the picture is completely open, unbroken ground "
+            f"with no walls, no buildings, and no partitions.")
     elif count == 1:
         caption["high_level_description"] += (
             f" The only building in this picture is {only_label}, and no second building "
