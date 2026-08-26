@@ -1235,6 +1235,17 @@ def build_caption(map_data, style=None, base=None):
                 return label
         return ""
 
+    def _host_for_area(label):
+        for a in (map_data.get("areas") or []):
+            if str(a.get("label", "")).strip() == label:
+                ax = int(a.get("x", 0)) + int(a.get("w", 1)) / 2.0
+                ay = int(a.get("y", 0)) + int(a.get("h", 1)) / 2.0
+                for j, (bx, by, bw, bh) in enumerate(building_rects):
+                    if bx <= ax <= bx + bw and by <= ay <= by + bh:
+                        return j
+                return None
+        return None
+
     def _door_place(x, y, w, h):
         """Which two rooms this doorway joins.
 
@@ -1264,11 +1275,21 @@ def build_caption(map_data, style=None, base=None):
             return t[0].lower() + t[1:] if t else t
 
         if a and b and a != b:
-            return (f"In the interior wall between {_lower_article(a)} and "
-                    f"{_lower_article(b)}, and in no other wall")
+            ha = _host_for_area(a)
+            hb = _host_for_area(b)
+            if ha is not None and ha == hb:
+                return (f"In the interior wall between {_lower_article(a)} and "
+                        f"{_lower_article(b)}, and in no other wall")
+            inside = a if ha is not None else (b if hb is not None else "")
+            if inside:
+                return (f"In the outer wall of the building, the way in and out of "
+                        f"{_lower_article(inside)}")
         if a or b:
+            ha = _host_for_area(a) if a else None
+            hb = _host_for_area(b) if b else None
+            inside = a if ha is not None else (b if hb is not None else (a or b))
             return (f"In the outer wall of the building, the way in and out of "
-                    f"{_lower_article(a or b)}")
+                    f"{_lower_article(inside)}")
         return _which_wall(x, y, w, h)
 
     for (x, y, w, h) in _merge_runs(grid, A.DOOR):

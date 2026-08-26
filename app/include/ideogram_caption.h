@@ -1045,6 +1045,22 @@ public:
         // belong. Look both ways along both axes: a one-cell doorway gives no
         // clue which wall it is in, and guessing from its shape put half of
         // them in the wrong wall.
+        auto hostForArea = [&](const std::string& label) -> int {
+            for (const auto& a : map.areas) {
+                if (a.label == label) {
+                    double ax = a.x + a.w / 2.0;
+                    double ay = a.y + a.h / 2.0;
+                    for (int j = 0; j < (int)buildings.size(); ++j) {
+                        if (buildings[j].x <= ax && ax <= buildings[j].x + buildings[j].w &&
+                            buildings[j].y <= ay && ay <= buildings[j].y + buildings[j].h) {
+                            return j;
+                        }
+                    }
+                    return -1;
+                }
+            }
+            return -1;
+        };
         auto doorPlace = [&](const Rect& r) -> std::string {
             std::vector<std::string> found;
             const int dirs[4][2] = {{0, -1}, {0, 1}, {-1, 0}, {1, 0}};
@@ -1060,12 +1076,24 @@ public:
                     }
                 }
             }
-            if (found.size() > 1 && found[0] != found[1])
-                return "In the interior wall between " + LowerFirst(TheLabel(found[0])) +
-                       " and " + LowerFirst(TheLabel(found[1])) + ", and in no other wall";
-            if (found.size() == 1)
+            if (found.size() > 1 && found[0] != found[1]) {
+                int ha = hostForArea(found[0]);
+                int hb = hostForArea(found[1]);
+                if (ha >= 0 && ha == hb)
+                    return "In the interior wall between " + LowerFirst(TheLabel(found[0])) +
+                           " and " + LowerFirst(TheLabel(found[1])) + ", and in no other wall";
+                std::string inside = ha >= 0 ? found[0] : (hb >= 0 ? found[1] : "");
+                if (!inside.empty())
+                    return "In the outer wall of the building, the way in and out of " +
+                           LowerFirst(TheLabel(inside));
+            }
+            if (!found.empty()) {
+                int ha = hostForArea(found[0]);
+                int hb = (found.size() > 1) ? hostForArea(found[1]) : -1;
+                std::string inside = ha >= 0 ? found[0] : (hb >= 0 ? found[1] : found[0]);
                 return "In the outer wall of the building, the way in and out of " +
-                       LowerFirst(TheLabel(found[0]));
+                       LowerFirst(TheLabel(inside));
+            }
             return WhichWall(r, buildings, buildingNames, cols, rows);
         };
         for (const Rect& r : MergeRuns(g, Tile::Door, cols, rows)) {
