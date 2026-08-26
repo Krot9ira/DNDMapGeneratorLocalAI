@@ -13,7 +13,7 @@
   "rooms": [
     {
       "label": "Stone House",
-      "description": "The ground floor of a two-storey stone house on the west side of the street, still standing and still whole, its rooms full of overturned furniture and fallen plaster, with the fire raging in the storey above it.",
+      "description": "The ground floor of a big stone house on the west side of the street, still standing and still whole, its floors strewn with overturned furniture and fallen plaster, firelight and thick smoke spilling in through its doorway from the burning street.",
       "size": "m",
       "props": [
         "table",
