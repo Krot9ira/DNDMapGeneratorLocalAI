@@ -117,6 +117,11 @@ says exactly where.
 
 ### Morning after the night session (user working directly, no agent)
 
+**PAUSED HERE (user request), tree green, nothing half-done in the tree.**
+Next step when work resumes: render `tools/scenes/burning_quarter.json` and
+judge it against the plan — the wall-noun purge (55569cd) has NOT been
+render-tested yet. Context below.
+
 - The user reviewed battlemap_00101_ and overturned B10: the fountain sat
   inside a burning building instead of on its open square, and the quarter
   held buildings the plan never drew. Three caption-level causes, all fixed
@@ -146,6 +151,25 @@ says exactly where.
 - Full sweep green after the fixes: check_scenes, check_captions, fresh
   Release build, check_caption_parity (14 layouts identical),
   check_layouts.
+- The user then flagged two more things: the fountain was STILL walled in
+  (00105), and a square this small is wrong anyway — a plaza wants at least
+  15x15 cells. The scene was replanned around both (48x40 grid): the
+  promised burning houses are real building rooms now (tenement, burnt-out
+  house, warehouse — so the summary is plan-true), Fountain Square is 16x16
+  with the fountain annotation and its 3x3 basin water at the centre and
+  benches/bushes/trees/lanterns loose about it, the street runs flush
+  between the rows, and the gatehouse is a plan-true wall zone with a door
+  gap. A planner warning was added to both ports: a labelled
+  square/plaza/courtyard smaller than 15 cells a side is reported.
+- Render iteration on the replanned scene (00106-00110) got the fountain
+  out of any building and killed the invented perimeter, but stone wall
+  stubs kept ringing the square and stall rows kept filling the street.
+  Root cause found in the caption itself: the open-ground elements named
+  "wall, fence, railing, kerb" inside negations, and the renderer drew the
+  nouns. All wall-noun negations were purged from open-ground wording, the
+  leftover-ground sentence and the open-site wall note (55569cd); on an
+  open site the wall note is not said at all. **Not yet render-tested —
+  that is the first thing to do when work resumes.**
 
 ### Night session summary
 
