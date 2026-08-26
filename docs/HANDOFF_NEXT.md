@@ -86,10 +86,14 @@ says exactly where.
   statues, grand hall carpet/tables/double stair flat in-plane, banquet
   table with chair rows, garden parterres and fountain; doors between
   rooms; top edge flat; clean.
-- B10 burning_quarter PASS (battlemap_00101_): burnt roofless buildings
-  round a crossroads, stone house top-left, fountain on its square,
-  overturned cart and barricade centre, two rubble-block ruins, fire and
-  smoke; clean.
+ - B10 burning_quarter PASS (battlemap_00101_): burnt roofless buildings
+   round a crossroads, stone house top-left, fountain on its square,
+   overturned cart and barricade centre, two rubble-block ruins, fire and
+   smoke; clean.
+   **VERDICT OVERTURNED by the user**: the fountain was drawn *inside* a
+   burning building, not on its open square, and the quarter grew several
+   buildings the plan does not hold. Root cause and fix in the morning
+   entries below; re-rendered as battlemap_00105_ and judged clean there.
 - B11 misty_swamp PASS (battlemap_00102_): plank causeway down the
   middle with cross-walkways and lanterns, water channels and pools,
   boulders left, dead trees and reeds right, sunken shrine ring
@@ -110,6 +114,38 @@ says exactly where.
   motionless, city_district lamp brackets beside the doors,
   merchant_hall textiles folded on counters and in cases,
   goblin_gorge tent flaps tied open. Checks, rebuild and parity green.
+
+### Morning after the night session (user working directly, no agent)
+
+- The user reviewed battlemap_00101_ and overturned B10: the fountain sat
+  inside a burning building instead of on its open square, and the quarter
+  held buildings the plan never drew. Three caption-level causes, all fixed
+  in both ports (f37dc68):
+  1. The scene summary's "burning houses on both sides" is quoted at the top
+     of the description while the building count sat abstractly at the bottom
+     — and lost. When the plan holds one building or none and the summary
+     names several in the plural, the count is now stated in concrete words:
+     "The only building in this picture is the Stone House, and no second
+     building stands anywhere on the map."
+  2. The floor slivers the open-ground tiling leaves undescribed (the
+     sidewalks, the gap between house and square) were silence, and silence
+     got filled with more city. The caption now says once, of the ground
+     outside the listed rectangles, that it is open ground with nothing
+     built on it. Both ports count the leftovers identically: only tiler
+     rectangles that became elements count as described.
+  3. "two-storey", "storey above" and "upper floor" joined the side-on words
+     (2b65991) — the Stone House's fire was "raging in the storey above it",
+     which is a request for that storey; its description and the ruined
+     castle's watch tower were reworded to what the drawn floor looks like.
+- burning_quarter re-rendered against the fixed caption:
+  `output/scene_burning_quarter/battlemap_00105_` — fountain on its open
+  cobbled square, street/gate/waggon/gallery/rubble as planned, top edge
+  flat. Nuance, not structure: some flame still paints itself inside the
+  "still whole" stone house; the summary's burning-city framing is the
+  likely driver and the render is playable.
+- Full sweep green after the fixes: check_scenes, check_captions, fresh
+  Release build, check_caption_parity (14 layouts identical),
+  check_layouts.
 
 ### Night session summary
 
