@@ -94,6 +94,10 @@ says exactly where.
   middle with cross-walkways and lanterns, water channels and pools,
   boulders left, dead trees and reeds right, sunken shrine ring
   bottom-centre; bleed margin as flat stone kerb; clean.
+- B12 goblin_gorge PASS (battlemap_00103_): gorge floor between flat
+  rock bands, stream from the top, tents ringing the floor, central
+  fire ring with cauldron, timber platforms, scree patch, dark
+  narrowing with cave mouth bottom-right; banners lie flat; clean.
 
 Written for whichever model picks this up next. Read [AGENTS.md](../AGENTS.md)
 first — "How the renderer reads what you give it" is the accumulated rulebook
