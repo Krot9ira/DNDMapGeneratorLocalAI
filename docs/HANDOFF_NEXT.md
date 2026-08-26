@@ -82,6 +82,10 @@ says exactly where.
   broken crossing at centre with water through the gap, rope across
   upstream, west bank trees/cart/tower ruin, east terrace with pillars
   and dark opening; open-air top edge flat; clean.
+- B9 marble_palace PASS (battlemap_00100_): gallery colonnade and
+  statues, grand hall carpet/tables/double stair flat in-plane, banquet
+  table with chair rows, garden parterres and fountain; doors between
+  rooms; top edge flat; clean.
 
 Written for whichever model picks this up next. Read [AGENTS.md](../AGENTS.md)
 first — "How the renderer reads what you give it" is the accumulated rulebook
