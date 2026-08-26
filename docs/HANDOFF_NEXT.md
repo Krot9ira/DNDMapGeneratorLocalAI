@@ -63,6 +63,9 @@ says exactly where.
 - B3 tavern PASS (battlemap_00094_): one undivided hall as planned, bar
   left, stone stair right, overturned tables centre, door in the bottom
   band; top edge flat, no recession; clean.
+- B4 temple_altar PASS (battlemap_00095_): one undivided hall, central
+  aisle, altar on stepped platform top, four pew quadrants, collapsed hole
+  bottom-centre, doors as marked; top edge flat; clean.
 
 Written for whichever model picks this up next. Read [AGENTS.md](../AGENTS.md)
 first — "How the renderer reads what you give it" is the accumulated rulebook
