@@ -74,6 +74,10 @@ says exactly where.
   library shelves and table, treasury chest ring - all as planned; water
   reads as wet green floors more than deep water (adherence nuance, not
   structure); top edge flat; clean.
+- B7 cultist_fortress PASS (battlemap_00098_): all six rooms as planned -
+  entry hall rune circle, chapel pews, crypt pit with pillar-and-chain
+  ring, armoury, ritual hall circle and altar, central corridor with
+  seated doors; clean.
 
 Written for whichever model picks this up next. Read [AGENTS.md](../AGENTS.md)
 first — "How the renderer reads what you give it" is the accumulated rulebook
