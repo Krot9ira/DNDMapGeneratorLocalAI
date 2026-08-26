@@ -98,6 +98,11 @@ says exactly where.
   rock bands, stream from the top, tents ringing the floor, central
   fire ring with cauldron, timber platforms, scree patch, dark
   narrowing with cave mouth bottom-right; banners lie flat; clean.
+- B13 forest_glade PASS (battlemap_00104_): thicket ring round the
+  glade, giant central stump, cut stumps and boulders, standing-stone
+  row, stream down the right with the timber crossing on the ford
+  block; canopy flat from above; clean. All thirteen scenes judged:
+  thirteen passes, no fails, no re-renders needed.
 
 Written for whichever model picks this up next. Read [AGENTS.md](../AGENTS.md)
 first — "How the renderer reads what you give it" is the accumulated rulebook
