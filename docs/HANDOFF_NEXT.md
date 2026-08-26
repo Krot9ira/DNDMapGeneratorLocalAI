@@ -66,6 +66,9 @@ says exactly where.
 - B4 temple_altar PASS (battlemap_00095_): one undivided hall, central
   aisle, altar on stepped platform top, four pew quadrants, collapsed hole
   bottom-centre, doors as marked; top edge flat; clean.
+- B5 ruined_castle PASS (battlemap_00096_): courtyard with inner ruined
+  ring, watch tower's spiral stair as a ring of wedge treads, central
+  well, top colonnade, gates as marked; clean.
 
 Written for whichever model picks this up next. Read [AGENTS.md](../AGENTS.md)
 first — "How the renderer reads what you give it" is the accumulated rulebook
