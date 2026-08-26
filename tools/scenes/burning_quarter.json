@@ -88,9 +88,7 @@
       "size": "l",
       "enclosed": false,
       "props": [
-        "cart",
-        "rubble",
-        "rubble"
+        "cart"
       ],
       "x": 2,
       "y": 24,

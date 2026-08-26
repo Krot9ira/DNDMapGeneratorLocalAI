@@ -1919,6 +1919,8 @@ def normalize_spec(spec):
             "props": r.get("props") or r.get("features") or [],
             "terrain": str(r.get("terrain", "none")).lower(),
         }
+        if "enclosed" in r and r.get("enclosed") is not None:
+            entry["enclosed"] = bool(r.get("enclosed"))
         for key in ("x", "y", "w", "h"):
             if key in r:
                 entry[key] = r[key]
