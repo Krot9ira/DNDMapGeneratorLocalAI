@@ -13,7 +13,7 @@
   "rooms": [
     {
       "label": "Stone House",
-      "description": "The ground floor of a big stone house on the west side of the street, still standing and still whole, its floors strewn with overturned furniture and fallen plaster, firelight and thick smoke spilling in through its doorway from the burning street.",
+      "description": "The ground floor of a big stone house on the west side of the street, still standing and still whole as one undivided space, its floor strewn with overturned furniture and fallen plaster, firelight and thick smoke spilling in through its doorway from the burning street.",
       "size": "m",
       "enclosed": true,
       "props": [
@@ -30,7 +30,7 @@
     },
     {
       "label": "Burning Tenement",
-      "description": "A tenement block on the north side of the street, well alight, its stair hall full of smoke and burning beams fallen right across its rooms.",
+      "description": "A tenement building on the north side of the street, well alight, its stair hall full of smoke and burning beams fallen right across the floor.",
       "size": "m",
       "enclosed": true,
       "props": [
@@ -47,7 +47,7 @@
     },
     {
       "label": "Burnt-Out House",
-      "description": "A house already burnt through on the north-east corner, its floors heaped with char and fallen timber, only the blackened walls still standing.",
+      "description": "A house already burnt through on the north-east corner, its floors heaped with char and fallen timber, only the blackened masonry still standing.",
       "size": "m",
       "enclosed": true,
       "props": [
@@ -63,7 +63,7 @@
     },
     {
       "label": "Fountain Square",
-      "description": "A big open square of grey cobbles filling the whole east side, with the carved stone fountain standing at its centre still full of clean water and benches under clipped bushes standing loose about the square, and nothing on fire anywhere in it.",
+      "description": "A big open square of grey cobbles filling the whole east side, open sky overhead and the paving carrying straight on to the surrounding street and alleys, the carved stone fountain standing free at its centre full of clean water and benches under clipped bushes standing loose about the square, completely free of fire.",
       "size": "l",
       "enclosed": false,
       "props": [
