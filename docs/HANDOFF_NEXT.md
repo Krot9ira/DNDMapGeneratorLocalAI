@@ -103,6 +103,13 @@ says exactly where.
   row, stream down the right with the timber crossing on the ford
   block; canopy flat from above; clean. All thirteen scenes judged:
   thirteen passes, no fails, no re-renders needed.
+- The bare hang-family fix is committed: "hanging", "hangs" and "hang"
+  now count as side-on words in both ports, so "nothing overhanging it"
+  stays the only legal use. Data reworded where the widened lint caught
+  committed users: magic_hall things float weightless and water beads
+  motionless, city_district lamp brackets beside the doors,
+  merchant_hall textiles folded on counters and in cases,
+  goblin_gorge tent flaps tied open. Checks, rebuild and parity green.
 
 Written for whichever model picks this up next. Read [AGENTS.md](../AGENTS.md)
 first — "How the renderer reads what you give it" is the accumulated rulebook

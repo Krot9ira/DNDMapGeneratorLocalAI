@@ -577,6 +577,11 @@ _SIDE_ON_WORDS = (
     # was passing silently, and that is exactly what this list is for.
     "in the walls", "in the wall", "in its walls", "in its wall",
     "in a wall", "into the walls", "into the wall",
+    # The bare hang-words sat out for one phrase: the captions' own "nothing
+    # overhanging it". Negation-aware consumers skip that mention on their
+    # own, so the word itself can count - "moss hanging from the branches"
+    # was reaching captions through scene prose without a whisper.
+    "hanging", "hangs", "hang ",
 )
 
 _NEGATIONS = (" no ", "not ", "never", "without", "nor ", "n't ", "nothing ",

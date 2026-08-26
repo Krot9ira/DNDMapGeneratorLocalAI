@@ -385,7 +385,11 @@ public:
             // that shape so these could join - an Ollama room whose "niches
             // are set high in the walls" was passing silently.
             "in the walls", "in the wall", "in its walls", "in its wall",
-            "in a wall", "into the walls", "into the wall"};
+            "in a wall", "into the walls", "into the wall",
+            // The bare hang-words sat out for one phrase: the captions' own
+            // "nothing overhanging it". Negation-aware consumers skip that
+            // mention on their own, so the word itself can count.
+            "hanging", "hangs", "hang "};
         return v;
     }
 
