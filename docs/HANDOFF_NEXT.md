@@ -111,6 +111,31 @@ says exactly where.
   merchant_hall textiles folded on counters and in cases,
   goblin_gorge tent flaps tied open. Checks, rebuild and parity green.
 
+### Night session summary
+
+| Unit | Result |
+|---|---|
+| planner: tavern | 34 prop kinds, 1 warning (its own prose says 'flank'), caption clean |
+| planner: harbour | 25 prop kinds, 0 warnings, caption clean (one 600s timeout, 900s retry fine) |
+| planner: flooded_crypt | 35 prop kinds, 2 warnings (its own prose: 'on the wall', 'vaulted') — but "niches high in the walls" slipped through silently: GAP 1 |
+| planner: swamp_shrine | 40 prop kinds, 1 warning ("render details says 'hanging'") after GAP 2 fix |
+| planner: burning_street | 42 prop kinds, 1 warning ("Smoking Crossroads says 'hangs'"), caption clean |
+| non-negated caption hits | ZERO on all five built captions |
+| GAP 1 (fixed, a047074) | "in/into the wall(s)" joined the side-on word list; pipeline door/window/gap wordings rewritten out of that shape first; 4 committed scenes/styles reworded |
+| unknown style (fixed, 51a92e8) | build_map now names the style it could not find instead of building style-less |
+| GAP 2 (fixed, bbd71f4) | bare "hanging/hangs/hang" joined the list; "nothing overhanging" stays legal via negation; 4 more committed users reworded (magic_hall, city_district, merchant_hall, goblin_gorge) |
+| renders | 13 scenes re-rendered against current captions: magic_hall, cavern_lake, tavern, temple_altar, ruined_castle, flooded_palace, cultist_fortress, broken_bridge, marble_palace, burning_quarter, misty_swamp, goblin_gorge, forest_glade — all PASS, top edge flat, structure as planned, no people/text/grid; zero re-renders, zero adherence failures |
+
+Still open after this session:
+
+1. **All thirteen scenes were re-rendered and judged this session** (see the
+   night log above) — every one passes the top-edge and structure rules as
+   judged by the agent. The user has not yet eyeballed them; that sign-off is
+   theirs to give.
+2. The Goblin Cave scene should still be re-planned through the app by the
+   user (their original description) — that run is theirs to make; the
+   tools-side equivalent has already been done twice, clean both times.
+
 Written for whichever model picks this up next. Read [AGENTS.md](../AGENTS.md)
 first — "How the renderer reads what you give it" is the accumulated rulebook
 this whole effort has been building, and every fix below is recorded there
@@ -155,26 +180,10 @@ The OPEN ISSUE at the bottom of this file was picked up and closed:
 - All four checks green (`check_scenes`, `check_captions`,
   `check_caption_parity`, `check_layouts`) after a fresh Release build.
 
-Still open after this session:
-
-1. **cavern_lake / magic_hall confirmation renders** were rendered at the end
-   of the session (`output/scene_cavern_lake/battlemap_00090_.png`,
-   `output/scene_magic_hall/battlemap_00091_.png`). Inspected against the
-   top-edge rule and clean — no 3/4-view leak anywhere, structures match their
-   plans. The user has not yet eyeballed them; that sign-off is theirs to give.
-2. The Goblin Cave scene should still be re-planned through the app by the
-   user (their original description). The tools-side equivalent has now been
-   run for real: qwen3.8:27b planned the cave description through
-   `MapPlanner.plan_map` into natural_cave/cavern, and exactly one warning
-   fired — "the Central Campfire says 'suspended'" — against an annotation
-   the model wrote as "a black iron cauldron suspended over the flames", the
-   very prose this work predicts. No invented wall-mounted prop kinds this
-   time; the caption scanned clean of side-on phrasing (see below). Run
-   artifacts sit in `output/_ollama_test/`. A stand-in reconstruction of the
-   map lost to the packaging wipe lives in `output/goblin_cave/` and
-   `dist/DndBattlemapGenerator/output/goblin_cave/` — same style, layout, grid
-   and terrain as the original; the room plan is the agent's own, since the
-   Ollama rooms of the deleted map are gone with it.
+Still open from the session before (both now resolved or carried above):
+item 1's two confirmation renders were re-rendered and judged again in this
+session along with the other eleven — all pass; item 2, the user's own
+Goblin Cave re-plan through the app, is carried in the current list above.
 
 Closed in the latest batch:
 
