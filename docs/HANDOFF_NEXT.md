@@ -78,6 +78,10 @@ says exactly where.
   entry hall rune circle, chapel pews, crypt pit with pillar-and-chain
   ring, armoury, ritual hall circle and altar, central corridor with
   seated doors; clean.
+- B8 broken_bridge PASS (battlemap_00099_): river down the middle,
+  broken crossing at centre with water through the gap, rope across
+  upstream, west bank trees/cart/tower ruin, east terrace with pillars
+  and dark opening; open-air top edge flat; clean.
 
 Written for whichever model picks this up next. Read [AGENTS.md](../AGENTS.md)
 first — "How the renderer reads what you give it" is the accumulated rulebook
