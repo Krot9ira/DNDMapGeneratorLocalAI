@@ -509,6 +509,24 @@ public:
                           "directly above, and this is the strongest text in the "
                           "caption - reword it as the top face of the thing.");
         }
+        // A square is a place a fight spreads out in. A "square" a few cells
+        // across reads as a courtyard, and the renderer closes the surrounding
+        // city in on it until the fountain sits in a building - the burning
+        // quarter's fountain square was seventeen by nine and was drawn as
+        // exactly that. Fifteen cells a side is the smallest that reads as a
+        // public space. Mirrors ideogram_prompt.style_warnings.
+        for (const Area& a : map.areas) {
+            const std::string low = arch::Lower(a.label);
+            bool named = false;
+            for (const char* w : {"square", "plaza", "courtyard", "place", "green"})
+                if (low.find(w) != std::string::npos) named = true;
+            if (!named || a.w <= 0 || a.h <= 0) continue;
+            if (a.w < 15 || a.h < 15)
+                out.push_back("the " + Trim(a.label) + " is " + std::to_string(a.w) + "x" +
+                              std::to_string(a.h) + " cells - a square smaller than fifteen "
+                              "across reads as a courtyard and the renderer closes the "
+                              "surrounding buildings in on it. Give plazas at least 15x15.");
+        }
         return out;
     }
 
@@ -610,13 +628,26 @@ public:
         }
         std::string shape = ShapeOfMap(map, cols, rows);
         if (!shape.empty()) shape = " " + shape;
+        // Indoors the walls genuinely do run and join, and "corner to corner"
+        // says so; on an open site the same phrase - and any sentence naming
+        // walls at all - was read as an invitation to run a city wall round
+        // the whole frame, so there the note is simply not said: the walls an
+        // open site has are described by their own elements. Mirrors
+        // ideogram_prompt.
+        const bool builtSite = arch::EnclosureOf(
+            style ? style->enclosure : std::string(), style ? style->category : std::string(),
+            map.meta.layout, style ? style->default_layout : std::string()) == "masonry";
+        std::string wallNote;
+        if (builtSite)
+            wallNote = " Every wall in this picture is one continuous face of " + encFace +
+                       " from corner to corner, interrupted only by " +
+                       std::to_string(doorCells) + " doorways and " +
+                       std::to_string(windowCells) +
+                       " windows, each of which is listed below with its own rectangle. "
+                       "Everywhere else that face runs straight on.";
         cap["high_level_description"] =
             CapWords(head, 44) + ". " + base.forbidden_suffix + "." + shape + onlyRoom +
-            " Every wall in this picture is one continuous face of " + encFace + " from "
-            "corner to corner, interrupted only by " + std::to_string(doorCells) +
-            " doorways and " + std::to_string(windowCells) +
-            " windows, each of which is listed below with its own rectangle. Everywhere "
-            "else that face runs straight on.";
+            wallNote;
         // Nothing in the contract forbade perspective, so a scene that happened
         // to mention a ceiling came back drawn from the corner of the room.
         if (!base.viewpoint_note.empty())
@@ -1221,8 +1252,7 @@ public:
                     {"type", "obj"},
                     {"bbox", Bbox(r.x, r.y, r.w, r.h, cols, rows)},
                     {"desc", "Open ground of " + openWord + " filling this whole rectangle, "
-                             "unbroken from edge to edge: no building, no wall and no "
-                             "partition stands anywhere inside it, only loose objects lying "
+                             "unbroken from edge to edge, only loose objects lying "
                              "on the ground. " + kExactS}});
             }
             // Floor left over after the tiling - the slivers too thin for an
@@ -1340,11 +1370,9 @@ public:
             bool walledIn = ringCells > 0 && ownWall >= 0.25 * ringCells;
             std::string opening =
                 (enclosure != "masonry" && !host && !walledIn)
-                    ? "the open ground of this place seen from directly above, filling this "
-                      "rectangle, with nothing above it and nothing overhanging it. It is "
-                      "open ground and nothing is built round the edge of it: no wall, no "
-                      "fence, no railing and no kerb marks where it ends, and the ground "
-                      "carries straight on past it on every side"
+                    ? "open ground seen from directly above, filling this "
+                      "rectangle, with nothing above it and nothing overhanging it, "
+                      "and the ground carrying straight on past it on every side"
                     : "the open interior of a room seen from directly above, its floor "
                       "and furniture fully visible and filling this rectangle, with no roof, "
                       "no ceiling and nothing overhanging it";
@@ -1583,8 +1611,8 @@ public:
             std::string tail;
             if (groundGaps)
                 tail += " Every part of the ground that is not inside one of the rectangles "
-                        "listed below is open ground, with no building and no wall standing "
-                        "on it.";
+                        "listed below is open ground of the same kind, and the ground "
+                        "carries straight on between them.";
             if (buildings.size() > 1)
                 tail += " The buildings are of different sizes and stand in an irregular "
                         "arrangement.";

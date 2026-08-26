@@ -4,17 +4,18 @@
   "style": "city_streets",
   "layout": "custom",
   "grid": {
-    "cols": 36,
-    "rows": 28
+    "cols": 48,
+    "rows": 40
   },
-  "scene_summary": "A wide cobbled city street on fire: burning houses on both sides, a toppled waggon spilling sacks and crates across the stones, a small square with a stone fountain that is the one place not yet alight, and the city gate closing the street at the south end.",
-  "render_details": "Grey cobbles wet with spilled oil, charred timber and splintered planks, smashed carts, burst barrels, orange flame licking out of window openings, thick black smoke, drifting embers, soot-blackened stone, clean water in a carved basin, heavy timber gates bound with iron",
+  "scene_summary": "A wide cobbled city street on fire between burning houses, a toppled waggon spilling sacks across the stones, and a big open fountain square that the fire has not reached yet, the city gate closing the street at the south end.",
+  "render_details": "Grey cobbles wet with spilled oil, charred timber and splintered planks, smashed carts, burst barrels, orange flame in the windows of the burning houses, thick black smoke, drifting embers, soot-blackened stone, clean water in a carved basin, heavy timber gates bound with iron",
   "prop_density": "medium",
   "rooms": [
     {
       "label": "Stone House",
       "description": "The ground floor of a big stone house on the west side of the street, still standing and still whole, its floors strewn with overturned furniture and fallen plaster, firelight and thick smoke spilling in through its doorway from the burning street.",
       "size": "m",
+      "enclosed": true,
       "props": [
         "table",
         "chair",
@@ -28,71 +29,125 @@
       "h": 9
     },
     {
-      "label": "Fountain Square",
-      "description": "A small open square of cobbles on the east side, with a carved stone fountain standing in the middle of it still full of clean water. Nothing here is burning yet and the stones are clear enough to fight on.",
+      "label": "Burning Tenement",
+      "description": "A tenement block on the north side of the street, well alight, its stair hall full of smoke and burning beams fallen right across its rooms.",
       "size": "m",
+      "enclosed": true,
       "props": [
-        "bench",
+        "table",
+        "bed",
+        "chair",
         "crate",
+        "rubble"
+      ],
+      "x": 16,
+      "y": 2,
+      "w": 8,
+      "h": 8
+    },
+    {
+      "label": "Burnt-Out House",
+      "description": "A house already burnt through on the north-east corner, its floors heaped with char and fallen timber, only the blackened walls still standing.",
+      "size": "m",
+      "enclosed": true,
+      "props": [
+        "table",
+        "chest",
+        "rubble",
         "barrel"
       ],
-      "x": 17,
+      "x": 28,
       "y": 2,
-      "w": 17,
-      "h": 9
+      "w": 10,
+      "h": 5
+    },
+    {
+      "label": "Fountain Square",
+      "description": "A big open square of grey cobbles filling the whole east side, with the carved stone fountain standing at its centre still full of clean water and benches under clipped bushes standing loose about the square, and nothing on fire anywhere in it.",
+      "size": "l",
+      "enclosed": false,
+      "props": [
+        "bench",
+        "bush",
+        "bench",
+        "tree",
+        "lamp",
+        "bush",
+        "crate",
+        "barrel",
+        "lamp"
+      ],
+      "x": 26,
+      "y": 8,
+      "w": 16,
+      "h": 16
     },
     {
       "label": "Burning Street",
-      "description": "A wide cobbled street running the length of the map, littered with charred beams, splintered planking, smashed carts and burst barrels, with patches of the cobbles already alight and spilled oil running between the stones.",
+      "description": "A wide open stretch of cobbled road running the length of the map between the houses, the stones clear and readable from edge to edge with only scattered burnt debris on them, a few patches of the cobbles themselves alight and spilled oil darkening the joints.",
       "size": "l",
+      "enclosed": false,
       "props": [
         "cart",
-        "crate",
-        "crate",
-        "barrel",
         "rubble",
         "rubble"
       ],
       "x": 2,
-      "y": 13,
-      "w": 32,
-      "h": 13
+      "y": 24,
+      "w": 40,
+      "h": 8
+    },
+    {
+      "label": "Burning Warehouse",
+      "description": "A corner warehouse on the south side of the street, flames running across its floor between fallen shelves and spilled stock.",
+      "size": "s",
+      "enclosed": true,
+      "props": [
+        "barrel",
+        "crate",
+        "table",
+        "rubble"
+      ],
+      "x": 4,
+      "y": 32,
+      "w": 10,
+      "h": 4
     }
   ],
   "annotations": [
     {
       "label": "Toppled Waggon",
-      "description": "A big four-wheeled waggon lying over on its side in the middle of the street, its load of sacks and timber crates spilled out across the cobbles around it and a slick of dark oil spreading from underneath it",
+      "description": "A big four-wheeled waggon lying over on its side in the middle of the street, its load of sacks spilled out across the cobbles around it and a slick of dark oil spreading from underneath it",
       "elaboration": "exact",
       "x": 15,
-      "y": 17,
+      "y": 27,
       "w": 7,
-      "h": 5
+      "h": 4
     },
     {
       "label": "Stone Fountain",
-      "description": "A carved stone fountain standing in the middle of the square, its basin full of clean clear water, the cobbles around it wet and completely free of fire",
+      "description": "A carved stone fountain standing at the centre of the square, its octagonal basin full of clean clear water, the cobbles around it wet and completely free of fire",
       "elaboration": "exact",
-      "x": 23,
-      "y": 4,
+      "x": 31,
+      "y": 13,
       "w": 5,
       "h": 5
     },
     {
       "label": "Burning Gallery",
-      "description": "A ruined timber gallery bridging the gap between two buildings on the north side, well alight along its whole length, its boards burnt through in places and burning fragments fallen on the ground beneath it",
+      "description": "A ruined timber gallery bridging the gap between the Stone House and the Burning Tenement, well alight along its whole length, its boards burnt through in places and burning fragments fallen on the ground beneath it",
       "elaboration": "exact",
-      "x": 15,
-      "y": 12,
-      "w": 12,
+      "x": 13,
+      "y": 4,
+      "w": 4,
       "h": 2
     },
     {
       "label": "City Gate",
-      "description": "A pair of great timber city gates bound with iron closing the south end of the street, set in a thick stone gatehouse wall, one leaf standing part open",
+      "description": "A pair of great timber city gates bound with iron closing the south end of the street, set in a short stone gatehouse wall that runs a few paces to either side of the gates and simply ends, one leaf standing part open",
       "elaboration": "exact",
-      "x": 13,
-      "y": 24,
+      "x": 17,
+      "y": 31,
       "w": 10,
       "h": 3
     },
@@ -100,69 +155,107 @@
       "label": "Fallen Beam",
       "description": "A massive burning timber beam fallen right across the street, blocking it from one side to the other, flame running along its whole length and the cobbles scorched black beneath it",
       "elaboration": "exact",
-      "x": 27,
-      "y": 18,
-      "w": 7,
+      "x": 34,
+      "y": 27,
+      "w": 6,
       "h": 3
     },
     {
       "label": "Spilled Masonry",
       "description": "A heap of fallen masonry and charred timber spilled across the street where the wall of a building has come down, spread flat over the cobbles and still smoking",
       "elaboration": "exact",
-      "x": 4,
-      "y": 19,
+      "x": 5,
+      "y": 28,
       "w": 6,
-      "h": 5
+      "h": 4
     },
     {
       "label": "Burning Cobbles",
       "description": "A stretch of cobbles running with burning oil, low flame spread flat across the stones rather than rising from anything standing on them",
       "elaboration": "some",
-      "x": 22,
-      "y": 14,
-      "w": 8,
-      "h": 4
+      "x": 24,
+      "y": 26,
+      "w": 7,
+      "h": 3
     }
   ],
   "terrain_zones": [
     {
       "kind": "water",
-      "x": 24,
-      "y": 5,
+      "x": 32,
+      "y": 14,
       "w": 3,
       "h": 3
     },
     {
       "kind": "rubble",
-      "x": 4,
-      "y": 19,
+      "x": 5,
+      "y": 28,
       "w": 6,
-      "h": 5
+      "h": 4
     },
     {
       "kind": "rubble",
-      "x": 27,
-      "y": 18,
-      "w": 7,
+      "x": 34,
+      "y": 27,
+      "w": 6,
       "h": 3
+    },
+    {
+      "kind": "wall",
+      "x": 17,
+      "y": 32,
+      "w": 10,
+      "h": 1
+    },
+    {
+      "kind": "door",
+      "x": 21,
+      "y": 32,
+      "w": 2,
+      "h": 1
     }
   ],
   "effects": [
     {
       "kind": "fire",
       "strength": "high",
-      "x": 22,
-      "y": 14,
-      "w": 8,
-      "h": 4
+      "x": 24,
+      "y": 26,
+      "w": 7,
+      "h": 3
     },
     {
       "kind": "fire",
       "strength": "high",
-      "x": 15,
-      "y": 12,
-      "w": 12,
+      "x": 13,
+      "y": 4,
+      "w": 4,
       "h": 2
+    },
+    {
+      "kind": "fire",
+      "strength": "high",
+      "x": 16,
+      "y": 2,
+      "w": 8,
+      "h": 8
+    },
+    {
+      "kind": "fire",
+      "strength": "high",
+      "x": 28,
+      "y": 2,
+      "w": 10,
+      "h": 5
+    },
+    {
+      "kind": "fire",
+      "strength": "high",
+      "x": 4,
+      "y": 32,
+      "w": 10,
+      "h": 4
     },
     {
       "kind": "smoke",
@@ -176,9 +269,9 @@
       "kind": "embers",
       "strength": "medium",
       "x": 2,
-      "y": 13,
-      "w": 32,
-      "h": 13
+      "y": 24,
+      "w": 40,
+      "h": 8
     }
   ]
 }

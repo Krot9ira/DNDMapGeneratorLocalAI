@@ -766,6 +766,22 @@ def style_warnings(map_data, style):
                 f"the {where} says '{hit}'. Nothing can be shown on a wall or overhead "
                 f"from directly above, and this is the strongest text in the caption - "
                 f"reword it as the top face of the thing.")
+    # A square is a place a fight spreads out in. A "square" a few cells
+    # across reads as a courtyard, and the renderer closes the surrounding
+    # city in on it until the fountain sits in a building - the burning
+    # quarter's fountain square was seventeen by nine and was drawn as
+    # exactly that. Fifteen cells a side is the smallest that reads as a
+    # public space.
+    for a in named:
+        low = str(a.get("label", "")).lower()
+        if not any(w in low for w in ("square", "plaza", "courtyard", "place", "green")):
+            continue
+        w_, h_ = int(a.get("w", 0) or 0), int(a.get("h", 0) or 0)
+        if w_ and h_ and (w_ < 15 or h_ < 15):
+            out.append(
+                f"the {str(a.get('label')).strip()} is {w_}x{h_} cells - a square smaller "
+                f"than fifteen across reads as a courtyard and the renderer closes the "
+                f"surrounding buildings in on it. Give plazas at least 15x15.")
     return out
 
 
@@ -823,13 +839,23 @@ def build_caption(map_data, style=None, base=None):
     door_count = sum(w * h for (x, y, w, h) in _merge_runs(grid, A.DOOR))
     window_count = sum(w * h for (x, y, w, h) in _merge_runs(grid, A.WINDOW))
     # Diffusion text encoders handle negation badly, so the rule is stated as
-    # what the walls are rather than as what they lack.
-    opening_note = (
-        f"Every wall in this picture is one continuous face of {enc['face']} from corner to "
-        f"corner, interrupted only by {door_count} doorways and {window_count} windows, each "
-        f"of which is listed below with its own rectangle. Everywhere else that face runs "
-        f"straight on.")
+    # what the walls are rather than as what they lack. Indoors the walls
+    # genuinely do run and join, and "corner to corner" says so; on an open
+    # site the same phrase was read as an invitation to run a city wall round
+    # the whole frame, so there the walls are bound to their rectangles
+    # instead.
     built = enclosure == "masonry"
+    if built:
+        opening_note = (
+            f"Every wall in this picture is one continuous face of {enc['face']} from corner "
+            f"to corner, interrupted only by {door_count} doorways and {window_count} windows, "
+            f"each of which is listed below with its own rectangle. Everywhere else that face "
+            f"runs straight on.")
+    else:
+        # On an open site the note itself planted "wall" nouns map-wide and the
+        # renderer answered with a city wall round the frame; the walls an open
+        # site has are described by their own elements, so say nothing here.
+        opening_note = ""
     named_areas = [a for a in (map_data.get("areas") or [])
                    if str(a.get("label", "")).strip()]
     if len(named_areas) == 1:
@@ -846,7 +872,8 @@ def build_caption(map_data, style=None, base=None):
                 f"anywhere inside it. Everything standing on it is furniture and scenery, "
                 f"not architecture.")
 
-    caption["high_level_description"] += " " + opening_note
+    if opening_note:
+        caption["high_level_description"] += " " + opening_note
     # Nothing in the contract forbade perspective, so a scene that happened to
     # mention a ceiling came back drawn from the corner of the room.
     viewpoint = base.get("viewpoint_note")
@@ -1393,8 +1420,7 @@ def build_caption(map_data, style=None, base=None):
             "type": "obj",
             "bbox": _bbox(x, y, w, h, cols, rows),
             "desc": (f"Open ground of {open_word} filling this whole rectangle, unbroken "
-                     f"from edge to edge: no building, no wall and no partition stands "
-                     f"anywhere inside it, only loose objects lying on the ground. "
+                     f"from edge to edge, only loose objects lying on the ground. "
                      f"{exact}")})
     ground_gaps = free_total - tiled >= 8
 
@@ -1489,11 +1515,9 @@ def build_caption(map_data, style=None, base=None):
             "type": "obj",
             "bbox": _bbox(area["x"], area["y"], area["w"], area["h"], cols, rows),
             "desc": (f"{_the(label)}: "
-                     + ("the open ground of this place seen from directly above, filling "
-                        "this rectangle, with nothing above it and nothing overhanging it. "
-                        "It is open ground and nothing is built round the edge of it: no "
-                        "wall, no fence, no railing and no kerb marks where it ends, and "
-                        "the ground carries straight on past it on every side"
+                     + ("open ground seen from directly above, filling "
+                        "this rectangle, with nothing above it and nothing overhanging it, "
+                        "and the ground carrying straight on past it on every side"
                         if not host and enclosure != "masonry"
                         and not _is_walled_in(grid, area["x"], area["y"], area["w"],
                                               area["h"], site_edge) else
@@ -1687,7 +1711,8 @@ def build_caption(map_data, style=None, base=None):
     if ground_gaps:
         caption["high_level_description"] += (
             " Every part of the ground that is not inside one of the rectangles listed "
-            "below is open ground, with no building and no wall standing on it.")
+            "below is open ground of the same kind, and the ground carries straight on "
+            "between them.")
     if count > 1:
         caption["high_level_description"] += (
             " The buildings are of different sizes and stand in an irregular arrangement.")
