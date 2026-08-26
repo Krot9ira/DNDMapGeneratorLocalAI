@@ -90,6 +90,10 @@ says exactly where.
   round a crossroads, stone house top-left, fountain on its square,
   overturned cart and barricade centre, two rubble-block ruins, fire and
   smoke; clean.
+- B11 misty_swamp PASS (battlemap_00102_): plank causeway down the
+  middle with cross-walkways and lanterns, water channels and pools,
+  boulders left, dead trees and reeds right, sunken shrine ring
+  bottom-centre; bleed margin as flat stone kerb; clean.
 
 Written for whichever model picks this up next. Read [AGENTS.md](../AGENTS.md)
 first — "How the renderer reads what you give it" is the accumulated rulebook
