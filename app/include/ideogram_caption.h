@@ -389,7 +389,13 @@ public:
             // The bare hang-words sat out for one phrase: the captions' own
             // "nothing overhanging it". Negation-aware consumers skip that
             // mention on their own, so the word itself can count.
-            "hanging", "hangs", "hang "};
+            "hanging", "hangs", "hang ",
+            // A house described by how many floors it has above the one being
+            // drawn is asking for those floors: a burning quarter whose stone
+            // house was "two-storey" with the fire "raging in the storey
+            // above" came back as a row of burning buildings instead of one
+            // intact room.
+            "two-storey", "three-storey", "storey above", "storeys above", "upper floor"};
         return v;
     }
 
@@ -1177,6 +1183,7 @@ public:
         // 4d. The open ground. Without it the renderer treats every empty square
         //     as somewhere a building could go, and fills the map with rooms it
         //     invented.
+        bool groundGaps = false;
         {
             std::string openWord = (style && !style->ground.empty()) ? style->ground
                                                                      : "open paved ground";
@@ -1194,15 +1201,22 @@ public:
                     for (int x = b.x; x < b.x + b.w; ++x)
                         if (x >= 0 && y >= 0 && x < cols && y < rows)
                             free_[(size_t)y * cols + x] = 0;
-            int given = 0;
+            int leftover = 0;
+            for (int y = 0; y < rows; ++y)
+                for (int x = 0; x < cols; ++x)
+                    if (free_[(size_t)y * cols + x]) ++leftover;
             for (const Rect& r : LargestRects(free_, cols, rows, 4,
                                               std::max(6, (int)(cols * rows * 0.012)))) {
-                (void)given;
                 // A one-square strip along the edge is not a piece of open
                 // ground worth an element of its own; it is the sliver left
                 // over between a room and the edge of the field, and four of
                 // them ate a sixth of the budget.
                 if (std::min(r.w, r.h) < 3) continue;
+                // Only rectangles that became elements count as described;
+                // LargestRects works on a copy of the mask, so what it
+                // rejected - and what it returned but we dropped - is still
+                // open ground nobody has said anything about.
+                leftover -= r.w * r.h;
                 walls.push_back({
                     {"type", "obj"},
                     {"bbox", Bbox(r.x, r.y, r.w, r.h, cols, rows)},
@@ -1210,8 +1224,14 @@ public:
                              "unbroken from edge to edge: no building, no wall and no "
                              "partition stands anywhere inside it, only loose objects lying "
                              "on the ground. " + kExactS}});
-                ++given;
             }
+            // Floor left over after the tiling - the slivers too thin for an
+            // element of their own - is the ground the renderer fills in by
+            // guesswork. A burning quarter left its sidewalks and the gap
+            // between its house and its square undescribed, and the guess was
+            // more burning houses, wrapped round the fountain square until the
+            // fountain sat in a building. Say what that ground is, once.
+            groundGaps = leftover >= 8;
         }
 
         AddTerrain(normal, g, Tile::Water, say("terrain", "water", "dark green water"),
@@ -1536,15 +1556,49 @@ public:
         // buildings there are - and this sentence used to claim several of them
         // on a map with one room in it, which is an instruction, not a caveat.
         // It is how a single tavern hall came back ringed with timber bays.
-        cap["high_level_description"] =
-            cap["high_level_description"].get<std::string>() +
-            (buildings.size() > 1
-                 ? " The buildings are of different sizes and stand in an irregular "
-                   "arrangement."
-             : buildings.size() == 1
-                 ? " There is exactly one building in this picture and no second building "
-                   "anywhere."
-                 : "");
+        // A summary that promises a street of houses ("burning houses on both
+        // sides") is quoted at the very top of this description, and an
+        // abstract count at the bottom lost the argument: the renderer painted
+        // the houses and closed the fountain square inside them. When the plan
+        // disagrees with its own summary, the answer goes in concrete words -
+        // the one building by name - rather than in a number.
+        std::string said = arch::Lower(summary);
+        bool claimsBuildings = false;
+        for (const char* w : {"houses", "buildings", "cottages", "townhouses",
+                              "shops", "barns", "huts", "towers", "villas"})
+            if (said.find(w) != std::string::npos) claimsBuildings = true;
+        std::string onlyLabel;
+        if (buildings.size() == 1) {
+            const Rect& b = buildings[0];
+            for (const Area& ar : map.areas) {
+                if (Trim(ar.label).empty()) continue;
+                double cx = ar.x + ar.w / 2.0, cy = ar.y + ar.h / 2.0;
+                if (b.x <= cx && cx < b.x + b.w && b.y <= cy && cy < b.y + b.h) {
+                    onlyLabel = LowerFirst(TheLabel(Trim(ar.label)));
+                    break;
+                }
+            }
+        }
+        {
+            std::string tail;
+            if (groundGaps)
+                tail += " Every part of the ground that is not inside one of the rectangles "
+                        "listed below is open ground, with no building and no wall standing "
+                        "on it.";
+            if (buildings.size() > 1)
+                tail += " The buildings are of different sizes and stand in an irregular "
+                        "arrangement.";
+            else if (buildings.size() == 1)
+                tail += (claimsBuildings && !onlyLabel.empty())
+                            ? " The only building in this picture is " + onlyLabel +
+                                  ", and no second building stands anywhere on the map."
+                            : " There is exactly one building in this picture and no second "
+                              "building anywhere.";
+            else if (claimsBuildings)
+                tail += " No building stands anywhere in this picture.";
+            cap["high_level_description"] =
+                cap["high_level_description"].get<std::string>() + tail;
+        }
         // Said as what the halves are rather than as what the picture is not:
         // the renderer answered "not mirrored" with a map whose left half was a
         // mirror of its right, because the word it acted on was "mirrored".

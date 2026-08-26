@@ -582,6 +582,11 @@ _SIDE_ON_WORDS = (
     # own, so the word itself can count - "moss hanging from the branches"
     # was reaching captions through scene prose without a whisper.
     "hanging", "hangs", "hang ",
+    # A house described by how many floors it has above the one being drawn is
+    # asking for those floors: a burning quarter whose stone house was
+    # "two-storey" with the fire "raging in the storey above" came back as a
+    # row of burning buildings instead of one intact room.
+    "two-storey", "three-storey", "storey above", "storeys above", "upper floor",
 )
 
 _NEGATIONS = (" no ", "not ", "never", "without", "nor ", "n't ", "nothing ",
@@ -1366,6 +1371,16 @@ def build_caption(map_data, style=None, base=None):
             for x in range(bx, bx + bw):
                 if 0 <= y < rows and 0 <= x < cols:
                     outside[y][x] = False
+    # Floor left over after the tiling - the slivers too thin for an element of
+    # their own - is the ground the renderer fills in by guesswork. A burning
+    # quarter left its sidewalks and the gap between its house and its square
+    # undescribed, and the guess was more burning houses, wrapped round the
+    # fountain square until the fountain sat in a building. Say what that
+    # ground is, once, in words. Only rectangles that became elements count as
+    # described; the tiler works on a copy of the mask, so what it rejected is
+    # still open ground nobody has said anything about.
+    free_total = sum(sum(1 for v in row if v) for row in outside)
+    tiled = 0
     for (x, y, w, h) in _largest_rects(outside, cols, rows, 4,
                                        max(6, int(cols * rows * 0.012))):
         # A one-square strip along the edge is not a piece of open ground worth
@@ -1373,6 +1388,7 @@ def build_caption(map_data, style=None, base=None):
         # the edge of the field, and four of them ate a sixth of the budget.
         if min(w, h) < 3:
             continue
+        tiled += w * h
         walls.append({
             "type": "obj",
             "bbox": _bbox(x, y, w, h, cols, rows),
@@ -1380,6 +1396,7 @@ def build_caption(map_data, style=None, base=None):
                      f"from edge to edge: no building, no wall and no partition stands "
                      f"anywhere inside it, only loose objects lying on the ground. "
                      f"{exact}")})
+    ground_gaps = free_total - tiled >= 8
 
     # 5. Terrain bodies large enough to matter, biggest first.
     def _already_described(x, y, w, h):
@@ -1649,11 +1666,40 @@ def build_caption(map_data, style=None, base=None):
     # a map with one room in it, which is an instruction, not a caveat. It is
     # how a single tavern hall came back ringed with little timber bays.
     count = len(building_rects)
-    caption["high_level_description"] += (
-        " The buildings are of different sizes and stand in an irregular arrangement."
-        if count > 1 else
-        " There is exactly one building in this picture and no second building anywhere."
-        if count == 1 else "")
+    # A summary that promises a street of houses ("burning houses on both
+    # sides") is quoted at the very top of this description, and an abstract
+    # count at the bottom lost the argument: the renderer painted the houses
+    # and closed the fountain square inside them. When the plan disagrees with
+    # its own summary, the answer goes in concrete words - the one building by
+    # name - rather than in a number.
+    claims_buildings = any(w in summary.lower() for w in
+                           ("houses", "buildings", "cottages", "townhouses",
+                            "shops", "barns", "huts", "towers", "villas"))
+    only_label = ""
+    if count == 1:
+        bx, by, bw, bh = building_rects[0]
+        for a in named_areas:
+            cx, cy = int(a["x"]) + int(a["w"]) / 2, int(a["y"]) + int(a["h"]) / 2
+            if bx <= cx < bx + bw and by <= cy < by + bh:
+                the_label = _the(str(a["label"]).strip())
+                only_label = the_label[0].lower() + the_label[1:]
+                break
+    if ground_gaps:
+        caption["high_level_description"] += (
+            " Every part of the ground that is not inside one of the rectangles listed "
+            "below is open ground, with no building and no wall standing on it.")
+    if count > 1:
+        caption["high_level_description"] += (
+            " The buildings are of different sizes and stand in an irregular arrangement.")
+    elif count == 1:
+        caption["high_level_description"] += (
+            f" The only building in this picture is {only_label}, and no second building "
+            f"stands anywhere on the map."
+            if claims_buildings and only_label else
+            " There is exactly one building in this picture and no second building anywhere.")
+    elif claims_buildings:
+        caption["high_level_description"] += (
+            " No building stands anywhere in this picture.")
     # Said as what the halves are rather than as what the picture is not: the
     # renderer answered "not mirrored" with a map whose left half was a mirror
     # of its right, because the word it acted on was "mirrored".
