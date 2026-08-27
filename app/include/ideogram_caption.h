@@ -650,10 +650,13 @@ public:
             wallNote;
         // Nothing in the contract forbade perspective, so a scene that happened
         // to mention a ceiling came back drawn from the corner of the room.
-        if (!base.viewpoint_note.empty())
+        std::string vp = (enclosure == "open" && !base.viewpoint_note_open.empty())
+                             ? base.viewpoint_note_open
+                             : base.viewpoint_note;
+        if (!vp.empty())
             cap["high_level_description"] =
                 cap["high_level_description"].get<std::string>() + " " +
-                Trim(base.viewpoint_note) + ".";
+                Trim(vp) + ".";
 
         nlohmann::json sd;
         sd["aesthetics"] = (style && !style->aesthetics.empty()) ? style->aesthetics
@@ -1275,24 +1278,26 @@ public:
             for (int y = 0; y < rows; ++y)
                 for (int x = 0; x < cols; ++x)
                     if (free_[(size_t)y * cols + x]) ++leftover;
-            for (const Rect& r : LargestRects(free_, cols, rows, 4,
-                                              std::max(6, (int)(cols * rows * 0.012)))) {
-                // A one-square strip along the edge is not a piece of open
-                // ground worth an element of its own; it is the sliver left
-                // over between a room and the edge of the field, and four of
-                // them ate a sixth of the budget.
-                if (std::min(r.w, r.h) < 3) continue;
-                // Only rectangles that became elements count as described;
-                // LargestRects works on a copy of the mask, so what it
-                // rejected - and what it returned but we dropped - is still
-                // open ground nobody has said anything about.
-                leftover -= r.w * r.h;
-                walls.push_back({
-                    {"type", "obj"},
-                    {"bbox", Bbox(r.x, r.y, r.w, r.h, cols, rows)},
-                    {"desc", "Open ground of " + openWord + " filling this whole rectangle, "
-                             "unbroken from edge to edge, only loose objects lying "
-                             "on the ground. " + kExactS}});
+            if (enclosure != "open") {
+                for (const Rect& r : LargestRects(free_, cols, rows, 4,
+                                                  std::max(6, (int)(cols * rows * 0.012)))) {
+                    // A one-square strip along the edge is not a piece of open
+                    // ground worth an element of its own; it is the sliver left
+                    // over between a room and the edge of the field, and four of
+                    // them ate a sixth of the budget.
+                    if (std::min(r.w, r.h) < 3) continue;
+                    // Only rectangles that became elements count as described;
+                    // LargestRects works on a copy of the mask, so what it
+                    // rejected - and what it returned but we dropped - is still
+                    // open ground nobody has said anything about.
+                    leftover -= r.w * r.h;
+                    walls.push_back({
+                        {"type", "obj"},
+                        {"bbox", Bbox(r.x, r.y, r.w, r.h, cols, rows)},
+                        {"desc", "Open ground of " + openWord + " filling this whole rectangle, "
+                                 "unbroken from edge to edge, only loose objects lying "
+                                 "on the ground. " + kExactS}});
+                }
             }
             // Floor left over after the tiling - the slivers too thin for an
             // element of their own - is the ground the renderer fills in by
@@ -1407,14 +1412,11 @@ public:
                 countRing(a.x + a.w, yy);
             }
             bool walledIn = ringCells > 0 && ownWall >= 0.25 * ringCells;
+            if (enclosure != "masonry" && !host && !walledIn) continue;
             std::string opening =
-                (enclosure != "masonry" && !host && !walledIn)
-                    ? "open ground seen from directly above, filling this "
-                      "rectangle, with nothing above it and nothing overhanging it, "
-                      "and the ground carrying straight on past it on every side"
-                    : "the open interior of a room seen from directly above, its floor "
-                      "and furniture fully visible and filling this rectangle, with no roof, "
-                      "no ceiling and nothing overhanging it";
+                "the open interior of a room seen from directly above, its floor "
+                "and furniture fully visible and filling this rectangle, with no roof, "
+                "no ceiling and nothing overhanging it";
             normal.push_back({
                 {"type", "obj"},
                 {"bbox", Bbox(a.x, a.y, a.w, a.h, cols, rows)},
@@ -1450,6 +1452,21 @@ public:
                 critical.push_back({{"type", "obj"},
                                     {"bbox", Bbox(f.x, f.y, 1, 1, cols, rows)},
                                     {"desc", text}});
+                continue;
+            }
+            bool insideSingleRoom = false;
+            for (const auto& kv : singleRoomShell) {
+                if (kv.first < buildings.size()) {
+                    const auto& b = buildings[kv.first];
+                    if (f.x >= b.x && f.x < b.x + b.w && f.y >= b.y && f.y < b.y + b.h) {
+                        insideSingleRoom = true;
+                        break;
+                    }
+                }
+            }
+            if (insideSingleRoom) {
+                std::string pretty = PropKindWords(f.kind);
+                if (!pretty.empty()) ++loose[pretty];
                 continue;
             }
             if (f.filler) {

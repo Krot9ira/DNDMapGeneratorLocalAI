@@ -6,6 +6,7 @@
   "palette": "grey cobble, painted shutters, canvas awning cream, soot-stained plaster",
   "lighting": "bright overcast daylight, deep shade in the alleys, lantern warmth in doorways",
   "default_layout": "street",
+  "enclosure": "open",
   "props": [
     "crate",
     "barrel",

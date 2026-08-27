@@ -92,6 +92,7 @@ public:
             base.background_suffix = j.value("background_suffix", base.background_suffix);
             base.border_note = j.value("border_note", base.border_note);
             base.viewpoint_note = j.value("viewpoint_note", base.viewpoint_note);
+            base.viewpoint_note_open = j.value("viewpoint_note_open", base.viewpoint_note_open);
             if (j.contains("default_palette") && j["default_palette"].is_array()) {
                 base.default_palette.clear();
                 for (const auto& c : j["default_palette"])
@@ -245,6 +246,7 @@ public:
             j["background_suffix"] = base.background_suffix;
             j["border_note"] = base.border_note;
             j["viewpoint_note"] = base.viewpoint_note;
+            j["viewpoint_note_open"] = base.viewpoint_note_open;
             j["default_palette"] = base.default_palette;
             std::ofstream f(fs::path(stylesDir) / "_base.json");
             if (!f.is_open()) return false;

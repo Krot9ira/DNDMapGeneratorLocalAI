@@ -303,6 +303,7 @@ struct BaseStyle {
     std::string background_suffix;
     std::string border_note;
     std::string viewpoint_note;   // orthographic, roof off, no perspective
+    std::string viewpoint_note_open; // open-air outdoor orthographic
     std::vector<std::string> default_palette;
 };
 

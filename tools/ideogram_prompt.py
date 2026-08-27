@@ -790,7 +790,7 @@ def build_caption(map_data, style=None, base=None):
     grid = A.zones_to_grid(map_data)
     cols, rows = grid.cols, grid.rows
     meta = map_data.get("meta", {}) or {}
-    style = style or {}
+    style = style or A.style_data(meta.get("style"))
     base = base or {}
 
     phrases = load_phrases()
@@ -876,7 +876,9 @@ def build_caption(map_data, style=None, base=None):
         caption["high_level_description"] += " " + opening_note
     # Nothing in the contract forbade perspective, so a scene that happened to
     # mention a ceiling came back drawn from the corner of the room.
-    viewpoint = base.get("viewpoint_note")
+    viewpoint = base.get("viewpoint_note_open" if enclosure == "open" else "viewpoint_note")
+    if not viewpoint:
+        viewpoint = base.get("viewpoint_note")
     if viewpoint:
         caption["high_level_description"] += " " + viewpoint.rstrip(".") + "."
 
@@ -1436,20 +1438,21 @@ def build_caption(map_data, style=None, base=None):
     # still open ground nobody has said anything about.
     free_total = sum(sum(1 for v in row if v) for row in outside)
     tiled = 0
-    for (x, y, w, h) in _largest_rects(outside, cols, rows, 4,
-                                       max(6, int(cols * rows * 0.012))):
-        # A one-square strip along the edge is not a piece of open ground worth
-        # an element of its own; it is the sliver left over between a room and
-        # the edge of the field, and four of them ate a sixth of the budget.
-        if min(w, h) < 3:
-            continue
-        tiled += w * h
-        walls.append({
-            "type": "obj",
-            "bbox": _bbox(x, y, w, h, cols, rows),
-            "desc": (f"Open ground of {open_word} filling this whole rectangle, unbroken "
-                     f"from edge to edge, only loose objects lying on the ground. "
-                     f"{exact}")})
+    if enclosure != "open":
+        for (x, y, w, h) in _largest_rects(outside, cols, rows, 4,
+                                           max(6, int(cols * rows * 0.012))):
+            # A one-square strip along the edge is not a piece of open ground worth
+            # an element of its own; it is the sliver left over between a room and
+            # the edge of the field, and four of them ate a sixth of the budget.
+            if min(w, h) < 3:
+                continue
+            tiled += w * h
+            walls.append({
+                "type": "obj",
+                "bbox": _bbox(x, y, w, h, cols, rows),
+                "desc": (f"Open ground of {open_word} filling this whole rectangle, unbroken "
+                         f"from edge to edge, only loose objects lying on the ground. "
+                         f"{exact}")})
     ground_gaps = free_total - tiled >= 8
 
     # 5. Terrain bodies large enough to matter, biggest first.
@@ -1538,20 +1541,16 @@ def build_caption(map_data, style=None, base=None):
                          + f" {outside_note} {exact}"),
             })
             continue
+        if not host and enclosure != "masonry" and not _is_walled_in(
+                grid, area["x"], area["y"], area["w"], area["h"], site_edge):
+            continue
         one_room = "" if not single else ". " + undivided
         normal.append({
             "type": "obj",
             "bbox": _bbox(area["x"], area["y"], area["w"], area["h"], cols, rows),
-            "desc": (f"{_the(label)}: "
-                     + ("open ground seen from directly above, filling "
-                        "this rectangle, with nothing above it and nothing overhanging it, "
-                        "and the ground carrying straight on past it on every side"
-                        if not host and enclosure != "masonry"
-                        and not _is_walled_in(grid, area["x"], area["y"], area["w"],
-                                              area["h"], site_edge) else
-                        "the open interior of a room seen from directly "
-                        "above, its floor and furniture fully visible and filling this "
-                        "rectangle, with no roof, no ceiling and nothing overhanging it")
+            "desc": (f"{_the(label)}: the open interior of a room seen from directly "
+                     f"above, its floor and furniture fully visible and filling this "
+                     f"rectangle, with no roof, no ceiling and nothing overhanging it"
                      + one_room
                      + (". " + detail.rstrip(".") if detail else "")),
         })
@@ -1582,6 +1581,13 @@ def build_caption(map_data, style=None, base=None):
             critical.append({"type": "obj",
                              "bbox": _bbox(f["x"], f["y"], 1, 1, cols, rows),
                              "desc": text + ". " + exact})
+            continue
+        fx, fy = int(f.get("x", 0)), int(f.get("y", 0))
+        single_rects = [building_rects[j] for j in single_room_shell.keys()]
+        if any(bx <= fx < bx + bw and by <= fy < by + bh for (bx, by, bw, bh) in single_rects):
+            words = prop_kind_words(kind)
+            if words:
+                loose.append(words)
             continue
         phrase = phrases["props"].get(kind)
         if not phrase:
