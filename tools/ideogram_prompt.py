@@ -856,14 +856,15 @@ def build_caption(map_data, style=None, base=None):
         # renderer answered with a city wall round the frame; the walls an open
         # site has are described by their own elements, so say nothing here.
         opening_note = ""
+    env_notes = []
     named_areas = [a for a in (map_data.get("areas") or [])
                    if str(a.get("label", "")).strip()]
     if len(named_areas) == 1:
         only = named_areas[0]
         covers = (only.get("w", 0) * only.get("h", 0)) / max(1, cols * rows)
         if covers > 0.45:
-            caption["high_level_description"] += (
-                f" The whole of this map is one single {'room' if built else 'open space'}, "
+            env_notes.append(
+                f"The whole of this map is one single {'room' if built else 'open space'}, "
                 f"{_the(only['label'])[0].lower()}{_the(only['label'])[1:]}, "
                 f"and nothing else: "
                 + ("one continuous floor from wall to wall with "
@@ -873,21 +874,28 @@ def build_caption(map_data, style=None, base=None):
                 f"not architecture.")
 
     if opening_note:
-        caption["high_level_description"] += " " + opening_note
+        env_notes.append(opening_note)
     # Nothing in the contract forbade perspective, so a scene that happened to
     # mention a ceiling came back drawn from the corner of the room.
     viewpoint = base.get("viewpoint_note_open" if enclosure == "open" else "viewpoint_note")
     if not viewpoint:
         viewpoint = base.get("viewpoint_note")
     if viewpoint:
-        caption["high_level_description"] += " " + viewpoint.rstrip(".") + "."
+        env_notes.append(viewpoint.rstrip(".") + ".")
 
+    # Ideogram 4 requires exactly one of `photo` or `art_style` in
+    # style_description.  Battle maps are non-photographic, so `art_style` is
+    # the correct key.  Key order is strict per the training schema:
+    #   aesthetics, lighting, art_style, medium, color_palette
     caption["style_description"] = {
         "aesthetics": style.get("aesthetics") or base.get("aesthetics", ""),
         # A scene that says how it is lit outranks the style's general idea of
         # how places like it are lit.
         "lighting": (str(meta.get("lighting", "")).strip()
                      or style.get("lighting") or base.get("lighting", "")),
+        "art_style": (style.get("art_style") or base.get("art_style",
+                      "hand-painted fantasy cartography, inked line art over "
+                      "watercolour and gouache, flat orthographic top-down battle map")),
         "medium": base.get("medium", "Inked line art with watercolour and gouache painting"),
         "color_palette": list(style.get("hex_palette") or base.get("default_palette") or
                               ["#C8B99A", "#8A7B63", "#4A4038", "#2E2A26", "#6E7A6B"]),
@@ -950,7 +958,7 @@ def build_caption(map_data, style=None, base=None):
         # both a quarter of the budget and the repeating pattern the rest of the
         # caption spends its length arguing against. It goes in the background
         # instead, which is where something covering everything belongs.
-        if ew * eh >= 0.25 * cols * rows:
+        if ew * eh >= 0.18 * cols * rows or ew >= 0.55 * cols or eh >= 0.55 * rows:
             atmosphere.append(f"{text}, {how}, lying over the whole map on top of "
                               f"everything else without replacing any of it")
             continue
@@ -1584,7 +1592,9 @@ def build_caption(map_data, style=None, base=None):
             continue
         fx, fy = int(f.get("x", 0)), int(f.get("y", 0))
         single_rects = [building_rects[j] for j in single_room_shell.keys()]
-        if any(bx <= fx < bx + bw and by <= fy < by + bh for (bx, by, bw, bh) in single_rects):
+        in_single = any(bx <= fx < bx + bw and by <= fy < by + bh for (bx, by, bw, bh) in single_rects)
+        in_building = any(bx <= fx < bx + bw and by <= fy < by + bh for (bx, by, bw, bh) in building_rects)
+        if in_single or (enclosure == "open" and not in_building):
             words = prop_kind_words(kind)
             if words:
                 loose.append(words)
@@ -1742,44 +1752,39 @@ def build_caption(map_data, style=None, base=None):
                 the_label = _the(str(a["label"]).strip())
                 only_label = the_label[0].lower() + the_label[1:]
                 break
+    for note in env_notes:
+        background += f". {note.rstrip('.')}"
     if ground_gaps:
-        caption["high_level_description"] += (
-            " Every part of the ground that is not inside one of the rectangles listed "
+        background += (
+            ". Every part of the ground that is not inside one of the rectangles listed "
             "below is open ground of the same kind, and the ground carries straight on "
-            "between them.")
+            "between them")
     if count > 1:
         names = ", ".join(building_names[:-1]) + " and " + building_names[-1] if len(building_names) > 1 else (building_names[0] if building_names else "")
-        caption["high_level_description"] += (
-            f" There are exactly {len(building_names)} buildings in this picture ({names}), each located in "
+        background += (
+            f". There are exactly {len(building_names)} buildings in this picture ({names}), each located in "
             f"its own rectangle as described below, and no other building or wall exists anywhere "
             f"on this map. Every other part of the picture is completely open, unbroken ground "
-            f"with no walls, no buildings, and no partitions.")
+            f"with no walls, no buildings, and no partitions")
     elif count == 1:
-        caption["high_level_description"] += (
-            f" The only building in this picture is {only_label}, and no second building "
-            f"stands anywhere on the map."
+        background += (
+            f". The only building in this picture is {only_label}, and no second building "
+            f"stands anywhere on the map"
             if claims_buildings and only_label else
-            " There is exactly one building in this picture and no second building anywhere.")
+            ". There is exactly one building in this picture and no second building anywhere")
     elif claims_buildings:
-        caption["high_level_description"] += (
-            " No building stands anywhere in this picture.")
-    # Said as what the halves are rather than as what the picture is not: the
-    # renderer answered "not mirrored" with a map whose left half was a mirror
-    # of its right, because the word it acted on was "mirrored".
-    caption["high_level_description"] += (
-        " The left half of this map and the right half are different from each other, and "
+        background += (
+            ". No building stands anywhere in this picture")
+    background += (
+        ". The left half of this map and the right half are different from each other, and "
         "so are the top half and the bottom half: every part of the picture is its own "
-        "shape, and each thing in it appears once, in one place, at its own angle."
-        # Last, because last is where this caption is strongest, and because a
-        # map drawn at a tilt cannot be played on: a wall drawn as a face covers
-        # squares a figure has to stand on. Said again in six words rather than
-        # trusting the long sentence higher up.
-        " Every single thing in this picture is drawn as seen from straight above it: the "
+        "shape, and each thing in it appears once, in one place, at its own angle. "
+        "Every single thing in this picture is drawn as seen from straight above it: the "
         "top of the wall, the top of the tent, the top of the rock, the top of the table. "
         "No side of anything is visible anywhere in the picture. The top edge of the "
         "picture shows exactly the same straight-down view as the bottom edge and the two "
         "sides do too: no part of this map is further away from the viewer than any other "
-        "part, there is no far side, no back wall and no distance.")
+        "part, there is no far side, no back wall and no distance")
 
     caption["compositional_deconstruction"] = {
         "background": background,

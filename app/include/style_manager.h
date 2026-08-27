@@ -87,6 +87,7 @@ public:
             base.description = j.value("description", base.description);
             base.aesthetics = j.value("aesthetics", base.aesthetics);
             base.medium = j.value("medium", base.medium);
+            base.art_style = j.value("art_style", base.art_style);
             base.lighting = j.value("lighting", base.lighting);
             base.forbidden_suffix = j.value("forbidden_suffix", base.forbidden_suffix);
             base.background_suffix = j.value("background_suffix", base.background_suffix);
@@ -176,6 +177,7 @@ public:
             out.palette = j.value("palette", std::string(""));
             out.lighting = j.value("lighting", std::string(""));
             out.aesthetics = j.value("aesthetics", std::string(""));
+            out.art_style = j.value("art_style", std::string(""));
             out.ground = j.value("ground", std::string(""));
             out.hex_palette.clear();
             if (j.contains("hex_palette") && j["hex_palette"].is_array())
@@ -216,6 +218,7 @@ public:
             j["palette"] = s.palette;
             j["lighting"] = s.lighting;
             j["aesthetics"] = s.aesthetics;
+            if (!s.art_style.empty()) j["art_style"] = s.art_style;
             j["ground"] = s.ground;
             j["hex_palette"] = s.hex_palette;
             j["default_layout"] = s.default_layout;

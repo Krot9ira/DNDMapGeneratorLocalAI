@@ -4,6 +4,7 @@
   "description": "Fragments merged into every Ideogram caption. `forbidden_suffix` is what keeps text, lettering and creatures out of every map - Ideogram takes no negative prompt, so this sentence is the only thing enforcing it.",
   "aesthetics": "Hand-painted fantasy cartography, rough painterly brushwork with visible strokes, strong dark ink outlines around every object and wall, subtle black and brown linework, restrained desaturated colour, flat orthographic projection with every object drawn as its top surface and a short soft shadow cast beside it on the floor, inked line art over watercolour and gouache, premium hand-drawn D&D virtual tabletop map, dense environmental storytelling with many small props and clutter",
   "medium": "Inked line art combined with watercolour and gouache painting over digital texture",
+  "art_style": "hand-painted fantasy cartography, inked line art over watercolour and gouache, flat orthographic top-down battle map",
   "lighting": "Soft warm ambient light from directly above with gentle directional shadows beneath walls and furniture",
   "forbidden_suffix": "The scene is completely empty of people, creatures and animals, and carries no text, letters, numbers, labels or grid lines anywhere",
   "background_suffix": "painted with visible brushwork, every part of the ground fully painted with no blank patches inside the map area",

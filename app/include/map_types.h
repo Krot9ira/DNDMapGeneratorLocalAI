@@ -281,6 +281,7 @@ struct StyleDef {
     std::string palette;
     std::string lighting;
     std::string aesthetics;                 // Ideogram caption: style_description
+    std::string art_style;                  // Ideogram caption: non-photo style
     std::string ground;                     // Ideogram caption: background surface
     std::vector<std::string> hex_palette;   // Ideogram caption: committed colours
     std::string default_layout = "dungeon";
@@ -298,6 +299,7 @@ struct BaseStyle {
     std::string description;
     std::string aesthetics;
     std::string medium;
+    std::string art_style;                  // Ideogram 4: required for non-photo captions
     std::string lighting;
     std::string forbidden_suffix;
     std::string background_suffix;

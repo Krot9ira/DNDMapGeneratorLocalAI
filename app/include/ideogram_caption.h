@@ -646,17 +646,17 @@ public:
                        " windows, each of which is listed below with its own rectangle. "
                        "Everywhere else that face runs straight on.";
         cap["high_level_description"] =
-            CapWords(head, 44) + ". " + base.forbidden_suffix + "." + shape + onlyRoom +
-            wallNote;
+            CapWords(head, 44) + ". " + base.forbidden_suffix + "." + shape;
+        std::vector<std::string> envNotes;
+        if (!onlyRoom.empty()) envNotes.push_back(Trim(onlyRoom));
+        if (!wallNote.empty()) envNotes.push_back(Trim(wallNote));
         // Nothing in the contract forbade perspective, so a scene that happened
         // to mention a ceiling came back drawn from the corner of the room.
         std::string vp = (enclosure == "open" && !base.viewpoint_note_open.empty())
-                             ? base.viewpoint_note_open
-                             : base.viewpoint_note;
+                              ? base.viewpoint_note_open
+                              : base.viewpoint_note;
         if (!vp.empty())
-            cap["high_level_description"] =
-                cap["high_level_description"].get<std::string>() + " " +
-                Trim(vp) + ".";
+            envNotes.push_back(Trim(vp) + ".");
 
         nlohmann::json sd;
         sd["aesthetics"] = (style && !style->aesthetics.empty()) ? style->aesthetics
@@ -667,6 +667,12 @@ public:
                              ? Trim(map.meta.lighting)
                              : ((style && !style->lighting.empty()) ? style->lighting
                                                                    : base.lighting);
+        sd["art_style"] = (style && !style->art_style.empty())
+                              ? style->art_style
+                              : (!base.art_style.empty()
+                                     ? base.art_style
+                                     : "hand-painted fantasy cartography, inked line art over "
+                                       "watercolour and gouache, flat orthographic top-down battle map");
         sd["medium"] = base.medium;
         nlohmann::json palette = nlohmann::json::array();
         const auto& colours = (style && !style->hex_palette.empty()) ? style->hex_palette
@@ -739,7 +745,8 @@ public:
             // repeating pattern the rest of the caption spends its length
             // arguing against. It goes in the background instead, which is
             // where something covering everything belongs.
-            if (eff.w * eff.h >= 0.25 * cols * rows) {
+            if (eff.w * eff.h >= 0.18 * cols * rows ||
+                eff.w >= 0.55 * cols || eff.h >= 0.55 * rows) {
                 atmosphere.push_back(text + ", " + how + ", lying over the whole map on top "
                                      "of everything else without replacing any of it");
                 continue;
@@ -1464,7 +1471,14 @@ public:
                     }
                 }
             }
-            if (insideSingleRoom) {
+            bool inBuilding = false;
+            for (const auto& b : buildings) {
+                if (f.x >= b.x && f.x < b.x + b.w && f.y >= b.y && f.y < b.y + b.h) {
+                    inBuilding = true;
+                    break;
+                }
+            }
+            if (insideSingleRoom || (enclosure == "open" && !inBuilding)) {
                 std::string pretty = PropKindWords(f.kind);
                 if (!pretty.empty()) ++loose[pretty];
                 continue;
@@ -1633,9 +1647,6 @@ public:
         // whose opening sentence forbade them.
         background += ". " + base.forbidden_suffix;
 
-        cap["compositional_deconstruction"] = {
-            {"background", background},
-            {"elements", elements}};
         // Said last, because until the elements are built nobody knows how many
         // buildings there are - and this sentence used to claim several of them
         // on a map with one room in it, which is an instruction, not a caveat.
@@ -1663,53 +1674,52 @@ public:
                 }
             }
         }
-        {
-            std::string tail;
-            if (groundGaps)
-                tail += " Every part of the ground that is not inside one of the rectangles "
-                        "listed below is open ground of the same kind, and the ground "
-                        "carries straight on between them.";
-            if (buildings.size() > 1) {
-                std::string names;
-                for (size_t k = 0; k < buildingNames.size(); ++k) {
-                    if (k) names += (k + 1 == buildingNames.size()) ? " and " : ", ";
-                    names += buildingNames[k];
-                }
-                tail += " There are exactly " + std::to_string(buildingNames.size()) +
-                        " buildings in this picture (" + names +
-                        "), each located in its own rectangle as described below, and no other building or wall exists anywhere "
-                        "on this map. Every other part of the picture is completely open, unbroken ground "
-                        "with no walls, no buildings, and no partitions.";
-            } else if (buildings.size() == 1) {
-                tail += (claimsBuildings && !onlyLabel.empty())
-                            ? " The only building in this picture is " + onlyLabel +
-                                  ", and no second building stands anywhere on the map."
-                            : " There is exactly one building in this picture and no second "
-                              "building anywhere.";
-            } else if (claimsBuildings) {
-                tail += " No building stands anywhere in this picture.";
+        for (const auto& note : envNotes) {
+            std::string n = Trim(note);
+            while (!n.empty() && n.back() == '.') n.pop_back();
+            if (!n.empty()) background += ". " + n;
+        }
+        if (groundGaps)
+            background += ". Every part of the ground that is not inside one of the rectangles "
+                          "listed below is open ground of the same kind, and the ground "
+                          "carries straight on between them";
+        if (buildings.size() > 1) {
+            std::string names;
+            for (size_t k = 0; k < buildingNames.size(); ++k) {
+                if (k) names += (k + 1 == buildingNames.size()) ? " and " : ", ";
+                names += buildingNames[k];
             }
-            cap["high_level_description"] =
-                cap["high_level_description"].get<std::string>() + tail;
+            background += ". There are exactly " + std::to_string(buildingNames.size()) +
+                          " buildings in this picture (" + names +
+                          "), each located in its own rectangle as described below, and no other building or wall exists anywhere "
+                          "on this map. Every other part of the picture is completely open, unbroken ground "
+                          "with no walls, no buildings, and no partitions";
+        } else if (buildings.size() == 1) {
+            background += (claimsBuildings && !onlyLabel.empty())
+                              ? ". The only building in this picture is " + onlyLabel +
+                                    ", and no second building stands anywhere on the map"
+                              : ". There is exactly one building in this picture and no second "
+                                "building anywhere";
+        } else if (claimsBuildings) {
+            background += ". No building stands anywhere in this picture";
         }
         // Said as what the halves are rather than as what the picture is not:
         // the renderer answered "not mirrored" with a map whose left half was a
         // mirror of its right, because the word it acted on was "mirrored".
-        cap["high_level_description"] =
-            cap["high_level_description"].get<std::string>() +
-            " The left half of this map and the right half are different from each other, "
+        background +=
+            ". The left half of this map and the right half are different from each other, "
             "and so are the top half and the bottom half: every part of the picture is its "
-            "own shape, and each thing in it appears once, in one place, at its own angle."
-            // Last, because last is where this caption is strongest, and
-            // because a map drawn at a tilt cannot be played on: a wall drawn
-            // as a face covers squares a figure has to stand on. Said again in
-            // six words rather than trusting the long sentence higher up.
-            " Every single thing in this picture is drawn as seen from straight above it: "
+            "own shape, and each thing in it appears once, in one place, at its own angle. "
+            "Every single thing in this picture is drawn as seen from straight above it: "
             "the top of the wall, the top of the tent, the top of the rock, the top of the "
             "table. No side of anything is visible anywhere in the picture. The top edge of "
             "the picture shows exactly the same straight-down view as the bottom edge and "
             "the two sides do too: no part of this map is further away from the viewer than "
-            "any other part, there is no far side, no back wall and no distance.";
+            "any other part, there is no far side, no back wall and no distance";
+
+        cap["compositional_deconstruction"] = {
+            {"background", background},
+            {"elements", elements}};
         return cap;
     }
 

@@ -88,7 +88,7 @@ for layout, style in CASES:
 
     ps = py["style_description"]
     as_ = app["style_description"]
-    for key in ("aesthetics", "lighting", "medium"):
+    for key in ("aesthetics", "lighting", "art_style", "medium"):
         if ps.get(key) != as_.get(key):
             problems.append(f"{case}: style_description.{key} differs")
 
