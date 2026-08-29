@@ -1,0 +1,45 @@
+{
+  "id": "caravan_camp",
+  "name": "Caravan Camp",
+  "category": "Wilderness",
+  "description": "Merchant wagons drawn up in a ring on open grassland, campfires burning between them.",
+  "origin": "agent",
+  "palette": "night meadow green, grey waxed canvas, ember orange, weathered oak brown",
+  "lighting": "deep blue night lit by warm orange firelight, soft pools of glow spreading over the grass, long quiet shadows",
+  "default_layout": "open",
+  "enclosure": "open",
+  "props": [
+    "wagon",
+    "campfire",
+    "cauldron",
+    "crate",
+    "barrel",
+    "chest",
+    "bench",
+    "chair",
+    "stump",
+    "rope_coil",
+    "bush"
+  ],
+  "tags": [
+    "camp",
+    "caravan",
+    "merchant",
+    "wagons",
+    "meadow",
+    "night",
+    "travellers",
+    "resting place"
+  ],
+  "aesthetics": "Hand-painted fantasy cartography, rough painterly brushwork with visible strokes, strong dark ink outlines around every object and wall, subtle black and brown linework, restrained desaturated colour, flat orthographic projection with every object drawn as its top surface and a short soft shadow cast beside it on the floor, inked line art over watercolour and gouache, premium hand-drawn D&D virtual tabletop map, dense environmental storytelling",
+  "hex_palette": [
+    "#3E5A38",
+    "#6E7F52",
+    "#C4712B",
+    "#7A6247",
+    "#1E2733"
+  ],
+  "ground": "soft green meadow grass lying in combed drifts, worn to bare dark earth where the camp is trodden",
+  "materials": "A merchant caravan camped for the night on open grassland, seen from directly above. Heavy timber wagons with iron-tyred wheels and arched grey canvas covers drawn over their beds, stone-ringed campfires burning down to bright embers, rope lines strung taut between the wagons with washing pegged to them and drawn as flat rectangles of cloth, sawn log stools and folding camp chairs of timber and canvas set out on the grass, stacked crates and iron-banded barrels, rolled blankets and bedrolls laid out, blackened cook pots and a kettle standing beside the stones, a water cask on a trestle, coils of hemp rope and feed sacks, meadow grass growing long and untouched away from the trodden ground.",
+  "boundary": "unbroken open grassland running flat and empty in every direction, its grass growing longer and paler where nobody has walked"
+}

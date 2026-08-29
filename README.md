@@ -306,7 +306,7 @@ Right-click *and drag* still pans, so the menu only opens on a click that stayed
 
 ## Styles
 
-Twenty-eight of them, one JSON file each in `styles/`, covering the places a campaign actually
+Thirty-two of them, one JSON file each in `styles/`, covering the places a campaign actually
 visits:
 
 | | |
@@ -315,10 +315,10 @@ visits:
 | **Urban** | `city_streets`, `city_district`, `city_townhouse`, `city_harbour`, `cyberpunk_street` |
 | **Fortress** | `castle_keep` |
 | **Dungeon** | `classic_dungeon`, `gothic_crypt`, `sunken_temple`, `sewer_tunnels` |
-| **Underground** | `underdark_cavern`, `abandoned_mine`, `volcanic_lair` |
+| **Underground** | `underdark_cavern`, `natural_cave`, `abandoned_mine`, `volcanic_lair` |
 | **Sacred** | `grand_temple`, `graveyard` |
-| **Interior** | `cozy_tavern`, `arcane_library` |
-| **Wilderness** | `lush_forest`, `marsh_bog`, `mountain_pass`, `frozen_pass`, `desert_ruins`, `coastal_ruins`, `bandit_camp` |
+| **Interior** | `cozy_tavern`, `arcane_library`, `merchant_hall` |
+| **Wilderness** | `lush_forest`, `marsh_bog`, `mountain_pass`, `frozen_pass`, `desert_ruins`, `coastal_ruins`, `bandit_camp`, `caravan_camp`, `caravan_camp_night` |
 | **Nautical** | `pirate_deck` |
 | **Sci-fi** | `scifi_derelict` |
 
@@ -328,6 +328,12 @@ sentence that bans text, creatures and grid lines from the image.
 
 To add your own: copy any style file, change the `id`, and it appears in the app on restart.
 The Styles tab edits all of it without leaving the program.
+
+An agent can do the same, and should: when the library holds nothing of the kind of place
+it was asked for, `agent_api.create_style(...)` writes one, after checking that it will not
+spoil every map it paints. Each style records where it came from - `shipped` with the
+program, `user` if you wrote it, `agent` if the AI did - and the style cards carry a
+**YOURS** or **AI** badge accordingly, so it is always clear which is which.
 
 ---
 

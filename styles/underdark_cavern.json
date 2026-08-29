@@ -3,6 +3,7 @@
   "name": "Underdark Crystal Cavern",
   "category": "Cavern",
   "description": "Glowing fungi, violet crystal and black subterranean pools.",
+  "origin": "shipped",
   "palette": "black basalt, violet glow, cyan luminescence, pale mineral grey",
   "lighting": "bioluminescent crystal glow from below, cold rim light, deep shadow",
   "default_layout": "cavern",

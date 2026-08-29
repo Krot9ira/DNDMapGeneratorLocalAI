@@ -3,6 +3,7 @@
   "name": "Cozy Medieval Tavern",
   "category": "Interior",
   "description": "Warm oak interior, hearth fire, long tables and lantern light.",
+  "origin": "shipped",
   "palette": "aged cream, warm beige, ochre, honey brown, dark walnut wood, muted grey stone",
   "lighting": "soft warm hearth and lantern light, gentle directional shadows",
   "default_layout": "building",

@@ -3,6 +3,7 @@
   "name": "Sunken Ancient Temple",
   "category": "Ruins",
   "description": "Flooded marble ruins, carved idols and drifting lily pads.",
+  "origin": "shipped",
   "palette": "pale weathered marble, jade water, moss green, tarnished gold",
   "lighting": "soft filtered daylight, rippling caustic reflections on stone",
   "default_layout": "dungeon",

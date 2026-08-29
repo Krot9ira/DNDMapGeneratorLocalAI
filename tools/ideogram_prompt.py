@@ -785,6 +785,75 @@ def style_warnings(map_data, style):
     return out
 
 
+# The fields a style has to fill in for a caption to be built out of it. A
+# style is not decoration: `ground` opens the background text, `materials`
+# says what kind of place this is, and `lighting` is handed to the renderer
+# whole. A style missing one of them paints a map out of nothing at all.
+STYLE_REQUIRED = ("id", "name", "ground", "materials", "lighting", "default_layout")
+
+# Where a style came from. Shipped with the program, written by hand by the
+# person using it, or written by an AI that found nothing in the library fit
+# to paint the scene it was given. A style file that says nothing is taken to
+# be the second: somebody put it there.
+STYLE_ORIGINS = ("shipped", "user", "agent")
+
+
+def style_problems(style):
+    """Everything wrong with a style file, judged on its own.
+
+    `style_warnings` asks whether a style argues with the plan it is painting.
+    This asks the earlier question - whether the style is fit to paint anything
+    - and it is what a style written by an agent has to pass before it is
+    installed, because a style is the strongest text in the caption and a bad
+    one cannot be argued out of the picture afterwards.
+    """
+    out = []
+    if not isinstance(style, dict):
+        return ["a style must be an object with id, name, ground, materials and lighting"]
+    for key in STYLE_REQUIRED:
+        if not str(style.get(key, "")).strip():
+            out.append(f"`{key}` is empty; every style needs one")
+    sid = str(style.get("id", "")).strip()
+    if sid and not re.fullmatch(r"[a-z][a-z0-9_]*", sid):
+        out.append(f"id '{sid}' is not a slug; use lower case, digits and underscores")
+    layout = str(style.get("default_layout", "")).strip()
+    if layout and layout not in A.LAYOUTS:
+        out.append(f"default_layout '{layout}' is not a layout; use one of "
+                   f"{', '.join(A.LAYOUTS)}")
+    enclosure = str(style.get("enclosure", "")).strip()
+    if enclosure and enclosure not in A._ENCLOSURE_KINDS:
+        out.append(f"enclosure '{enclosure}' is not one of "
+                   f"{', '.join(sorted(A._ENCLOSURE_KINDS))}")
+    origin = str(style.get("origin", "")).strip()
+    if origin and origin not in STYLE_ORIGINS:
+        out.append(f"origin '{origin}' is not one of {', '.join(STYLE_ORIGINS)}")
+    palette = style.get("hex_palette")
+    if palette is not None:
+        if not isinstance(palette, list) or not palette:
+            out.append("hex_palette must be a list of colours like \"#7A6A50\"")
+        else:
+            bad = [c for c in palette
+                   if not re.fullmatch(r"#[0-9A-Fa-f]{6}", str(c).strip())]
+            if bad:
+                out.append(f"hex_palette holds {bad[0]!r}, which is not a #RRGGBB colour")
+    for key in ("materials", "ground", "lighting", "boundary", "description"):
+        hit = side_on_hit(str(style.get(key, "")))
+        if hit:
+            out.append(
+                f"{key} says '{hit}'. Nothing can be shown on a wall or overhead from "
+                f"directly above, so the renderer tips the whole map into perspective to "
+                f"fit it in. Say where the thing stands on the ground instead.")
+    low = str(style.get("lighting", "")).lower()
+    for phrase in _PLACING_WORDS:
+        if phrase in low:
+            out.append(
+                f"lighting says '{phrase.strip()}', which places something. Lighting says "
+                f"what the light is like and nothing else - anything else in it lands on "
+                f"every map this style ever paints.")
+            break
+    return out
+
+
 def build_caption(map_data, style=None, base=None):
     """Return the structured caption as a dict."""
     grid = A.zones_to_grid(map_data)

@@ -78,6 +78,49 @@ def list_layouts():
             "sizes": {k: {"cols": v[0], "rows": v[1]} for k, v in A.SIZE_PRESETS.items()}}
 
 
+def create_style(style, overwrite=False, force=False, origin="agent"):
+    """Write a new style into `styles/` and return where it landed.
+
+    Call this when nothing in `list_styles()` is the kind of place the request
+    asks for. A style is not decoration: its `ground` opens the caption's
+    background text, its `materials` says what kind of place this is, its
+    `lighting` is handed to the renderer whole and its `enclosure` decides what
+    every boundary in the picture is made of. Painting a scene with the nearest
+    wrong style paints the wrong map, and no wording elsewhere in the plan can
+    argue it back - so writing the style is the correct move, not a last resort.
+
+        agent_api.create_style({
+            "id": "caravan_camp",
+            "name": "Caravan Camp",
+            "category": "Wilderness",
+            "description": "Merchant wagons drawn up in a ring on open grassland.",
+            "default_layout": "open",
+            "enclosure": "open",
+            "ground": "soft green meadow grass, worn to bare dark earth where the "
+                      "camp is trodden",
+            "materials": "A merchant caravan camped for the night on open grassland, "
+                         "seen from directly above. Heavy timber wagons with arched "
+                         "grey canvas covers, stone-ringed campfires ...",
+            "lighting": "deep blue night lit by warm orange firelight, long soft shadows",
+            "boundary": "unbroken open grassland running flat in every direction",
+            "props": ["wagon", "campfire", "crate", "barrel"],
+        })
+
+    Only `id`, `name`, `ground`, `materials`, `lighting` and `default_layout` have
+    to be given; the rest is filled from the shared base. The style is checked
+    before it is written - a lighting line that places something, wording that
+    can only be seen from the side, a layout that does not exist - and refused
+    if it would paint a bad map. `force=True` writes it anyway and returns the
+    problems; `overwrite=True` replaces a style of the same id.
+
+    `origin` records who wrote it: `agent` (the default here), `user` or
+    `shipped`. The app shows it beside the style's name.
+    """
+    made = MapPlanner().install_style(style, overwrite=overwrite, force=force,
+                                      origin=origin)
+    return made
+
+
 def build_map(spec, seed=None, cols=None, rows=None):
     """Spec -> map dict + caption inputs. No network calls, no LLM."""
     planner = MapPlanner()

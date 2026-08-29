@@ -3,6 +3,7 @@
   "name": "City Harbour & Docks",
   "category": "Urban",
   "description": "Stone quay, a timber gangway and one large moored sailing ship.",
+  "origin": "shipped",
   "palette": "wet grey cobble, weathered oak, tarred rope brown, murky green harbour water",
   "lighting": "overcast maritime daylight, damp reflective stone, soft lantern accents",
   "default_layout": "harbour",

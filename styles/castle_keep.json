@@ -3,6 +3,7 @@
   "name": "Castle Keep & Courtyard",
   "category": "Fortress",
   "description": "Great hall, guard rooms and a walled courtyard of heavy dressed stone.",
+  "origin": "shipped",
   "palette": "cold dressed granite, banner crimson, iron black, packed courtyard sand",
   "lighting": "hard daylight in the courtyard, torchlit gloom inside the keep",
   "default_layout": "building",

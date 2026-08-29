@@ -3,6 +3,7 @@
   "name": "Enchanted Forest Clearing",
   "category": "Wilderness",
   "description": "Emerald undergrowth, mossy boulders and a winding stream.",
+  "origin": "shipped",
   "palette": "deep emerald, moss green, warm bark brown, cool stream blue, golden sun flecks",
   "lighting": "dappled daylight through leaves, soft green bounce light",
   "default_layout": "forest",

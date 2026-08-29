@@ -3,6 +3,7 @@
   "name": "Bandit Camp",
   "category": "Wilderness",
   "description": "Hide tents round a fire pit, a palisade of sharpened stakes and stolen goods.",
+  "origin": "shipped",
   "palette": "smoke-stained hide, trampled earth, ember orange, forest green",
   "lighting": "warm firelight and deep blue night beyond it, long flickering shadows",
   "default_layout": "open",

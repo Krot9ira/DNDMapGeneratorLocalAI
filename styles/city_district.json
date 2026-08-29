@@ -3,6 +3,7 @@
   "name": "City District & Alleys",
   "category": "Urban",
   "description": "Wall-to-wall city: houses packed against each other with narrow alleys between them, no open ground anywhere.",
+  "origin": "shipped",
   "palette": "soot-grey plaster, weathered oak framing, wet slate cobble, moss green, dull ochre",
   "lighting": "flat overcast city daylight, deep shadow trapped in the alleys, warm lamp glow in doorways",
   "default_layout": "district",

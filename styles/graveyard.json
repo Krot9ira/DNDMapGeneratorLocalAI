@@ -3,6 +3,7 @@
   "name": "Graveyard & Mausoleum",
   "category": "Sacred",
   "description": "Leaning headstones, iron railings and a cracked mausoleum in wet grass.",
+  "origin": "shipped",
   "palette": "lichen-grey stone, wet grass green, rusted iron, fog white",
   "lighting": "flat overcast twilight, ground mist, cold and shadowless",
   "default_layout": "open",

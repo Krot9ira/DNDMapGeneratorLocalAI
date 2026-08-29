@@ -3,6 +3,7 @@
   "name": "Marsh & Peat Bog",
   "category": "Wilderness",
   "description": "Black standing water, reed islands and sagging plank walkways.",
+  "origin": "shipped",
   "palette": "peat black, reed brown, sickly moss green, mist grey",
   "lighting": "dim green-grey daylight through mist, water reflecting a pale sky",
   "default_layout": "swamp",

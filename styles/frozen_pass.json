@@ -3,6 +3,7 @@
   "name": "Frozen Pass",
   "category": "Wilderness",
   "description": "Snow-choked rocks, black ice and a wind-scoured trail between the crags.",
+  "origin": "shipped",
   "palette": "snow white, glacier blue, wet black rock, pine dark green",
   "lighting": "flat cold overcast light, blue shadows, blowing snow softening the edges",
   "default_layout": "open",

@@ -9,6 +9,7 @@ layout. This split is what fixed plans that used to come back with overlapping
 rooms and doors in the middle of the floor.
 """
 import json
+import re
 from pathlib import Path
 
 import architect as A
@@ -118,6 +119,26 @@ SPEC_SCHEMA = {
                 "required": ["kind", "where"],
             },
         },
+        "new_style": {
+            "type": "object",
+            "properties": {
+                "id": {"type": "string"},
+                "name": {"type": "string"},
+                "category": {"type": "string"},
+                "description": {"type": "string"},
+                "ground": {"type": "string"},
+                "materials": {"type": "string"},
+                "lighting": {"type": "string"},
+                "boundary": {"type": "string"},
+                "enclosure": {"type": "string",
+                              "enum": ["masonry", "rock", "timber", "open"]},
+                "palette": {"type": "string"},
+                "hex_palette": {"type": "array", "items": {"type": "string"}},
+                "props": {"type": "array", "items": {"type": "string"}},
+                "tags": {"type": "array", "items": {"type": "string"}},
+            },
+            "required": ["id", "name", "ground", "materials", "lighting", "enclosure"],
+        },
         "rooms": {
             "type": "array",
             "items": {
@@ -207,6 +228,25 @@ Rules:
 - `lighting` is optional and says how this place is lit and nothing else - the colour and
   quality of the light and where it falls off. Do not use it to say where anything stands:
   a lighting line that mentions a central fire puts one on the map whatever the plan says.
+- `style` must be one of the styles in the library below. If not one of them is the kind
+  of place the game master asked for - the library has no snowbound village, no circus, no
+  mushroom farm - keep `style` as the nearest one and ALSO fill `new_style`, and the new
+  style is written into the library and used instead. Do this when the kind of place is
+  wrong, not when the mood is: a night scene in a style written for daylight only needs
+  `lighting`. A new style needs, and is judged on, five things:
+  * `ground` - what is underfoot across the whole map, in a few words. It opens the
+    background text of the caption, so it is the single strongest thing you write.
+  * `materials` - what this place is made of. Open with one short sentence naming the kind
+    of place ("A frozen fishing village seen from directly above."), because when the map
+    has things of its own only that first sentence is kept; put the rest after it.
+  * `lighting` - the colour and quality of the light and nothing else. Never where
+    anything stands.
+  * `enclosure` - what closes the site in: `masonry` walls, `rock` cliffs, a `timber`
+    hull, or `open` ground with no edge at all. It decides what every boundary in the
+    picture is made of.
+  * `boundary` - what that edge looks like from above, in one phrase.
+  Everything in a style is seen from directly above: nothing on a wall, nothing hanging,
+  no ceiling, no roof and no side of anything.
 - `enclosed` on a room says whether it has walls round it. On an outdoor map a street, a
   square or a yard has none; a house standing on that street does.
 Answer with JSON only."""
@@ -255,6 +295,90 @@ class MapPlanner:
                 return style
         return None
 
+    # -- authoring a style --------------------------------------------
+    def install_style(self, data, layout=None, overwrite=False, force=False,
+                      origin="agent"):
+        """Write a new style into the library and return what was installed.
+
+        A style is the strongest text in the caption: `ground` opens the
+        background, `materials` says what kind of place this is, `lighting` is
+        handed over whole and `enclosure` decides what the edge of the site is
+        made of. Painting a scene with the nearest wrong style therefore paints
+        the wrong map - a merchant caravan on a night meadow came out of
+        `bandit_camp` as a palisaded camp on churned mud, and no wording
+        anywhere else in the caption could beat it. So when nothing in the
+        library is the kind of place that was asked for, the answer is to write
+        the style, not to bend the scene onto one that does not fit.
+
+        Both the local planner and an agent come through here, so a style is
+        checked once, in one place, before it can reach a render.
+        """
+        from ideogram_prompt import style_problems   # circular at module level
+
+        if not isinstance(data, dict):
+            raise ValueError("a style must be an object")
+        style = {k: v for k, v in data.items() if v not in (None, "", [], {})}
+        sid = str(style.get("id") or style.get("name") or "").strip().lower()
+        sid = re.sub(r"[^a-z0-9]+", "_", sid).strip("_")
+        if not sid:
+            raise ValueError("a style needs an `id` or a `name` to be filed under")
+        style["id"] = sid
+        style.setdefault("name", sid.replace("_", " ").title())
+        if layout and not style.get("default_layout"):
+            style["default_layout"] = layout
+        # Everything the caption falls back to anyway is written out in full, so
+        # the file reads like the shipped ones and the app needs no fallback.
+        base = self.load_base()
+        style.setdefault("aesthetics", base.get("aesthetics", ""))
+        style.setdefault("hex_palette", list(base.get("default_palette") or []))
+        style.setdefault("props", [])
+        style.setdefault("tags", [])
+        # Where a style came from, so the app can say so. The library that
+        # ships with the program is "shipped"; a file somebody wrote by hand is
+        # "user"; this is the third case, and a person choosing a style is
+        # entitled to know which of the three they are looking at.
+        style.setdefault("origin", origin)
+        # What closes the site in is the field with the longest reach and the
+        # one an author is most likely to leave out, so it is resolved here,
+        # once, rather than guessed from the category on every render.
+        style.setdefault("enclosure", A.enclosure_of(style, style.get("default_layout")))
+
+        problems = style_problems(style)
+        if problems and not force:
+            raise ValueError("this style would paint a bad map:\n  - "
+                             + "\n  - ".join(problems))
+
+        installed = self.load_styles()
+        path = self.styles_dir / f"{sid}.json"
+        if (sid in installed or path.exists()) and not overwrite:
+            raise ValueError(f"style '{sid}' already exists; pass overwrite=True to "
+                             f"replace it, or choose another id")
+        self.styles_dir.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(style, indent=2, ensure_ascii=False) + "\n",
+                        encoding="utf-8")
+        return {"id": sid, "path": str(path), "style": style, "problems": problems}
+
+    def install_spec_style(self, spec):
+        """Install `new_style` if a spec carries one, and point the spec at it.
+
+        The planner's schema keeps `style` an enum of what is installed, so a
+        model can never name a style that does not exist; when it wants one that
+        does not, it writes the style itself in `new_style` and this puts it in
+        the library before anything reads it back.
+        """
+        data = spec.pop("new_style", None)
+        if not isinstance(data, dict) or not data:
+            return None
+        try:
+            made = self.install_style(data, layout=spec.get("layout"),
+                                      overwrite=bool(data.get("overwrite")),
+                                      origin="agent")
+        except ValueError as exc:
+            print(f"[warn] new style not installed: {exc}")
+            return None
+        spec["style"] = made["id"]
+        return made
+
     # -- planning -----------------------------------------------------
     def free_renderer(self):
         """Ask ComfyUI to drop its models before the planner needs the card.
@@ -292,6 +416,9 @@ class MapPlanner:
             parts.append(f"Use the visual style `{style_id}` ({style.get('name', style_id)}).")
         else:
             parts.append("Choose the most fitting `style` from this library:\n" + catalogue)
+            parts.append("If none of them is the kind of place this scene is - not merely "
+                         "the wrong weather or the wrong time of day - keep `style` as the "
+                         "nearest one and write the style this scene needs in `new_style`.")
         parts.append(f"Use size `{size}` unless the scene clearly needs another.")
         parts.append("Props the renderer has a concrete description for - prefer these "
                      "names: " + ", ".join(known))
@@ -330,8 +457,13 @@ class MapPlanner:
         if not isinstance(spec, dict):
             raise ValueError(f"Planner returned no usable JSON.\n{raw[:600]}")
         spec.setdefault("size", size)
+        # A style the game master picked by hand outranks anything the model
+        # would rather have painted with.
         if style_id:
             spec["style"] = style_id
+            spec.pop("new_style", None)
+        else:
+            self.install_spec_style(spec)
         return spec, raw
 
     def plan_map(self, scene_description, style_id=None, size="medium", seed=None,
@@ -355,6 +487,11 @@ class MapPlanner:
                 pass
         if requested_style:
             spec["style"] = requested_style
+            spec.pop("new_style", None)
+        # A spec that brings its own style with it - because nothing installed
+        # was the kind of place it needed - installs it here, so every entry
+        # point into the pipeline supports one and not only the local planner.
+        self.install_spec_style(spec)
         style = self.load_style(spec.get("style"))
         if style:
             spec.setdefault("style_props", style.get("props") or [])

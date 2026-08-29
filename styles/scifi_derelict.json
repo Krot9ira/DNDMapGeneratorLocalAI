@@ -3,6 +3,7 @@
   "name": "Sci-Fi Derelict Starship",
   "category": "Sci-Fi",
   "description": "Riveted hull plating, severed cabling and failing emergency light.",
+  "origin": "shipped",
   "palette": "gunmetal grey, oxidised teal, warning amber, emergency red, cold white",
   "lighting": "failing emergency lighting, hard directional pools, cold blue fill",
   "default_layout": "building",

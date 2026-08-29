@@ -3,6 +3,7 @@
   "name": "Classic Stone Dungeon",
   "category": "Dungeon",
   "description": "Torchlit corridors, heavy masonry and iron-bound doors.",
+  "origin": "shipped",
   "palette": "cool grey stone, iron black, warm amber torchlight, muted brown timber",
   "lighting": "warm torchlight pooling on stone, strong contrast into darkness",
   "default_layout": "dungeon",

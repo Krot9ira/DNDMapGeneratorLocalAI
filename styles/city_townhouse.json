@@ -3,6 +3,7 @@
   "name": "Townhouse Interior",
   "category": "Urban",
   "description": "The whole map is the inside of one city building: hall, rooms and stairs behind a single outer wall.",
+  "origin": "shipped",
   "palette": "limewashed plaster, dark oak framing, honey floorboards, soot black, brass warmth",
   "lighting": "grey window light falling in from the outer walls, firelight from the hearths, lamps in the inner rooms",
   "default_layout": "building",

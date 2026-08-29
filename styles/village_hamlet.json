@@ -3,6 +3,7 @@
   "name": "Village & Hamlet",
   "category": "Settlement",
   "description": "Thatched cottages, dirt lanes and kitchen gardens on the edge of the wild.",
+  "origin": "shipped",
   "palette": "thatch straw, limewashed daub, packed earth brown, kitchen-garden green",
   "lighting": "warm late afternoon sun, long soft shadows, glow from open doorways",
   "default_layout": "street",

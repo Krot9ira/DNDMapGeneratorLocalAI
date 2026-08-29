@@ -3,6 +3,7 @@
   "name": "Gothic Crypt & Catacombs",
   "category": "Dungeon",
   "description": "Ancient stone crypts, dusty sarcophagi, bone ossuaries and cold candlelight.",
+  "origin": "shipped",
   "palette": "cold slate grey, charcoal, bone white, desaturated indigo, faint teal glow",
   "lighting": "cold pale blue candlelight with deep rim shadows",
   "default_layout": "dungeon",

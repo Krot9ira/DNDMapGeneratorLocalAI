@@ -3,6 +3,7 @@
   "name": "Coastal Sea Cliff Ruins",
   "category": "Ruins",
   "description": "Weathered sandstone ruins above tide pools and breaking surf.",
+  "origin": "shipped",
   "palette": "bleached sandstone, sea foam white, deep teal water, wet slate, pale grass",
   "lighting": "bright overcast coastal daylight, cool blue shadows",
   "default_layout": "open",

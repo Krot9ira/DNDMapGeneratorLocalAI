@@ -3,6 +3,7 @@
   "name": "City Streets & Market",
   "category": "Urban",
   "description": "Cobbled town district with shopfronts, market stalls and narrow alleys.",
+  "origin": "shipped",
   "palette": "grey cobble, painted shutters, canvas awning cream, soot-stained plaster",
   "lighting": "bright overcast daylight, deep shade in the alleys, lantern warmth in doorways",
   "default_layout": "street",

@@ -1444,6 +1444,29 @@ static ImU32 HexToCol(const std::string& hex, ImU32 fallback) {
     return IM_COL32(v[0] * 16 + v[1], v[2] * 16 + v[3], v[4] * 16 + v[5], 255);
 }
 
+// Where a style came from, said on the card itself. The library that ships
+// with the program is the quiet case and carries no badge - thirty identical
+// tags would be noise - so a badge means somebody added this one: by hand, or
+// by an AI that found nothing installed fit to paint what it was asked for.
+// Which it was matters when a style paints something unexpected: a shipped
+// style is a bug report, one of these is a file you can open and edit.
+static bool StyleBadge(const std::string& origin, const char** label,
+                       ImU32* fill, ImU32* text) {
+    if (origin == "agent") {
+        *label = "AI";
+        *fill = IM_COL32(84, 62, 128, 255);
+        *text = IM_COL32(214, 190, 255, 255);
+        return true;
+    }
+    if (origin == "user") {
+        *label = "YOURS";
+        *fill = IM_COL32(40, 84, 92, 255);
+        *text = IM_COL32(170, 226, 236, 255);
+        return true;
+    }
+    return false;
+}
+
 // A scrolling catalogue of styles, each shown as its own palette. With eleven
 // styles a dropdown made you read every name to find the one you wanted.
 static void DrawStylePicker() {
@@ -1469,8 +1492,12 @@ static void DrawStylePicker() {
             g_app.map.meta.style = kv.first;
         }
         bool hovered = ImGui::IsItemHovered();
+        const char* where = st.origin == "agent" ? "Written by the AI"
+                          : st.origin == "user"  ? "Your own style"
+                                                 : "Shipped with the program";
         if (hovered && !st.description.empty())
-            ImGui::SetTooltip("%s\n%s", st.name.c_str(), st.description.c_str());
+            ImGui::SetTooltip("%s\n%s\n\n%s - styles/%s.json", st.name.c_str(),
+                              st.description.c_str(), where, st.id.c_str());
 
         ImVec2 p1(p0.x + cellW - 8.0f, p0.y + cellH - 8.0f);
         dl->AddRectFilled(p0, p1, hovered ? IM_COL32(48, 52, 62, 255)
@@ -1489,8 +1516,20 @@ static void DrawStylePicker() {
         }
         if (active) dl->AddRect(p0, p1, IM_COL32(250, 200, 70, 255), 4.0f, 0, 2.5f);
 
+        const char* badge = nullptr;
+        ImU32 badgeFill = 0, badgeText = 0;
+        float nameRoom = cellW - 20.0f;
+        if (StyleBadge(st.origin, &badge, &badgeFill, &badgeText)) {
+            ImVec2 size = ImGui::CalcTextSize(badge);
+            ImVec2 b1(p1.x - 5.0f, p1.y - 5.0f);
+            ImVec2 b0(b1.x - size.x - 8.0f, b1.y - size.y - 2.0f);
+            dl->AddRectFilled(b0, b1, badgeFill, 3.0f);
+            dl->AddText(ImVec2(b0.x + 4.0f, b0.y + 1.0f), badgeText, badge);
+            nameRoom -= size.x + 12.0f;
+        }
+
         // Trim to the card's real width, so a wider window shows the full name.
-        std::string name = FitText(st.name, cellW - 20.0f);
+        std::string name = FitText(st.name, nameRoom);
         dl->AddText(ImVec2(p0.x + 6.0f, p0.y + 28.0f),
                     active ? IM_COL32(250, 214, 120, 255) : IM_COL32(214, 212, 206, 255),
                     name.c_str());

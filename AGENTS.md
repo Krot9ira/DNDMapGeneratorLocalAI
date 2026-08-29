@@ -151,7 +151,7 @@ differently.
 | `RuntimeError: ComfyUI unreachable` | ComfyUI is not running. `blueprint` still works; `generate` cannot |
 | `generate` returns no images | the render failed. The reason is in the exception text - report it |
 | `ModuleNotFoundError: PIL` | run `pip install pillow`; the preview needs it |
-| the style id is rejected | call `agent_api.list_styles()` and use one of those keys |
+| the style id is rejected | call `agent_api.list_styles()` and use one of those keys - or write the style yourself, below |
 | a render takes many minutes | that is normal. Quality is 48 steps. Do not retry over the top of it |
 
 Never say a map was produced without checking that the file exists.
@@ -510,10 +510,81 @@ while a free renderer paints convincing clutter on its own.
 
 ---
 
+## When no style fits, write one
+
+The style is not decoration. Four of its fields outrank most of what you write in the
+spec:
+
+| Field | Where it lands |
+|---|---|
+| `ground` | the first words of the caption background - what is underfoot everywhere |
+| `materials` | what kind of place this is. Only the **first sentence** survives when your map has annotations of its own; write that sentence to name the place |
+| `lighting` | handed to the renderer whole, unless the spec sets its own `lighting` |
+| `enclosure` | `masonry` / `rock` / `timber` / `open` - decides what every boundary in the picture is made of, and whether a sealed area gets a door or a way off the edge of the map |
+
+So painting a scene with the nearest *wrong* style paints the wrong map, and nothing you
+write elsewhere can argue it back. A peaceful merchant caravan on a night meadow was tried
+against every installed style: `bandit_camp` grounds the map in "trampled bare earth
+churned to mud" and describes a palisade, `farmstead` in ploughed furrows, `lush_forest`
+in a forest clearing. None of them is a meadow.
+
+**When the library has no style for the kind of place you were asked for, write one.** It
+is a normal move, not a last resort - the same thing a person does by hand. It is the
+wrong move for the wrong *mood*: a night scene in a style written for daylight only needs
+the spec's own `lighting`.
+
+```python
+agent_api.create_style({
+    "id": "caravan_camp",                    # lower case, digits, underscores
+    "name": "Caravan Camp",
+    "category": "Wilderness",
+    "description": "Merchant wagons drawn up in a ring on open grassland.",
+    "default_layout": "open",
+    "enclosure": "open",
+    "ground": "soft green meadow grass, worn to bare dark earth where the camp is trodden",
+    "materials": "A merchant caravan camped for the night on open grassland, seen from "
+                 "directly above. Heavy timber wagons with arched grey canvas covers, "
+                 "stone-ringed campfires, rope lines strung between the wagons ...",
+    "lighting": "deep blue night lit by warm orange firelight, long soft shadows",
+    "boundary": "unbroken open grassland running flat in every direction",
+    "props": ["wagon", "campfire", "crate", "barrel"],
+    "hex_palette": ["#3E5A38", "#6E7F52", "#C4712B", "#7A6247", "#1E2733"],
+})
+```
+
+`id`, `name`, `ground`, `materials`, `lighting` and `default_layout` are required;
+everything else is filled from the shared base. Then use it like any other:
+`{"style": "caravan_camp", ...}`.
+
+The style is checked before it is written, and refused if it would paint a bad map:
+
+- a `lighting` line that places something ("a fire in the middle") - it would put that
+  thing on every map the style ever paints,
+- any wording that can only be seen from the side, in any field: on a wall, hanging,
+  overhead, a ceiling, a roof, a facade. One such phrase tips the whole picture into
+  perspective,
+- a `default_layout` or `enclosure` that does not exist, a bad `#RRGGBB`, an id that is
+  not a slug, an id already taken (`overwrite=True` replaces it).
+
+`force=True` writes it anyway and hands the problems back in `problems`. Run
+`python tools/check_captions.py` afterwards: it builds a caption for every installed style
+and will fail on anything the style breaks map-wide.
+
+Styles record where they came from. `create_style` stamps `"origin": "agent"`, the shipped
+library says `"shipped"`, and a file somebody wrote by hand says `"user"` or nothing at
+all. The desktop app shows an **AI** or **YOURS** badge on those cards, so a person can
+always tell which styles they are looking at.
+
+The local planner can do this too: its schema has a `new_style` object beside `style`, and
+anything it writes there is validated, installed and used for that map.
+
+---
+
 ## Other entry points
 
 ```python
 agent_api.list_styles()          # every style, keyed by id
+agent_api.create_style(style)    # write a new style when none of them fits
 agent_api.list_layouts()         # layouts and grid sizes
 agent_api.blueprint(spec)        # Stage 1 only — the plan, in seconds, with no GPU
 agent_api.generate_from_map(m)   # re-render an existing map.json or dict

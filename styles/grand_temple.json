@@ -3,6 +3,7 @@
   "name": "Grand Temple",
   "category": "Sacred",
   "description": "Colonnaded nave, a high altar and light falling from clerestory windows.",
+  "origin": "shipped",
   "palette": "pale marble, gold leaf, deep votive blue, censer smoke grey",
   "lighting": "broad shafts of coloured light from high windows, candlelight at the altar",
   "default_layout": "building",

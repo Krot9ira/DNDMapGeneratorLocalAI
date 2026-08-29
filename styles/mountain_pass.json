@@ -3,6 +3,7 @@
   "name": "Mountain Road & Bridge",
   "category": "Wilderness",
   "description": "A cliff road, a rope-and-plank bridge and a drop into the gorge below.",
+  "origin": "shipped",
   "palette": "grey shale, dry grass ochre, rope brown, gorge shadow blue",
   "lighting": "clear high-altitude daylight, sharp shadows falling into the gorge",
   "default_layout": "open",

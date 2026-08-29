@@ -3,6 +3,7 @@
   "name": "Abandoned Mine",
   "category": "Underground",
   "description": "Timber-propped shafts, ore carts on rails and a flooded lower gallery.",
+  "origin": "shipped",
   "palette": "raw rock grey-brown, old timber, rust orange, lantern amber",
   "lighting": "pitch dark away from the lanterns, hard pools of warm glow",
   "default_layout": "cavern",

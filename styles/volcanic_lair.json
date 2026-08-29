@@ -3,6 +3,7 @@
   "name": "Volcanic Dragon Lair",
   "category": "Cavern",
   "description": "Obsidian rock, magma fissures and glowing ember light.",
+  "origin": "shipped",
   "palette": "obsidian black, ember orange, molten yellow, ash grey, sulphur",
   "lighting": "hot orange underlighting from magma, harsh contrast, glowing rim light",
   "default_layout": "cavern",

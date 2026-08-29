@@ -188,6 +188,7 @@ public:
             out.wall = j.value("wall", std::string());
             out.face = j.value("face", std::string());
             out.boundary = j.value("boundary", std::string());
+            out.origin = j.value("origin", std::string("user"));
             out.props.clear();
             if (j.contains("props") && j["props"].is_array())
                 for (const auto& p : j["props"]) out.props.push_back(p.get<std::string>());
@@ -222,6 +223,16 @@ public:
             j["ground"] = s.ground;
             j["hex_palette"] = s.hex_palette;
             j["default_layout"] = s.default_layout;
+            // What closes the site in and what its edge is made of. These were
+            // being dropped on every save, so editing a style in the app quietly
+            // took the cliffs off a gorge and the treeline off a camp - only
+            // visible three renders later, in the picture.
+            if (!s.enclosure.empty()) j["enclosure"] = s.enclosure;
+            if (!s.wall.empty()) j["wall"] = s.wall;
+            if (!s.face.empty()) j["face"] = s.face;
+            if (!s.boundary.empty()) j["boundary"] = s.boundary;
+            // Editing a style does not change who wrote it.
+            if (!s.origin.empty()) j["origin"] = s.origin;
             j["props"] = s.props;
             j["tags"] = s.tags;
             std::ofstream f(fs::path(stylesDir) / (s.id + ".json"));

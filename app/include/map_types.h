@@ -291,6 +291,11 @@ struct StyleDef {
     std::string boundary;
     std::vector<std::string> props;
     std::vector<std::string> tags;
+    // Where this style came from: "shipped" with the program, "user" if
+    // somebody wrote it by hand, "agent" if an AI wrote it because nothing
+    // installed was the kind of place it had been asked to paint. A file that
+    // says nothing was put there by hand, so that is what it is taken to be.
+    std::string origin = "user";
 };
 
 // Fragments merged into every caption. `forbidden_suffix` is the only thing

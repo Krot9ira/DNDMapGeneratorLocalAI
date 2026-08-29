@@ -3,6 +3,7 @@
   "name": "Farmstead & Barn",
   "category": "Settlement",
   "description": "A barn, a yard of churned mud and ploughed fields running to a fence.",
+  "origin": "shipped",
   "palette": "weathered barn timber, straw gold, wet earth brown, crop green",
   "lighting": "low golden evening light, long shadows across the furrows",
   "default_layout": "open",

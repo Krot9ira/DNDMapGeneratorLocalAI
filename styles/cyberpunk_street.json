@@ -3,6 +3,7 @@
   "name": "Cyberpunk Neon Alley",
   "category": "Urban",
   "description": "Rain-slick asphalt, neon signage and steaming vents.",
+  "origin": "shipped",
   "palette": "wet black asphalt, magenta and cyan neon, dirty concrete grey, sodium orange",
   "lighting": "saturated neon reflections on wet ground, deep shadow between signs",
   "default_layout": "street",

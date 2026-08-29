@@ -3,6 +3,7 @@
   "name": "Arcane Library & Study",
   "category": "Interior",
   "description": "Tall shelves, reading desks and a circle chalked on the boards.",
+  "origin": "shipped",
   "palette": "dark oak, aged vellum cream, ink black, arcane violet glow",
   "lighting": "warm lamplight at the desks, cold violet light from the circle",
   "default_layout": "building",

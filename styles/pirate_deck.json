@@ -3,6 +3,7 @@
   "name": "Ship's Deck at Sea",
   "category": "Nautical",
   "description": "The whole fighting deck of a sailing ship, open water on every side.",
+  "origin": "shipped",
   "palette": "salt-bleached oak, tarred rope black, canvas cream, deep ocean blue",
   "lighting": "bright open sea daylight, hard shadows from the rigging across the planks",
   "default_layout": "deck",

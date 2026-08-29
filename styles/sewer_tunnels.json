@@ -3,6 +3,7 @@
   "name": "Sewer Tunnels",
   "category": "Dungeon",
   "description": "Brick vaults, slime-slick ledges and a channel of foul water.",
+  "origin": "shipped",
   "palette": "wet brick red-brown, algae green, black water, verdigris on old iron",
   "lighting": "shafts of grey light from grates above, everything else in damp gloom",
   "default_layout": "dungeon",

@@ -3,6 +3,7 @@
   "name": "Desert Ruins",
   "category": "Wilderness",
   "description": "Half-buried sandstone columns and drifting dunes under a white sun.",
+  "origin": "shipped",
   "palette": "bleached sandstone, dune gold, shadow violet, dry palm green",
   "lighting": "harsh white overhead sun, hard-edged short shadows, heat glare",
   "default_layout": "ruins",

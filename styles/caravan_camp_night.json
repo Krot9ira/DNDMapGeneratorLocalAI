@@ -1,0 +1,24 @@
+{
+  "id": "caravan_camp_night",
+  "name": "Caravan Camp at Night",
+  "category": "Wilderness",
+  "description": "Merchant wagons on open grassland in the dead of night, lit only by their fires.",
+  "default_layout": "open",
+  "enclosure": "open",
+  "palette": "near-black night, cold blue-black grass, ember orange, dull firelit timber",
+  "hex_palette": [
+    "#0A0E14",
+    "#131C1A",
+    "#1C2A22",
+    "#8A4A16",
+    "#E08A2E"
+  ],
+  "ground": "grass in the dead of night, drained of all colour: black-green where the firelight just reaches it and near-black everywhere else, so the ground is read by its texture rather than its colour",
+  "lighting": "the dead of night with no moon, so dark that the fires are the only light in the picture: a small warm orange pool of light where each fire burns, falling off steeply within a few paces into deep blue-black, and everything further out is nearly black and barely legible, lit only by starlight",
+  "materials": "A merchant caravan camped on open grassland in the dead of night, seen from directly above. Heavy timber wagons whose grey canvas covers read as dull unlit shapes in the dark, stone-ringed campfires burning bright orange with the earth around them glowing warm, rope lines strung taut between the wagons with washing pegged to them, sawn log stools and folding camp chairs standing on the trodden ground, stacked crates and iron-banded barrels sunk in shadow, blackened cook pots and a kettle beside the stones, long grass beyond the firelight lost in the dark.",
+  "boundary": "open grassland disappearing into the dark, its grass unlit and almost black",
+  "aesthetics": "Hand-painted fantasy cartography, rough painterly brushwork with visible strokes, strong dark ink outlines around every object and wall, subtle black and brown linework, restrained desaturated colour, flat orthographic projection with every object drawn as its top surface and a short soft shadow cast beside it on the floor, inked line art over watercolour and gouache, premium hand-drawn D&D virtual tabletop map, dense environmental storytelling with many small props and clutter",
+  "props": [],
+  "tags": [],
+  "origin": "agent"
+}
