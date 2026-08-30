@@ -296,9 +296,11 @@ x=2304 to x=3328, which is cells 9 to 13.
   "portals": [ ... ] }
 ```
 
-`type` 0 and 1 both appear on the same map with the same texture, so it is a
-wall *kind* (a solid wall against a railing or similar), not a style - confirm
-which before writing it.
+**`type` distinguishes a free-drawn wall from a building's own wall.** In the
+test map `wall[2]` has `type: 0`, and its `points` are byte-for-byte the same
+string as `shapes.polygons[0]` - the building's floor outline. The two
+free-drawn walls are `type: 1`. So `type: 0` is the wall the building tool
+creates around a floor shape, and `type: 1` is one somebody drew.
 
 **Portals are nested inside their wall,** not in the level's `portals` list -
 that list stayed empty even with a door and a window placed. A portal:
@@ -338,19 +340,28 @@ coordinate: build the wall first, then attach.
 (`{ "-400": [ ... ] }`), not a list.
 
 **`shapes`** holds `polygons` - a list of `PoolVector2Array` strings, the
-building floor shapes - and `walls`, a list of plain integers referring to
-walls. Confirm what that integer indexes before relying on it.
+building floor shapes - and `walls`, the **node_id of the wall that bounds each
+polygon, as a decimal integer**. In the test map `shapes.walls` is `[22]` and
+the `type: 0` wall's `node_id` is `"16"`, which is 22 in hex. So the two lists
+are parallel, and the link between a floor and its wall is the node id -
+written in hex on the wall and in decimal in `shapes.walls`. Match that, or a
+building will come back without its walls.
 
-**`node_id` is a string and must be unique across the level.** Walls, portals,
-lights and roofs all carry one, and `world.next_node_id` (also a string) has to
-end up above every id used, or Dungeondraft will collide with them.
+**`node_id` is a lowercase hexadecimal counter held as a string.** Walls,
+portals, lights, roofs and objects all carry one. In the test map the ids used
+are `0, 2, 6, 7, 14, 15, 16, 19, 1a, 1b, 1c` - hex, so the highest is
+`0x1c` = 28 - and `world.next_node_id` is `"1d"` = 29. The 233-node map reads
+`"144"` = 324 against a highest id of `0x143` = 323. So the rule is:
+**parse as hex, and write `next_node_id` as hex(max + 1)**. Reading them as
+decimal appears to work until an `a` shows up.
 
 **Terrain splat resolution is confirmed exactly.** On this 48 x 27 map the
 splat is 82 944 bytes = 4 channels x 20 736 samples, and 4w x 4h = 192 x 108 =
 20 736. Four samples per cell per axis, exactly, on both maps measured.
 
-**The cave bitmap decodes.** It is one bit per sample, packed eight to a byte,
-over a grid of **(4w + 3) x (4h + 3)** samples, rounded up to whole bytes:
+**The cave bitmap decodes, and it is confirmed.** One bit per sample, packed
+eight to a byte, **least significant bit first**, row-major, over a grid of
+**(4w + 3) x (4h + 3)** samples, rounded up to whole bytes:
 
 ```
 bytes = ceil( (4*w + 3) * (4*h + 3) / 8 )
@@ -358,14 +369,14 @@ bytes = ceil( (4*w + 3) * (4*h + 3) / 8 )
    48 x 27 map -> ceil(195 * 111 / 8) = 2706   (observed 2706)
 ```
 
-Both maps match exactly, which is a strong fit but is still **two data points
-and an inferred formula**. Confirm it before trusting it: draw a cave of one
-known cell in a known corner, save, and diff the bytes against an empty map.
-Bit order within the byte, and row order, are still unverified.
+Decoded that way the test map's cave renders as a clean connected shape with
+smooth edges, and the user confirmed it is what they painted. Decoded
+most-significant-bit-first it is measurably more broken up (adjacency 0.81
+against 0.90), so the bit order is settled by the picture and not by taste.
 
-`cave` also carries `ground_color`, `wall_color` and `texture` -
-`res://textures/caves/colorable/floor.png` in this map - and an
-`entrance_bitmap` of the same size.
+`cave` also carries `ground_color`, `wall_color`, `texture`
+(`res://textures/caves/colorable/floor.png` here) and an `entrance_bitmap` of
+the same size and layout.
 
 **In a cave scene the walls are this bitmap, not the `walls` list.** That is
 almost certainly how our own cave styles have to be built, so this formula is
@@ -442,26 +453,30 @@ in-app "Import plan" button once the file path works.
 
 ## 3. What is still UNKNOWN
 
-Four real maps settled nearly all of the format. What is left is small:
+Four of the user's maps and a purpose-made test map closed everything that was
+open at the start. What remains is one small thing and one that costs nothing
+to sidestep.
 
-**UNKNOWN-1 - the cave bitmap's bit and row order.** The size formula
-`ceil((4w+3)(4h+3)/8)` matches both measured maps exactly, but the order of
-bits within a byte and of rows within the array is not verified. *Resolve by
-experiment:* draw one cave cell in a known corner, save, diff against an empty
-map. Twenty minutes, and it unlocks cave scenes.
+**UNKNOWN-1 - `wall.joint` and `normalize_uv`.** Both were `1` and `true` on
+every wall measured, so their other values were never seen. Harmless: copy what
+Dungeondraft writes and revisit only if a wall looks wrong.
 
-**UNKNOWN-2 - what `wall.type` and `shapes.walls` mean.** `type` 0 and 1 both
-appear with the same texture on one map, so it distinguishes kinds of wall.
-`shapes.walls` is a list of bare integers. Both are readable off a couple more
-hand-made maps.
+**UNKNOWN-2 - none of consequence for steps 1 to 4.** The cave bitmap, the wall
+and portal encoding, `wall.type`, `shapes.walls`, node ids and the terrain
+splat are all settled and recorded in section 2.
 
-**UNKNOWN-3 - are pack ids stable across machines?** Texture paths embed the
-id. If a pack takes a different id on another install, maps we write are not
-portable. The safe behaviour costs nothing: resolve every path against the
-local index at write time.
+**Closed, and why:**
 
-**UNKNOWN-4 - what `DungeondraftConsole.exe` does.** If it renders or converts
-headlessly it changes step 6. Ten minutes to find out, not a blocker.
+- *Are pack ids stable across machines?* **Yes.** The id lives in `pack.json`
+  *inside* the `.dungeondraft_pack` file, authored by the pack's creator, not
+  assigned at install: the twenty packs present twice on this machine under
+  different filenames all carry the same id in both copies. Paths embedding
+  `res://packs/<id>/` are therefore portable. Resolving against the local index
+  at write time is still worth doing, because it also catches a pack the user
+  has not installed - but it is a safety net now, not a necessity.
+- *What does `DungeondraftConsole.exe` do?* Nothing we can use. Run with
+  `--help` it produces no output at all and does not exit; it had to be killed.
+  It is not a headless CLI. Write the map file directly.
 
 ## 4. Architecture
 
@@ -719,9 +734,20 @@ Quiet failures need active looking-for:
   `prompt_version` and keep the old one until the new one is trusted. You will
   want to compare, and you will not get a second chance to look at what the old
   prompt said.
-- Resumable and interruptible: the run must survive a crash at asset 14 000 and
-  pick up where it stopped. Per-asset try/except, and never let one bad image
-  end the run.
+- **Interruptible and resumable is a hard requirement, not a nicety.** Pass 2
+  runs for days on a machine somebody also uses for other things. It must
+  survive Ctrl-C, a crash at asset 140 000, a reboot, Ollama being restarted
+  and the asset folder being reorganised mid-run - all of which happened during
+  the research for this document.
+
+  Concretely: commit each result to the database as it arrives rather than
+  batching, so stopping loses at most one asset. Derive the work queue by
+  asking the database what is missing rather than by keeping a cursor, so
+  resuming is just running it again. Wrap every asset in its own try/except and
+  record the failure as a row, so one unreadable image cannot end a run and so
+  the failures can be retried on their own later. Let it be stopped and started
+  per pack. Print progress with a real estimate of time remaining, and on
+  resume say how much is already done.
 
 ### 5.8 Design the fields from the queries, not the other way round
 
