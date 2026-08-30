@@ -157,7 +157,31 @@ Built-in assets are `res://textures/<category>/...` with **no** `packs/`
 segment. Both forms appear in map files verbatim.
 
 `Dungeondraft-GoPackager` and `DDTools` exist and do the same job; we do not
-need them for reading. We may need a packer for step 5 — see §8.5.
+need them for reading. We may need a packer for step 5 — see section 10.5.
+
+### 2.3b The built-in assets are not stored as images
+
+`Dungeondraft.pck` holds 1 792 object textures, but not one of them is a
+readable PNG. Under `res://textures/.../x.png.import` sits a Godot import stub:
+
+```ini
+[remap]
+importer="texture"
+type="StreamTexture"
+path="res://.import/atlas_globe_01.png-7f0b1f4b6f6753f0a34d7558eede299f.stex"
+[deps]
+source_file="res://textures/objects/activities/administration/atlas_globe_01.png"
+```
+
+The pixels live in that `.stex`, which is a `GDST` header followed by a
+**lossless WebP beginning at its `RIFF` marker**. So reading a built-in asset
+is: read the stub, parse `path=`, find that entry in the same pack, seek to the
+first `RIFF`, and hand the remainder to Pillow. Verified - `acid_border` comes
+back as 2048 x 87 RGBA, which is its real size.
+
+Anything that looks for `.png` bytes in the built-in pack finds nothing at all,
+silently. This is the single most likely way for pass 1 to appear to work while
+cataloguing an empty set.
 
 ### 2.4 The map file - read from three real maps
 
@@ -197,7 +221,7 @@ An `asset_manifest` entry:
 
 **`allow_3rd_party_mapping_software_to_read` is a licence flag set by the pack
 author, and it travels inside the map file itself.** Some packs set it to
-false. Honour it - see section 9.
+false. Honour it - see section 10.
 
 A level holds these keys:
 
@@ -502,7 +526,7 @@ Four components. Build them in this order; each is useful alone.
 ### 4.1 Component 1 — the indexer
 
 Reads `config.ini`, walks the asset directory, opens each pack with the PCK
-reader in §2.3, and writes one row per asset.
+reader in section 2.3, and writes one row per asset.
 
 Also indexes the built-ins out of `Dungeondraft.pck` when
 `disable_default_assets` is false.
@@ -580,8 +604,14 @@ model is shown a bad picture and answers confidently about it.
 - **Upscale the small ones.** Many objects are 100–200 px. Upscale to a
   consistent size — 512 is a reasonable target — with a decent filter. A model
   shown a 96-pixel thumbnail is guessing.
+- **Look at the thumbnails yourself before trusting any answer.** Write a
+  contact sheet of forty and open it. This document told you to do that and the
+  research behind it still went twenty measured calls before anyone did - at
+  which point the "models cannot see" conclusion turned out to be "these
+  objects are ambiguous from above", which is a completely different problem
+  with a completely different fix. Ten seconds of looking.
 - **One asset per image.** Do not build contact sheets for the model. Contact
-  sheets are for the *human* spot check (§5.6); a model asked about a grid of
+  sheets are for the *human* spot check (section 5.10); a model asked about a grid of
   twenty objects will blur them together.
 
 ### 5.3 A controlled vocabulary, not free tags
@@ -613,7 +643,7 @@ invention is indistinguishable from an answer once it is in the database.
 Low-confidence rows are not failures — they are a work queue. Never let a
 low-confidence guess silently become the reason a prop was chosen.
 
-### 5.4b Two passes, because the user has to be able to start
+### 5.5 Two passes, because the user has to be able to start
 
 The library is far too big to describe before the program is useful, so the
 cataloguing is **two separate jobs the user starts themselves**, and the
@@ -646,49 +676,137 @@ is not an object (about 16 600 assets - terrain, walls, portals, paths,
 patterns, tilesets, lights) before the 248 011 objects, because terrain and
 walls are what makes a map look like its style, and a barrel is a detail.
 
-### 5.5 248 000 objects will not fit through a blanket vision pass
+### 5.6 Validate, then re-catalogue only what is broken
 
-This is the number that decides the design, so do the arithmetic before writing
-any code. At one to two seconds per asset, **248 011 objects is 70 to 140 hours
-of continuous inference.** That is not an overnight job, dedup will not rescue
-it (section 2.2), and a run that long will be interrupted.
+A shipped catalogue goes stale silently. Dungeondraft updates its built-in
+assets between versions - textures get added, removed, redrawn under the same
+name - and the catalogue we ship keeps confidently describing art that is no
+longer there. The same happens to a user's packs every time one is updated.
+Nothing errors. Maps just quietly start choosing worse assets, or referencing
+a `res://` path that no longer resolves.
 
-Everything that is *not* an object is a different story: **16 588 assets**
-across terrain, walls, portals, paths, patterns, tilesets and lights - roughly
-five to nine hours, one real overnight run. And those are precisely the assets
-that decide whether a map looks like the style it claims: terrain and walls are
-the look; a barrel is a detail.
+So the catalogue needs a **Validate** button, and validation must be cheap
+enough that pressing it is never a decision: it reads pixels and hashes, and
+calls no model at all.
 
-So the enrichment is tiered, and the tiers are not an optimisation - they are
-the design:
+**What Validate compares.** The catalogue against what is actually installed
+now:
 
-**Tier 0 - free, everything, no model.** Pack name, folder path, file name,
-pack tags, plus the measured facts from section 5.1. Dungeondraft packs are
-organised: paths like `textures/objects/supplies/crates/fruit_box_05.webp`
-carry real signal, and Forgotten Adventures and WFW have disciplined trees.
-This alone is a usable shortlist index, and it costs one scan.
+- **New** - an asset present in the pack with no row in the catalogue.
+- **Gone** - a row whose `res://` path is no longer in the pack. These are the
+  dangerous ones: a map written against them will not open cleanly.
+- **Changed** - a row whose path still exists but whose image content hash
+  differs. The art was redrawn; the description may now be a lie.
+- **Resized** - dimensions changed, so the grid footprint in the row is wrong.
+- **Unenriched** - a row with no enrichment, or enrichment written under an
+  older `prompt_version` or an older vocabulary version.
+- **Suspect** - enrichment that exists but is weak: `object_kind` of
+  `unclear`, confidence below threshold, empty tag lists, or a description
+  identical to another asset's (section 5.10 explains why that last one matters).
 
-**Tier 1 - vision, all 16 588 non-objects, run once.** Terrain, walls, portals,
-paths, patterns, tilesets, lights. Overnight. These are what style matching
-turns on.
+**What it reports.** Counts per category and per pack, and a written verdict in
+plain language: *"1 792 default assets, 1 786 unchanged, 4 new, 2 redrawn, 0
+missing. 6 need cataloguing, about two minutes."* Not a bare number, and not a
+red cross with no explanation.
 
-**Tier 2 - vision, objects, on demand.** The matcher shortlists candidates out
-of Tier 0, and only the shortlist gets looked at - then cached forever. The
-working set converges on what this user's maps actually need instead of paying
-for a warehouse they will never open. Run it as a background queue, seeded by
-what the plans ask for.
+**Re-catalogue** then acts on exactly that list - the new, the changed, the
+unenriched and the suspect - and nothing else. It is the same job as a pass,
+pointed at a delta instead of at everything, and it obeys the same rules:
+resumable, per-asset commits, failures recorded as rows.
 
-**A measurement worth taking first:** FA's 129 098 textures are not 129 098
-distinct objects - packs like that ship many recolours and variants of one
-piece. Group object paths by folder plus base name with trailing variant
-suffixes stripped, count the groups, and if the collapse is large, enrich one
-representative per group and propagate. If it is not large, Tier 2 stands as
-described. **Measure it; do not assume it either way.**
+Two properties make this work in practice:
 
-### 5.5b Measure quality before running any tier at scale
+- **Content hash, not file size or date.** A pack rebuilt with no real changes
+  would otherwise invalidate everything in it. Hash the decoded image, so
+  identical art recompressed is still identical art.
+- **Never delete a row on the strength of an absence.** Mark it `gone` and keep
+  it. A pack the user has temporarily disabled must not cost them the hours
+  spent cataloguing it, and a pack re-enabled next week should light up again
+  instead of starting over.
 
-Whichever tier is running, the same discipline applies, because the output is
-cached and a bad pass is paid for twice.
+Validate belongs on both jobs. For the default assets it is the answer to
+"we shipped this catalogue, is it still true on this Dungeondraft version"; for
+the user's packs it is the answer to "I updated a pack, what do I owe".
+
+### 5.7 What a vision call actually costs, and which model to use
+
+Measured on this machine through Ollama, on real built-in object textures, warm
+model, first call discarded, 320 px thumbnails.
+
+| model | context | median | placement | 2 000 default | 16 588 non-objects | 248 011 objects |
+|---|---|---|---|---|---|---|
+| `qwen3.8:27b` | 262 144 | 20.1 s | 85 % CPU | 11 h | 3.9 d | 58 d |
+| `qwen3.8:27b` | 4 096 | 14.0 s | 52 % CPU | 8 h | 2.7 d | 40 d |
+| `qwen2.5vl:7b` | 4 096 | **1.24 s** | **100 % GPU** | **1 h** | **6 h** | **3.6 d** |
+
+Two things decide this, and neither is the model's intelligence:
+
+**The context window is a memory cost, and it was set for planning, not for
+cataloguing.** `qwen3.8:27b` at its default 262 144 context needs 34 GB and
+lands 85 % on the CPU. Dropped to 4 096 - which is all a one-image question
+needs - it needs 18 GB and gets to 52 % GPU, and gets 30 % faster for free.
+**Set `num_ctx` per job.** The planner wants a huge window; the cataloguer
+wants a small one; they are the same model today and that is why it was slow.
+
+**A model that fits in VRAM is in a different class.** `qwen2.5vl:7b` is 5.5 GB,
+runs 100 % on the GPU, and is **eleven times faster**. That is the difference
+between three and a half days and forty for the same work.
+
+So: **catalogue with a small vision model, plan with the big one.** Section 6
+is how the program should let the user do that.
+
+### 5.8 The blind test, and what it proved about context
+
+Before adopting any of the above, one experiment is worth more than all the
+timings. Run the enrichment twice on the same assets: once with the file name
+and folder in the prompt, once with **only the image**.
+
+That was done here, and the result changed the design.
+
+With the name, both models looked excellent - `wall_torch`, `fireplace`,
+`cauldron`, `statue`, `fern`, confidence 0.9 to 0.95. Blind, both fell apart:
+the 27B called a globe a *pond*, a broken pillar a *wooden plank*, a bundle of
+herbs a *torch*; the 7B called a floor cloth a *dog*, a blood stain a *heart*,
+herbs a *sword*.
+
+**The first reading of that was wrong, and it is worth recording why.** It
+looks like proof that the models were reading the filename and not the image.
+They were not. Looking at the thumbnails - which nobody had done until then,
+in a document that tells you to - the pictures are clean and legible, and the
+objects are simply **ambiguous from directly overhead at eighty pixels**. A
+fireplace seen from above really is a stone rectangle. A broken pillar lying
+down really does look like a plank. A red stain really is a red blob. A human
+given only those pictures would answer no better.
+
+Three conclusions follow, and they are the design:
+
+1. **The file name and folder are legitimate context, not cheating.** Strip
+   them and the task becomes unanswerable, for a model or a person. Keep them,
+   and keep the pack name too.
+2. **But echoing must be prevented.** The 7B returned `pillar_broken_11` as
+   `object_kind` - the filename, digits and all, restated. That row adds
+   nothing the indexer did not already have, while looking like an answer.
+   Require the name to be normalised: **no digits, no underscores, and not
+   equal to the file's stem.** Reject and retry once when it is; if it echoes
+   again, mark it low confidence.
+3. **The description must add what the name cannot.** Material, colour, state,
+   whether it reads as top-down, whether it is lit. That is the part only the
+   image can supply, and it is what the matcher will actually rank on.
+
+**Design the human check around this.** The two-hundred-asset sample in section
+5.9 must include assets whose filenames are unhelpful (`Rock 367B`, `prop_04`)
+and assets whose filenames are *misleading*, because those are the only cases
+that reveal whether the model is looking. Everything else grades the filename.
+
+**One robustness note from the same run:** at `num_predict=200` the 7B twice
+produced truncated JSON - `Unterminated string`. Give the description a length
+limit in the prompt, allow more tokens than you think you need, and treat a
+JSON parse failure as a retry rather than a lost asset.
+
+### 5.9 Measure quality before running anything at scale
+
+Whichever pass is running, the same discipline applies, because the output
+is cached and a bad pass is paid for twice.
 
 1. Take a **stratified sample of ~200 assets** - across categories, packs and
    sizes, deliberately including the awkward ones: very small, very wide,
@@ -699,12 +817,12 @@ cached and a bad pass is paid for twice.
    this project.
 4. Fix the prompt, the thumbnail rendering or the vocabulary. Bump
    `prompt_version`. Repeat.
-5. Only then start a tier at scale.
+5. Only then start a pass at scale.
 
 Keep the labelled 200 in the repository as a fixture, so that "I improved the
 prompt" becomes a number instead of a feeling.
 
-### 5.6 Checks that run after the full pass
+### 5.10 Checks that run after a pass
 
 Quiet failures need active looking-for:
 
@@ -724,7 +842,7 @@ Quiet failures need active looking-for:
   descriptions underneath. A person scanning a page of forty spots a systematic
   failure in seconds that no aggregate would show.
 
-### 5.7 Determinism and repeatability
+### 5.11 Determinism and repeatability
 
 - Temperature 0 and a fixed seed. This pass is not creative writing.
 - `think=False` — the reasoning preamble costs time and leaks into output.
@@ -749,7 +867,7 @@ Quiet failures need active looking-for:
   per pack. Print progress with a real estimate of time remaining, and on
   resume say how much is already done.
 
-### 5.8 Design the fields from the queries, not the other way round
+### 5.12 Design the fields from the queries, not the other way round
 
 Before writing the schema, write down the questions the matcher must answer:
 
@@ -762,7 +880,57 @@ field behind it is a query that will silently return rubbish. Do this on paper
 first, with real examples taken from the props our planner actually emits.
 
 
-## 6. Database schema
+## 6. Models the program needs, and getting them
+
+The program depends on models the user may or may not have. Today that
+dependency is a line in `config.json` naming `qwen3.8:27b`, and if it is absent
+or misspelled the failure surfaces as a confusing error in the middle of a job.
+With cataloguing added there are now two model roles, and the program should
+handle both properly rather than assume.
+
+**Two roles, named separately in the config:**
+
+- the **planner** - text, plans a scene; today `qwen3.8:27b`
+- the **cataloguer** - vision, describes assets; should be a small model that
+  fits in VRAM, and section 5.7 is why - `qwen2.5vl:7b` measured eleven times
+  faster than the 27B on the same work
+
+**Context size belongs to the job, not to the model.** The planner needs a huge
+window; the cataloguer needs about 4 096 and is 30 % faster for having it. Send
+`num_ctx` per request rather than leaving one global default, or the
+cataloguer inherits the planner's 262 144 and spills onto the CPU.
+
+**In the settings, per role: a dropdown, not a text field.** It lists the
+models already installed in Ollama, read from `GET /api/tags`, so a user who
+already has what they want simply picks it - nothing is downloaded and nothing
+is decided for them. Beside the list, the models we recommend for that role,
+each with its size on disk and a **Download** button that pulls it into Ollama
+through `POST /api/pull`, which streams progress and can be shown as a real
+progress bar rather than a spinner.
+
+`GET /api/show` reports a model's capabilities - `qwen3.8:27b` returns
+`completion, vision, tools, thinking`. **Use it.** The cataloguer dropdown must
+refuse a model without `vision`, and say why, rather than letting somebody
+start a four-day job with a model that cannot see. That check costs one request
+and prevents the worst failure this feature can have.
+
+Rules that make this honest rather than pushy:
+
+- **Never download anything without being asked.** A button the user presses,
+  never a silent pull on first run. These are multi-gigabyte files on somebody
+  else's disk and possibly somebody else's metered connection.
+- **State the size before the download, not during.**
+- If the user has already named a model, leave it alone. The dropdown exists to
+  help someone who has not chosen, not to override someone who has.
+- Show what is missing plainly: if the configured model is not installed, say
+  so on the settings page with the button next to it, instead of failing when a
+  job starts.
+- Downloads are resumable - Ollama handles that - so a cancelled pull is not a
+  wasted one. Say so.
+- A model can be removed too. Offer it, ask once, and never remove a model the
+  config still points at without saying what that will break.
+
+## 7. Database schema
 
 SQLite. Reuse `app/include/asset_db.h` and `tools/asset_library.py` — the
 canonical-key identity scheme, the hashing and the schema versioning are sound
@@ -804,7 +972,12 @@ CREATE TABLE assets (
   thumb_path    TEXT,
   pack_tags     TEXT,               -- JSON array from default.dungeondraft_tags
   pack_sets     TEXT,
-  content_hash  TEXT NOT NULL,      -- sha256 of the image bytes
+  content_hash  TEXT NOT NULL,      -- sha256 of the DECODED image, so that a
+                                    -- pack merely recompressed does not read
+                                    -- as changed
+  state         TEXT DEFAULT 'ok',  -- ok | gone | changed - never delete a row
+                                    -- for a pack that is only disabled
+  last_seen_at  INTEGER,
   UNIQUE (pack_id, res_path)
 );
 
@@ -846,9 +1019,9 @@ art. Describing each copy separately would waste hours of the first run.
 
 ---
 
-## 7. Contracts
+## 8. Contracts
 
-### 7.1 Enrichment request
+### 8.1 Enrichment request
 
 One image, one schema-constrained answer. Sketch:
 
@@ -875,13 +1048,13 @@ Give the model the filename and the pack's own tags as context alongside the
 image — they are unreliable alone but useful together with the picture. Bump
 `prompt_version` whenever the prompt changes so stale rows can be found.
 
-### 7.2 Assembler input
+### 8.2 Assembler input
 
 The existing map plan JSON. Do not invent a new format; read what
 `tools/agent_api.py build_map()` produces, which is what the whole project
 already speaks.
 
-### 7.3 Assembler output
+### 8.3 Assembler output
 
 A `.dungeondraft_map`, plus a sidecar report naming: how many plan elements
 found an asset, which packs were used, which props had to be generated, and
@@ -890,7 +1063,7 @@ without a human squinting at a picture.
 
 ---
 
-## 8. The work, in order
+## 9. The work, in order
 
 ### Step 0 - recon (mostly done)
 
@@ -915,6 +1088,16 @@ built-ins out of `Dungeondraft.pck`. Skip packs whose author set
 absent pack is reported rather than fatal, duplicate pack ids are recorded
 rather than silently overwritten, and WebP is indexed as readily as PNG.
 
+### Step 1b - model settings
+
+The dropdown and download buttons from section 6, plus the `vision` capability
+check. Small, and it comes before cataloguing because cataloguing is what needs
+a model the user may not have.
+
+*Done when:* a fresh machine with an empty Ollama can be brought to a working
+state from the settings page alone, and choosing a text-only model as the
+cataloguer is refused with a reason.
+
 ### Step 2 - cataloguing, in two passes the user starts
 
 **Pass 1, the default assets** (about 2 000, from `Dungeondraft.pck`). Ship the
@@ -922,13 +1105,23 @@ result as a data file: it is identical on every install, so no user should pay
 for it twice. After this the program can build a whole map from stock assets.
 
 **Pass 2, the user's own packs** (264 599 at the last count). Resumable, per
-pack, non-objects before objects. See sections 5.4b and 5.5.
+pack, non-objects before objects. See sections 5.5 and 5.7.
 
 Before either runs at scale, do the two-hundred-asset quality check in section
-5.5b. A cached bad description is worse than no description.
+5.9. A cached bad description is worse than no description.
 
 *Done when:* a query like "wooden barrel, medieval, tavern, on the floor"
 returns sensible assets, and re-running costs nothing.
+
+### Step 2b - validate and re-catalogue
+
+The Validate and Re-catalogue buttons from section 5.6. Cheap to build once the
+indexer and a pass exist, and it is what keeps a shipped catalogue honest
+across Dungeondraft versions and pack updates.
+
+*Done when:* installing a Dungeondraft update, or updating one pack, produces a
+correct list of what is new, gone, redrawn and stale - and re-cataloguing
+touches only that list.
 
 ### Step 3 - objects only, end to end
 
@@ -985,7 +1178,7 @@ Run the thirteen scenes in `tools/scenes/` through the assembler and report,
 per scene, how many plan elements found an asset and how many had to be
 generated. That is this project's regression suite and it should stay that way.
 
-## 9. Gotchas, each of which has already bitten
+## 10. Gotchas, each of which has already bitten
 
 - **`pathlib.rglob` silently loses files.** It found 131 packs where `os.walk`
   found 146. Use `os.walk`.
@@ -1020,7 +1213,7 @@ generated. That is this project's regression suite and it should stay that way.
 
 ---
 
-## 10. What to reuse, and what to leave alone
+## 11. What to reuse, and what to leave alone
 
 **Reuse:** `app/include/asset_db.h`, `app/include/sha256.h`,
 `tools/asset_library.py`, `tools/ollama_client.py` (images and schema support
@@ -1047,7 +1240,7 @@ what was tried.
 
 ---
 
-## 11. House style
+## 12. House style
 
 This repository has conventions. Match them.
 
