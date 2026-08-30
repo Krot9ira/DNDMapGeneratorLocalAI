@@ -728,32 +728,49 @@ Validate belongs on both jobs. For the default assets it is the answer to
 "we shipped this catalogue, is it still true on this Dungeondraft version"; for
 the user's packs it is the answer to "I updated a pack, what do I owe".
 
-### 5.7 What a vision call actually costs, and which model to use
+### 5.7 Which model to catalogue with, measured
 
-Measured on this machine through Ollama, on real built-in object textures, warm
-model, first call discarded, 320 px thumbnails.
+Measured on this machine - an RTX 3080 Ti with 12 GB - through Ollama, on real
+built-in object textures at 384 px, warm model, first call discarded, context
+4 096, schema bounded as described below.
 
-| model | context | median | placement | 2 000 default | 16 588 non-objects | 248 011 objects |
-|---|---|---|---|---|---|---|
-| `qwen3.8:27b` | 262 144 | 20.1 s | 85 % CPU | 11 h | 3.9 d | 58 d |
-| `qwen3.8:27b` | 4 096 | 14.0 s | 52 % CPU | 8 h | 2.7 d | 40 d |
-| `qwen2.5vl:7b` | 4 096 | **1.24 s** | **100 % GPU** | **1 h** | **6 h** | **3.6 d** |
+| model | size | placement | median | bad JSON | echoes | with colour+material | 248 011 objects |
+|---|---|---|---|---|---|---|---|
+| `qwen3.8:27b` (ctx 262 144) | 34 GB | 85 % CPU | 20.1 s | - | - | - | 58 d |
+| `qwen3.8:27b` (ctx 4 096) | 18 GB | 52 % CPU | 14.0 s | - | - | - | 40 d |
+| `qwen2.5vl:7b` | 5.5 GB | 100 % GPU | **1.08 s** | 0 | **11 / 14** | 7 / 14 | 3.1 d |
+| `ornith-1.5:9b` | 6.6 GB | 100 % GPU | 1.51 s | 0 | 3 / 30 | 15 / 30 | 4.3 d |
+| **`gemma4:12b`** | 7.6 GB | 100 % GPU | 2.00 s | 0 | **4 / 30** | **19 / 30** | 5.8 d |
 
-Two things decide this, and neither is the model's intelligence:
+Two things decide this, and neither is raw intelligence.
 
-**The context window is a memory cost, and it was set for planning, not for
-cataloguing.** `qwen3.8:27b` at its default 262 144 context needs 34 GB and
-lands 85 % on the CPU. Dropped to 4 096 - which is all a one-image question
-needs - it needs 18 GB and gets to 52 % GPU, and gets 30 % faster for free.
-**Set `num_ctx` per job.** The planner wants a huge window; the cataloguer
-wants a small one; they are the same model today and that is why it was slow.
+**A model that fits in VRAM is in a different class.** `qwen3.8:27b` at its
+default 262 144 context needs 34 GB and lands 85 % on the CPU. Dropped to
+4 096 - all a one-image question needs - it needs 18 GB, reaches 52 % GPU and
+gets 30 % faster for free. The three small models sit entirely on the card and
+are **ten to thirteen times faster than the 27B**. That is the difference
+between four days and forty for the same library.
 
-**A model that fits in VRAM is in a different class.** `qwen2.5vl:7b` is 5.5 GB,
-runs 100 % on the GPU, and is **eleven times faster**. That is the difference
-between three and a half days and forty for the same work.
+**Speed without looking is worthless.** `qwen2.5vl:7b` is the fastest by a
+distance, and it is the wrong choice: it restated the file name as the answer
+in **eleven of fourteen** cases. It was not cataloguing, it was reformatting
+the filename. `ornith-1.5:9b` and `gemma4:12b` echo three or four times in
+thirty and describe what is actually in the picture.
 
-So: **catalogue with a small vision model, plan with the big one.** Section 6
-is how the program should let the user do that.
+**Recommendation: `gemma4:12b` to catalogue, `qwen3.8:27b` to plan.** Gemma is
+the slowest of the three small ones and still finishes the whole library in
+under six days, and it earns that: it produced a usable description with both
+colour and material for nineteen of thirty against fifteen, and read a grave
+marker as a *stone sarcophagus*, an egg as a *monster egg* and a floor cloth as
+a *discarded cloth* - answers the filename does not contain. Cataloguing is
+paid once and read forever, so buy the better description.
+
+`ornith-1.5:9b` is the reasonable second choice at 30 % faster, and is what to
+switch to if six days is too long. Both are far better than the fast one.
+
+**Set `num_ctx` per job, not globally.** The planner wants a huge window; the
+cataloguer wants 4 096. They may be the same model, and if the cataloguer
+inherits the planner's window it spills onto the CPU and runs ten times slower.
 
 ### 5.8 The blind test, and what it proved about context
 
@@ -798,10 +815,44 @@ Three conclusions follow, and they are the design:
 and assets whose filenames are *misleading*, because those are the only cases
 that reveal whether the model is looking. Everything else grades the filename.
 
-**One robustness note from the same run:** at `num_predict=200` the 7B twice
-produced truncated JSON - `Unterminated string`. Give the description a length
-limit in the prompt, allow more tokens than you think you need, and treat a
-JSON parse failure as a retry rather than a lost asset.
+**Bound every field in the schema, or a tenth of the run comes back broken.**
+This cost an hour to find and is the single most useful practical detail here.
+
+With an unbounded schema - `{"type": "array", "items": {"type": "string"}}` -
+`qwen2.5vl:7b` returned **ten unparseable answers out of fourteen**,
+`Unterminated string`. Grammar-constrained generation must emit valid JSON, so
+when the token budget runs out mid-array the output is not recoverable: it is
+truncated JSON, not a model that answered badly. Raising `num_predict` alone
+does not fix it, because the model simply writes longer tag lists.
+
+Adding `maxItems` and `maxLength` to every field fixed it completely and made
+it **faster**:
+
+| schema | unparseable | median |
+|---|---|---|
+| unbounded, `num_predict` 400 | 10 / 14 | 1.79 s |
+| bounded, `num_predict` 1500 | **0 / 14** | **1.08 s** |
+
+The model stops writing sooner because it is not allowed to ramble, so the cap
+is never reached. Concretely:
+
+```python
+"object_kind":   {"type": "string", "maxLength": 40},
+"description":   {"type": "string", "maxLength": 140},
+"semantic_tags": {"type": "array", "maxItems": 5,
+                  "items": {"type": "string", "maxLength": 24}},
+"style_tags":    {"type": "array", "maxItems": 3,
+                  "items": {"type": "string", "maxLength": 24}},
+```
+
+At 1.08 s the whole library - 248 011 objects - is **about three days in one
+stream**, which is the difference between this feature existing and not.
+
+**And normalise in code, not in the prompt.** Told plainly to use lower case,
+no digits and no underscores, and never to repeat the file name, the model
+still returned `wall_torch`, `pillar_broken`, `sail_jib`, `bush_flower`. Strip
+underscores and digits after the fact and compare against the file stem
+yourself. A prompt is a request; a post-processing step is a guarantee.
 
 ### 5.9 Measure quality before running anything at scale
 
@@ -891,9 +942,9 @@ handle both properly rather than assume.
 **Two roles, named separately in the config:**
 
 - the **planner** - text, plans a scene; today `qwen3.8:27b`
-- the **cataloguer** - vision, describes assets; should be a small model that
-  fits in VRAM, and section 5.7 is why - `qwen2.5vl:7b` measured eleven times
-  faster than the 27B on the same work
+- the **cataloguer** - vision, describes assets; a small model that fits
+  entirely in VRAM. Measured recommendation: **`gemma4:12b`**, with
+  `ornith-1.5:9b` as the faster second choice. Section 5.7 has the numbers.
 
 **Context size belongs to the job, not to the model.** The planner needs a huge
 window; the cataloguer needs about 4 096 and is 30 % faster for having it. Send
@@ -1023,30 +1074,72 @@ art. Describing each copy separately would waste hours of the first run.
 
 ### 8.1 Enrichment request
 
-One image, one schema-constrained answer. Sketch:
+One image, one schema-constrained answer. This is the version that was
+measured, not a sketch - **every field is bounded**, and section 5.7 explains
+why an unbounded one returns ten broken answers in fourteen.
 
 ```python
 SCHEMA = {
   "type": "object",
   "properties": {
-    "object_kind":   {"type": "string"},
-    "description":   {"type": "string"},
-    "semantic_tags": {"type": "array", "items": {"type": "string"}},
-    "style_tags":    {"type": "array", "items": {"type": "string"}},
-    "setting_tags":  {"type": "array", "items": {"type": "string"}},
+    "object_kind":   {"type": "string", "maxLength": 40},
+    "description":   {"type": "string", "maxLength": 140},
+    "semantic_tags": {"type": "array", "maxItems": 5,
+                      "items": {"type": "string", "maxLength": 24}},
+    "style_tags":    {"type": "array", "maxItems": 3,
+                      "items": {"type": "string", "maxLength": 24}},
+    "setting_tags":  {"type": "array", "maxItems": 3,
+                      "items": {"type": "string", "maxLength": 24}},
     "footprint":     {"type": "string",
                       "enum": ["floor", "wall-mounted", "ceiling", "overhang"]},
-    "confidence":    {"type": "number"}
+    "confidence":    {"type": "number"},
   },
   "required": ["object_kind", "description", "semantic_tags",
-               "style_tags", "footprint", "confidence"]
+               "style_tags", "footprint", "confidence"],
 }
-client.generate(prompt, images=[thumb], format=SCHEMA, think=False)
+
+client.generate(prompt, system=SYSTEM, format=SCHEMA, images=[thumb],
+                temperature=0.0, think=False,
+                num_predict=1500,   # never reached once the schema is bounded
+                num_ctx=4096)       # per job - not the planner's window
 ```
 
-Give the model the filename and the pack's own tags as context alongside the
-image — they are unreliable alone but useful together with the picture. Bump
-`prompt_version` whenever the prompt changes so stale rows can be found.
+The system prompt that produced the measured results:
+
+```
+You catalogue art assets for a tabletop battlemap editor. You are shown one
+asset on flat grey, drawn as seen from directly overhead. The file name and
+folder are given as a hint from the artist; use them, but say what you can see
+that they do not say.
+object_kind: two or three plain words, lower case, no digits, no underscores.
+Never repeat the file name.
+description: one sentence under twenty words, naming colour and material.
+If the picture is too small or ambiguous to tell, use object_kind 'unclear'
+and a low confidence rather than inventing.
+```
+
+and the user message carries the context that makes the task answerable at all:
+
+```
+Folder: supplies/crates
+File name: fruit_box_05
+Size: 202x194 px (0.79 x 0.76 grid squares)
+
+Catalogue this asset.
+```
+
+Give the model the pack name and the pack's own tags too. They are unreliable
+alone and useful together with the picture.
+
+**Then normalise the answer in code.** Told plainly not to, the models still
+return `wall_torch`, `pillar_broken`, `sail_jib`. Strip underscores and digits,
+lower-case, and compare against the file stem yourself; a prompt is a request,
+post-processing is a guarantee. Store the raw answer as well, so a change of
+mind about normalising does not mean running the pass again.
+
+Bump `prompt_version` whenever the prompt, the schema or the thumbnail
+rendering changes, so stale rows can be found. All three are part of the
+question being asked.
 
 ### 8.2 Assembler input
 
