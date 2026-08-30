@@ -4,6 +4,7 @@ Two ports of the same builder, every fix copied across by hand. A difference
 means a map made in the app renders differently from the same map made by an
 agent, which is the sort of thing nobody notices until the pictures disagree.
 """
+import collections
 import json
 import subprocess
 import sys
@@ -43,6 +44,23 @@ CASES = [
 ]
 
 planner = MapPlanner()
+
+def key_orders(a, b, path=""):
+    """Walk two parsed captions together, yielding the key order of each object.
+
+    Only where both sides have an object, since a missing field is already
+    reported by the value checks and would only be reported twice here.
+    """
+    if isinstance(a, dict) and isinstance(b, dict):
+        yield path, list(a.keys()), list(b.keys())
+        for key in a:
+            if key in b:
+                yield from key_orders(a[key], b[key], f"{path}.{key}" if path else key)
+    elif isinstance(a, list) and isinstance(b, list):
+        for i, (x, y) in enumerate(zip(a, b)):
+            yield from key_orders(x, y, f"{path}[{i}]")
+
+
 problems = []
 
 for layout, style in CASES:
@@ -69,7 +87,20 @@ for layout, style in CASES:
     if rc != 0 or not out.exists():
         problems.append(f"{case}: the app could not produce a caption (exit {rc})")
         continue
-    app = json.loads(out.read_text(encoding="utf-8"))
+    # Parsed with object_pairs_hook so key order survives. It has to: Ideogram
+    # was trained on a fixed key order, its own verifier warns when the order is
+    # wrong, and comparing values alone cannot see the difference. It did not
+    # see it - the app emitted every object alphabetically for as long as this
+    # check has been reporting parity, because nlohmann::json sorts and
+    # ordered_json does not.
+    app = json.loads(out.read_text(encoding="utf-8"),
+                     object_pairs_hook=collections.OrderedDict)
+
+    for path, a, b in key_orders(py, app):
+        if a != b:
+            problems.append(f"{case}: key order differs at {path or 'the top level'}")
+            problems.append(f"    tools: {', '.join(a)}")
+            problems.append(f"    app  : {', '.join(b)}")
 
     for key in ("aspect_ratio", "high_level_description"):
         if py.get(key) != app.get(key):

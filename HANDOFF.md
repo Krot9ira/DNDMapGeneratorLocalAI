@@ -14,7 +14,11 @@
 ## 2. Changes Implemented
 
 ### A. Ideogram 4 JSON Schema Adherence (`tools/ideogram_prompt.py`, `app/include/ideogram_caption.h`)
-- Added required `art_style` field to `style_description` in both Python and C++ with strict key ordering: `aesthetics` -> `lighting` -> `art_style` -> `medium` -> `color_palette`.
+- Added required `art_style` field to `style_description` in both Python and C++.
+- **Corrected 2026-08-30:** the key order recorded here was wrong. The published
+  guide (`docs/ideogram4/prompting.md`) specifies, for a non-photo caption,
+  `aesthetics` -> `lighting` -> `medium` -> `art_style` -> `color_palette` -
+  `medium` *before* `art_style`. Both implementations now emit that order.
 - Added default `art_style` to `styles/_base.json` and `StyleDef` / `BaseStyle` structures.
 
 ### B. High-Level Description Pruning & Background Relocation
@@ -26,7 +30,14 @@
 - Suppressed 1x1 bounding boxes for unlabelled generic props on open outdoor ground, routing them to `loose` clutter.
 
 ### D. Automated Test Suite & Dual Port Parity
-- 100% byte-for-byte caption parity between C++ (`DndBattlemapGenerator.exe`) and Python across all 14 layouts (`tools/check_caption_parity.py`).
+- Caption parity between C++ (`DndBattlemapGenerator.exe`) and Python across all
+  14 layouts (`tools/check_caption_parity.py`).
+- **Corrected 2026-08-30:** "byte-for-byte" overstated what was checked. The
+  comparison read field by field and never looked at key order, and the app was
+  in fact emitting every object alphabetically - `nlohmann::json` sorts its keys,
+  `ordered_json` does not - for as long as the check had been reporting parity.
+  The app now uses `ordered_json` and the check compares key order as well as
+  values.
 - All 13 test scenes pass validation (`tools/check_scenes.py`).
 - Generator sanity across all layouts, sizes, and seeds passes (`tools/check_layouts.py`).
 - Style linting clean (`tools/check_captions.py`).

@@ -530,7 +530,7 @@ public:
         return out;
     }
 
-    static nlohmann::json Build(const MapData& map, const StyleDef* style,
+    static nlohmann::ordered_json Build(const MapData& map, const StyleDef* style,
                                 const BaseStyle& base, const Phrasebook& ph = {}) {
         // Every phrase below can be overridden in styles/_phrases.json; the
         // literals are the fallback for a missing file or a deleted key.
@@ -582,7 +582,7 @@ public:
             if (!Trim(style->boundary).empty()) encBoundary = Trim(style->boundary);
         }
 
-        nlohmann::json cap;
+        nlohmann::ordered_json cap;
         int div = std::gcd(cols, rows);
         if (div <= 0) div = 1;
         cap["aspect_ratio"] = std::to_string(cols / div) + ":" + std::to_string(rows / div);
@@ -658,7 +658,7 @@ public:
         if (!vp.empty())
             envNotes.push_back(Trim(vp) + ".");
 
-        nlohmann::json sd;
+        nlohmann::ordered_json sd;
         sd["aesthetics"] = (style && !style->aesthetics.empty()) ? style->aesthetics
                                                                  : base.aesthetics;
         // A scene that says how it is lit outranks the style's general idea of
@@ -667,14 +667,17 @@ public:
                              ? Trim(map.meta.lighting)
                              : ((style && !style->lighting.empty()) ? style->lighting
                                                                    : base.lighting);
+        // `medium` before `art_style`: that is the order the non-photo schema
+        // specifies, and the order the model was trained on. See
+        // docs/ideogram4/prompting.md.
+        sd["medium"] = base.medium;
         sd["art_style"] = (style && !style->art_style.empty())
                               ? style->art_style
                               : (!base.art_style.empty()
                                      ? base.art_style
                                      : "hand-painted fantasy cartography, inked line art over "
                                        "watercolour and gouache, flat orthographic top-down battle map");
-        sd["medium"] = base.medium;
-        nlohmann::json palette = nlohmann::json::array();
+        nlohmann::ordered_json palette = nlohmann::ordered_json::array();
         const auto& colours = (style && !style->hex_palette.empty()) ? style->hex_palette
                                                                      : base.default_palette;
         for (const auto& hex : colours) palette.push_back(hex);
@@ -686,13 +689,13 @@ public:
         // Four tiers. `structure` is what the map is: walls, doors, windows, the
         // ship. It outranks rooms and scenery, because a battle map with the
         // wrong walls is the wrong map however well it is painted.
-        nlohmann::json critical = nlohmann::json::array();
+        nlohmann::ordered_json critical = nlohmann::ordered_json::array();
         // Walls come before the things set into them: the model reads the list
         // in order, and an opening only makes sense once its run exists.
-        nlohmann::json walls = nlohmann::json::array();
-        nlohmann::json structure = nlohmann::json::array();
-        nlohmann::json normal = nlohmann::json::array();
-        nlohmann::json filler = nlohmann::json::array();
+        nlohmann::ordered_json walls = nlohmann::ordered_json::array();
+        nlohmann::ordered_json structure = nlohmann::ordered_json::array();
+        nlohmann::ordered_json normal = nlohmann::ordered_json::array();
+        nlohmann::ordered_json filler = nlohmann::ordered_json::array();
 
         // The blank margin is asked for in the background text and painted onto
         // the finished image afterwards. A box saying "nothing is here" gives
@@ -1546,7 +1549,7 @@ public:
                               {"desc", body}});
         }
 
-        nlohmann::json elements = nlohmann::json::array();
+        nlohmann::ordered_json elements = nlohmann::ordered_json::array();
         for (const auto& e : critical) elements.push_back(e);
         for (const auto& e : walls) elements.push_back(e);
         for (const auto& e : structure) elements.push_back(e);
@@ -1727,7 +1730,7 @@ public:
     static std::string BuildJson(const MapData& map, const StyleDef* style,
                                  const BaseStyle& base, const Phrasebook& ph = {}) {
         return Build(map, style, base, ph).dump(-1, ' ', false,
-                                      nlohmann::json::error_handler_t::replace);
+                                      nlohmann::ordered_json::error_handler_t::replace);
     }
 
 private:
@@ -1826,9 +1829,9 @@ private:
         return out;
     }
 
-    static nlohmann::json Bbox(int x, int y, int w, int h, int cols, int rows) {
+    static nlohmann::ordered_json Bbox(int x, int y, int w, int h, int cols, int rows) {
         auto clamp = [](long v) { return (int)std::max(0L, std::min(1000L, v)); };
-        return nlohmann::json::array({
+        return nlohmann::ordered_json::array({
             clamp(std::lround(y * 1000.0 / rows)),
             clamp(std::lround(x * 1000.0 / cols)),
             clamp(std::lround((y + h) * 1000.0 / rows)),
@@ -1867,7 +1870,7 @@ private:
         return rects;
     }
 
-    static void AddTerrain(nlohmann::json& elements, const TileGrid& g, Tile kind,
+    static void AddTerrain(nlohmann::ordered_json& elements, const TileGrid& g, Tile kind,
                            const std::string& phrase, int cols, int rows,
                            const std::string& exact,
                            const std::vector<Annotation>& notes) {

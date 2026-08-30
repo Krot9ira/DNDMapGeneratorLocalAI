@@ -2238,7 +2238,8 @@ static void TabEditor() {
 }
 
 // One labelled paragraph of the caption.
-static void CaptionField(const char* label, const nlohmann::json& obj, const char* key) {
+static void CaptionField(const char* label, const nlohmann::ordered_json& obj,
+                         const char* key) {
     if (!obj.contains(key) || !obj[key].is_string()) return;
     ImGui::SeparatorText(label);
     ImGui::PushTextWrapPos(0.0f);
@@ -2269,15 +2270,15 @@ static void DrawPaletteRow(const nlohmann::json& colours) {
 }
 
 // Parse once for the readable view; null means "not JSON yet".
-static const nlohmann::json& ParsedOrEmpty(const std::string& text) {
+static const nlohmann::ordered_json& ParsedOrEmpty(const std::string& text) {
     static std::string cached;
-    static nlohmann::json parsed;
+    static nlohmann::ordered_json parsed;
     if (text != cached) {
         cached = text;
         try {
-            parsed = nlohmann::json::parse(text);
+            parsed = nlohmann::ordered_json::parse(text);
         } catch (const std::exception&) {
-            parsed = nlohmann::json();
+            parsed = nlohmann::ordered_json();
         }
     }
     return parsed;
@@ -2292,7 +2293,7 @@ static void DrawCaptionPanel() {
         return;
 
     g_app.SyncMapFromGrid();
-    nlohmann::json auto_cap = IdeogramCaption::Build(
+    nlohmann::ordered_json auto_cap = IdeogramCaption::Build(
         g_app.map, g_app.styles.Find(g_app.map.meta.style), g_app.styles.base,
         g_app.styles.phrases);
     std::string autoText = auto_cap.dump(2);
@@ -2336,8 +2337,9 @@ static void DrawCaptionPanel() {
 
     if (ImGui::BeginTabBar("##captabs")) {
         if (ImGui::BeginTabItem("Readable")) {
-            const nlohmann::json& j = g_app.captionManual ? ParsedOrEmpty(g_app.captionText)
-                                                          : auto_cap;
+            const nlohmann::ordered_json& j = g_app.captionManual
+                                     ? ParsedOrEmpty(g_app.captionText)
+                                     : auto_cap;
             ImGui::BeginChild("##capread", ImVec2(0, h), ImGuiChildFlags_Borders);
             if (j.is_null()) {
                 ImGui::TextColored(ImVec4(0.95f, 0.45f, 0.40f, 1.0f),

@@ -953,19 +953,25 @@ def build_caption(map_data, style=None, base=None):
         env_notes.append(viewpoint.rstrip(".") + ".")
 
     # Ideogram 4 requires exactly one of `photo` or `art_style` in
-    # style_description.  Battle maps are non-photographic, so `art_style` is
-    # the correct key.  Key order is strict per the training schema:
-    #   aesthetics, lighting, art_style, medium, color_palette
+    # style_description. Battle maps are non-photographic, so `art_style` is
+    # the correct key.
+    #
+    # Key order is part of the schema, not decoration: the model was trained on
+    # a fixed order and its own CaptionVerifier warns when it is wrong. For a
+    # non-photo caption the official order is
+    #   aesthetics, lighting, medium, art_style, color_palette
+    # - `medium` before `art_style`, which is the opposite of what this file
+    # did until the published guide was read (docs/ideogram4/prompting.md).
     caption["style_description"] = {
         "aesthetics": style.get("aesthetics") or base.get("aesthetics", ""),
         # A scene that says how it is lit outranks the style's general idea of
         # how places like it are lit.
         "lighting": (str(meta.get("lighting", "")).strip()
                      or style.get("lighting") or base.get("lighting", "")),
+        "medium": base.get("medium", "Inked line art with watercolour and gouache painting"),
         "art_style": (style.get("art_style") or base.get("art_style",
                       "hand-painted fantasy cartography, inked line art over "
                       "watercolour and gouache, flat orthographic top-down battle map")),
-        "medium": base.get("medium", "Inked line art with watercolour and gouache painting"),
         "color_palette": list(style.get("hex_palette") or base.get("default_palette") or
                               ["#C8B99A", "#8A7B63", "#4A4038", "#2E2A26", "#6E7A6B"]),
     }
