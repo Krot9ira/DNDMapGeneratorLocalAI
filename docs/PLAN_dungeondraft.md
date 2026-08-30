@@ -275,6 +275,102 @@ Facts to take from those:
 - Asset paths appear verbatim: `res://packs/<id>/textures/...` for pack assets,
   `res://textures/...` for built-ins.
 
+
+### 2.4b Walls, portals, lights, roofs and caves
+
+Read from `D:\programs\dungeondraft\maps\testmap.dungeondraft_map`, a 48 x 27
+map made by hand with exactly these things on it. This settles what the outdoor
+maps could not.
+
+**All geometry is in pixels at 256 px per grid cell, absolute, from the top
+left.** A 48-cell-wide map is 12 288 px wide, and the wall below runs from
+x=2304 to x=3328, which is cells 9 to 13.
+
+**A wall** is a polyline with a texture:
+
+```json
+{ "points": "PoolVector2Array( 2304, 1536, 2304, 4352, 3328, 4352, 3328, 1536 )",
+  "texture": "res://textures/walls/battlements.png",
+  "color": "ff726e65", "loop": true, "type": 1, "joint": 1,
+  "normalize_uv": true, "shadow": true, "node_id": "2",
+  "portals": [ ... ] }
+```
+
+`type` 0 and 1 both appear on the same map with the same texture, so it is a
+wall *kind* (a solid wall against a railing or similar), not a style - confirm
+which before writing it.
+
+**Portals are nested inside their wall,** not in the level's `portals` list -
+that list stayed empty even with a door and a window placed. A portal:
+
+```json
+{ "position": "Vector2( 2304, 3712 )", "rotation": 1.570796,
+  "scale": "Vector2( 1, 1 )", "direction": "Vector2( 0, 1 )",
+  "texture": "res://textures/portals/door_05.png",
+  "radius": 128, "point_index": 0, "wall_id": "0",
+  "wall_distance": 0.772727, "closed": true, "node_id": "7" }
+```
+
+`radius` 128 is half a cell - the door is one cell wide. `point_index` is which
+segment of the wall polyline it sits on and `wall_distance` how far along that
+segment, as a fraction. So a door is placed *along a wall*, not at a free
+coordinate: build the wall first, then attach.
+
+**A light:**
+
+```json
+{ "position": "Vector2( 2727.99, 2860.73 )", "rotation": 0, "range": 5,
+  "intensity": 1, "color": "ffeccd8b",
+  "texture": "res://textures/lights/fragments.png",
+  "shadows": true, "node_id": "19" }
+```
+
+**A roof** lives in `roofs.roofs` and is a polyline with a width:
+
+```json
+{ "position": "Vector2( 0, 0 )", "rotation": 0, "scale": "Vector2( 1, 1 )",
+  "points": "PoolVector2Array( 3328, 4224, 2304, 4224 )",
+  "texture": "res://textures/roofs/diamond_slate_gray/tiles.png",
+  "width": 128, "type": 0, "node_id": "14" }
+```
+
+**`materials`** is a dict keyed by layer number as a string
+(`{ "-400": [ ... ] }`), not a list.
+
+**`shapes`** holds `polygons` - a list of `PoolVector2Array` strings, the
+building floor shapes - and `walls`, a list of plain integers referring to
+walls. Confirm what that integer indexes before relying on it.
+
+**`node_id` is a string and must be unique across the level.** Walls, portals,
+lights and roofs all carry one, and `world.next_node_id` (also a string) has to
+end up above every id used, or Dungeondraft will collide with them.
+
+**Terrain splat resolution is confirmed exactly.** On this 48 x 27 map the
+splat is 82 944 bytes = 4 channels x 20 736 samples, and 4w x 4h = 192 x 108 =
+20 736. Four samples per cell per axis, exactly, on both maps measured.
+
+**The cave bitmap decodes.** It is one bit per sample, packed eight to a byte,
+over a grid of **(4w + 3) x (4h + 3)** samples, rounded up to whole bytes:
+
+```
+bytes = ceil( (4*w + 3) * (4*h + 3) / 8 )
+   25 x 30 map -> ceil(103 * 123 / 8) = 1584   (observed 1584)
+   48 x 27 map -> ceil(195 * 111 / 8) = 2706   (observed 2706)
+```
+
+Both maps match exactly, which is a strong fit but is still **two data points
+and an inferred formula**. Confirm it before trusting it: draw a cave of one
+known cell in a known corner, save, and diff the bytes against an empty map.
+Bit order within the byte, and row order, are still unverified.
+
+`cave` also carries `ground_color`, `wall_color` and `texture` -
+`res://textures/caves/colorable/floor.png` in this map - and an
+`entrance_bitmap` of the same size.
+
+**In a cave scene the walls are this bitmap, not the `walls` list.** That is
+almost certainly how our own cave styles have to be built, so this formula is
+on the critical path, not a curiosity.
+
 ### 2.5 The unit is 256
 
 Dungeondraft treats **256 authored pixels as one grid square**. Confirmed
@@ -346,30 +442,26 @@ in-app "Import plan" button once the file path works.
 
 ## 3. What is still UNKNOWN
 
-Reading three real maps answered most of the format. What remains:
+Four real maps settled nearly all of the format. What is left is small:
 
-**UNKNOWN-1 - walls, portals, lights, materials and `shapes.polygons`.** All
-three sample maps are outdoor ravine scenes and every one of those lists is
-empty, so the shape of their entries is unknown. Everything else about a level
-is known.
+**UNKNOWN-1 - the cave bitmap's bit and row order.** The size formula
+`ceil((4w+3)(4h+3)/8)` matches both measured maps exactly, but the order of
+bits within a byte and of rows within the array is not verified. *Resolve by
+experiment:* draw one cave cell in a known corner, save, diff against an empty
+map. Twenty minutes, and it unlocks cave scenes.
 
-*How to resolve:* one more hand-made map containing a wall run, a door, a
-window, a light, a material area and a cave region. Twenty minutes in
-Dungeondraft settles the rest of the format.
+**UNKNOWN-2 - what `wall.type` and `shapes.walls` mean.** `type` 0 and 1 both
+appear with the same texture on one map, so it distinguishes kinds of wall.
+`shapes.walls` is a list of bare integers. Both are readable off a couple more
+hand-made maps.
 
-**UNKNOWN-2 - the cave bitmap layout.** 1584 bytes on a 25 x 30 map, every byte
-zero. Needs a map with a cave actually drawn. This matters more than it looks:
-in a cave scene the walls *are* the cave bitmap, not the `walls` list - which
-is very likely how our own cave styles will have to be built.
+**UNKNOWN-3 - are pack ids stable across machines?** Texture paths embed the
+id. If a pack takes a different id on another install, maps we write are not
+portable. The safe behaviour costs nothing: resolve every path against the
+local index at write time.
 
-**UNKNOWN-3 - are pack ids stable across machines?** Texture paths embed the id.
-If a pack gets a different id on another install, maps we write are not
-portable. The safe behaviour is to resolve every path against the local index
-at write time, which costs nothing and removes the question.
-
-**UNKNOWN-4 - what `DungeondraftConsole.exe` does.** It ships in the install
-folder. If it renders or converts headlessly it changes step 6. Ten minutes of
-work to find out, not a blocker.
+**UNKNOWN-4 - what `DungeondraftConsole.exe` does.** If it renders or converts
+headlessly it changes step 6. Ten minutes to find out, not a blocker.
 
 ## 4. Architecture
 
@@ -505,6 +597,39 @@ invention is indistinguishable from an answer once it is in the database.
 
 Low-confidence rows are not failures — they are a work queue. Never let a
 low-confidence guess silently become the reason a prop was chosen.
+
+### 5.4b Two passes, because the user has to be able to start
+
+The library is far too big to describe before the program is useful, so the
+cataloguing is **two separate jobs the user starts themselves**, and the
+program works after the first one.
+
+**Pass 1 - the default assets.** Everything inside `Dungeondraft.pck`: about
+1 792 objects and roughly 200 walls, terrains, portals, paths, tilesets and
+lights. Two thousand assets. This is the set every Dungeondraft install has, it
+is the same for every user, and it is small enough to finish in one sitting.
+When it is done the program can already build a complete map out of stock
+assets - which is exactly the state in which somebody can judge whether any of
+this is worth continuing.
+
+Because these assets are identical on every machine, **this catalogue can be
+built once and shipped with the program.** A user who never runs anything still
+gets a working map. Treat it as a data file we produce, not as work each user
+repeats.
+
+**Pass 2 - the user's own packs.** Everything in the enabled packs -
+264 599 assets at the last count. This is the long one, it is per-user, it must
+be resumable, and it should be startable per pack so somebody can catalogue the
+three packs they care about tonight and the rest whenever.
+
+The user interface follows the same split: two buttons, two progress bars, two
+honest estimates in hours, and a clear statement of what works after each. Not
+one opaque "indexing" that runs for days.
+
+Within pass 2, order the work so the useful part lands first: everything that
+is not an object (about 16 600 assets - terrain, walls, portals, paths,
+patterns, tilesets, lights) before the 248 011 objects, because terrain and
+walls are what makes a map look like its style, and a barrel is a detail.
 
 ### 5.5 248 000 objects will not fit through a blanket vision pass
 
@@ -697,7 +822,7 @@ art. Describing each copy separately would waste hours of the first run.
 
 ## 7. Contracts
 
-### 6.1 Enrichment request
+### 7.1 Enrichment request
 
 One image, one schema-constrained answer. Sketch:
 
@@ -724,13 +849,13 @@ Give the model the filename and the pack's own tags as context alongside the
 image — they are unreliable alone but useful together with the picture. Bump
 `prompt_version` whenever the prompt changes so stale rows can be found.
 
-### 6.2 Assembler input
+### 7.2 Assembler input
 
 The existing map plan JSON. Do not invent a new format; read what
 `tools/agent_api.py build_map()` produces, which is what the whole project
 already speaks.
 
-### 6.3 Assembler output
+### 7.3 Assembler output
 
 A `.dungeondraft_map`, plus a sidecar report naming: how many plan elements
 found an asset, which packs were used, which props had to be generated, and
@@ -741,35 +866,45 @@ without a human squinting at a picture.
 
 ## 8. The work, in order
 
-### Step 0 — recon (BLOCKING)
+### Step 0 - recon (mostly done)
 
-Get a hand-made sample map out of Dungeondraft with two terrains, a wall run, a
-door, a window, several objects and a light. Read its JSON. Write down the real
-schema for `terrain`, `materials`, `walls`, `portals`, `lights` and the header,
-and settle UNKNOWN-1 and UNKNOWN-2.
+Four of the user's own maps have been read and section 2 records what they say.
+What is left of step 0 is the cave-bitmap experiment in UNKNOWN-1 and the
+`wall.type` question in UNKNOWN-2: two small hand-made maps and a byte diff.
+Do them before step 4, not before step 1.
 
-*Done when:* `docs/dungeondraft_map_format.md` exists and describes every
-top-level key with a real example.
+*Done when:* `docs/dungeondraft_map_format.md` describes every top-level key
+with a real example, and the cave bitmap round-trips - written by us, opened in
+Dungeondraft, and showing the cave we meant.
 
-### Step 1 — the indexer, no model
+### Step 1 - the indexer, no model
 
-Read `config.ini`; walk the asset directory with `os.walk`; open every pack;
-write `packs` and `assets`; extract thumbnails; index the built-ins.
+Read `config.ini` for `custom_assets_directory` and `active_asset_packs`; walk
+that directory with `os.walk`; open every pack with the PCK reader; write
+`packs` and `assets`; measure every image and build its thumbnail; index the
+built-ins out of `Dungeondraft.pck`. Skip packs whose author set
+`allow_3rd_party_mapping_software_to_read` to false and record that you did.
 
-*Done when:* the database holds ~24 000 assets across 109 enabled packs, the
-counts in §2.2 are reproduced, `bdd7mqo6` is reported as missing rather than
-crashing anything, and the 20 duplicate ids are recorded rather than silently
-overwritten.
+*Done when:* the database reproduces a fresh scan's counts, the enabled-but-
+absent pack is reported rather than fatal, duplicate pack ids are recorded
+rather than silently overwritten, and WebP is indexed as readily as PNG.
 
-### Step 2 — enrichment
+### Step 2 - cataloguing, in two passes the user starts
 
-The vision pass, resumable, cached by `content_hash`, one pack at a time.
+**Pass 1, the default assets** (about 2 000, from `Dungeondraft.pck`). Ship the
+result as a data file: it is identical on every install, so no user should pay
+for it twice. After this the program can build a whole map from stock assets.
+
+**Pass 2, the user's own packs** (264 599 at the last count). Resumable, per
+pack, non-objects before objects. See sections 5.4b and 5.5.
+
+Before either runs at scale, do the two-hundred-asset quality check in section
+5.5b. A cached bad description is worse than no description.
 
 *Done when:* a query like "wooden barrel, medieval, tavern, on the floor"
-returns sensible assets across several packs, and re-running the pass costs
-nothing.
+returns sensible assets, and re-running costs nothing.
 
-### Step 3 — objects only, end to end
+### Step 3 - objects only, end to end
 
 Place only props from a plan onto an otherwise blank map. No terrain, no walls.
 
@@ -778,44 +913,51 @@ Dungeondraft. If the objects land in the right places at the right sizes, the
 rest is work; if they do not, stop and reconsider before building more.
 
 *Done when:* a map opens in Dungeondraft with the plan's props in the right
-squares, right rotations, sensible scales.
+squares, at the right rotations and sensible scales.
 
-### Step 4 — terrain, materials, walls, portals
+### Step 4 - terrain, tiles, walls, portals, lights
 
-Depends entirely on what step 0 found. Walls first: our plan already carries
-wall runs, and the frozen branch's one durable lesson is that a wall is a
-region with an edge, not a fence with a centreline — so a run converts to a
-polyline cleanly.
+Now the format is known, this is ordinary work, and there is an order to it:
 
-### Step 5 — the prop foundry
+- **Tiles first.** `tiles.cells` is one int per cell in row order - the
+  closest thing in the format to our own plan grid, and the cheapest win.
+- **Terrain** next: pick up to eight textures, write the two splat byte arrays
+  at four samples per cell per axis.
+- **Walls** as polylines in absolute pixels, then **portals attached to them**
+  by `point_index` and `wall_distance` - a door is placed along a wall, not at
+  a free coordinate, so the wall has to exist first.
+- **Lights** last; they are free-standing points.
+- Keep every `node_id` unique and leave `world.next_node_id` above the highest.
 
-Ideogram generates, BiRefNet `lucida` cuts out, the result is scaled so that
-its intended grid footprint × 256 gives its pixel size, then written into our
-own pack folder with a `default.dungeondraft_tags`, a `preview.png` and a
-`pack.json`, and packed.
+Caves are their own branch of this step and depend on UNKNOWN-1.
+
+### Step 5 - the prop foundry
+
+Ideogram generates, BiRefNet `lucida` cuts the background out, the result is
+scaled so its intended grid footprint x 256 gives its pixel size, then written
+into our own pack folder with a `default.dungeondraft_tags`, a `preview.png`
+and a `pack.json`, and packed.
 
 Packing needs either `Dungeondraft-GoPackager` (a CLI binary, the pragmatic
-choice) or our own Godot PCK writer (we already read the format; writing it is
-maybe another eighty lines, and removes an external dependency). Decide when
+choice) or our own Godot PCK writer - we already read the format, and writing
+it is perhaps another eighty lines, with no external dependency. Decide when
 you get there. Reading is proved; writing is not.
 
-Reuse from the frozen branch: `build_ideogram` and `make_cutout` graph builders
-from `tools/tile_backends.py`, `prop_prompt` from `tools/tilegen.py`, and
-`tools/check_library.py` as the quality gate — a refusal card is grey where
-real art is not, calibrated 10 for 10 on real samples. Ideogram does refuse
-some prompts; the schema-shaped caption already cut that from two in three to
-one in four.
+Reuse from the frozen branch: the `build_ideogram` and `make_cutout` graph
+builders from `tools/tile_backends.py`, `prop_prompt` from `tools/tilegen.py`,
+and `tools/check_library.py` as the quality gate - a refusal card is grey where
+real art is not, calibrated ten out of ten on real samples. Ideogram does
+refuse some prompts; the schema-shaped caption already cut that from two in
+three to one in four.
 
 *Done when:* a prop the packs do not have appears on the assembled map, at the
 right size, with a clean edge.
 
-### Step 6 — checks
+### Step 6 - checks
 
 Run the thirteen scenes in `tools/scenes/` through the assembler and report,
-per scene, how many plan elements found an asset and how many were generated.
-That is the regression suite for this project and it should stay that way.
-
----
+per scene, how many plan elements found an asset and how many had to be
+generated. That is this project's regression suite and it should stay that way.
 
 ## 9. Gotchas, each of which has already bitten
 
