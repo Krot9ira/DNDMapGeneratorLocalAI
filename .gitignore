@@ -12,6 +12,16 @@
 /output/*
 !/output/.gitkeep
 
+# The tile library for the tiled render backend: an SQLite database and a tree
+# of PNGs, rebuilt from styles/ by tools/tilegen.py. It is generated art, it is
+# large, and it is machine-local - the repository holds the recipe, not the
+# output of running it.
+/assets/
+
+# Scratch. Masks, sheets, cut tiles, contact sheets, anything a tool needed to
+# write down on the way to a result. Safe to delete at any time.
+/temp/
+
 # Python
 __pycache__/
 *.py[cod]
