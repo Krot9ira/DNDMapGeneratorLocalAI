@@ -49,7 +49,7 @@ repeated.
 | Dungeondraft install | `D:\programs\dungeondraft\Dungeondraft` |
 | Main data pack | `Dungeondraft.pck` — Godot 3.4.2, 4857 entries |
 | User config | `C:\Users\kahas\AppData\Roaming\Dungeondraft\config.ini` |
-| User asset packs | `D:\programs\dungeondraft\assets` (from `custom_assets_directory`) |
+| User asset packs | read `custom_assets_directory` from the config - it was `D:\programs\dungeondraft\assets`, then `F:\assets`, in one afternoon |
 | Thumbnail cache | `%APPDATA%\Dungeondraft\.thumbnails` — 1947 files |
 | Mods folder | `<install>\mods`, ships one example mod (`custom_snap`) |
 | Asset pack template | `<install>\example_template.zip` |
@@ -68,40 +68,54 @@ active_mods=[  ]
 `disable_default_assets=false` means **the built-in assets are in play too**
 and must be indexed alongside the packs.
 
-### 2.2 The asset packs, counted
+### 2.2 The asset packs, and their real scale
 
-Measured by walking `D:\programs\dungeondraft\assets`:
+**Every number here is a snapshot of a moving target.** Over one afternoon the
+asset directory moved from `D:\programs\dungeondraft\assets` to `F:\assets`,
+the pack count went 146 -> 8 -> 154 as packs were reinstalled, and the active
+list in `config.ini` went from 110 ids to 133. **Read `custom_assets_directory`
+and `active_asset_packs` from the config on every run, hard-code nothing, and
+re-scan rather than trusting a cached count.**
 
-- **146** `.dungeondraft_pack` files on disk.
-- **125** unique pack ids. **20 ids appear in more than one file** — the same
-  pack saved twice under different names (`Skront's Bakery` and
-  `Skront_s Bakery`, `HellScape - Lights` and `HellScape+-+Lights`). Dedupe by
-  id, not by filename.
-- `config.ini` lists **110** active ids; **109** match a file on disk. The id
-  **`bdd7mqo6` has no pack file** — a pack that was enabled and later removed.
-  Report it, do not crash on it.
-- Across the 109 enabled packs: **22 131 textures.**
+At the last measurement:
+
+| | |
+|---|---|
+| pack files on disk | 154 |
+| unique pack ids | 133 |
+| active in `config.ini` | 133 |
+| matched to a file | 132 |
+| enabled but absent | 1 (`bdd7mqo6`) - report, do not crash |
+| textures in enabled packs | **264 599**, about 21 GiB |
 
 | Category | Count |
 |---|---|
-| objects | 17 429 |
-| portals | 914 |
-| paths | 755 |
-| walls | 755 |
-| patterns | 735 |
-| tilesets | 493 |
-| terrain | 437 |
-| lights | 403 |
-| roofs | 164 |
-| materials | 30 |
-| caves | 16 |
+| **objects** | **248 011** (12.1 GiB) |
+| paths | 3 952 |
+| patterns | 3 816 |
+| terrain | 3 192 |
+| portals | 2 098 |
+| walls | 1 621 |
+| tilesets | 864 |
+| lights | 717 |
+| roofs | 244 |
+| caves | 52 |
+| materials | 32 |
+| *everything except objects* | *16 588 (9.2 GiB)* |
 
-Built-in assets inside `Dungeondraft.pck` add: objects 1792, paths 44,
-portals 39, roofs 32, materials 25, tilesets 24, walls 20, terrain 13, caves 4,
-lights 3.
+Three packs account for most of it: `FA_Objects_A_v3.54` alone holds 129 098
+textures, `WFW Fantasy A 2.01` 44 124, `FA_Objects_B_v3.93` 41 402.
 
-**So the index will hold roughly 19 200 objects and about 24 000 assets in
-total.** Design for that number, not for a hundred.
+**File types: 249 587 `.webp`, 14 255 `.png`, 757 `.jpg`.** The documentation
+says PNG; reality is overwhelmingly WebP. Pillow reads WebP, but anything that
+assumes `.png` will silently index almost nothing.
+
+**The md5 field in the PCK file table is all zeros** - Dungeondraft does not
+fill it. Content identity has to be hashed by us, from the bytes.
+
+**There is almost no duplication to exploit.** Of 248 011 object textures,
+247 903 are unique by name and size: 108 duplicates, 0.04 %. Do not plan around
+dedup saving the enrichment run - it will not.
 
 ### 2.3 A pack is a Godot 3 PCK, and it opens with sixty lines of Python
 
@@ -145,18 +159,83 @@ segment. Both forms appear in map files verbatim.
 `Dungeondraft-GoPackager` and `DDTools` exist and do the same job; we do not
 need them for reading. We may need a packer for step 5 — see §8.5.
 
-### 2.4 The map file, as far as it is known
+### 2.4 The map file - read from three real maps
 
-`.dungeondraft_map` is Godot-flavoured JSON. Under `world/levels` sit
-`terrain`, `materials`, `patterns`, `walls`, `portals`, `paths`, `objects`,
-`roofs`. The header carries an `asset_manifest` listing every pack the map
-depends on.
+Read from `D:\programs\dungeondraft\maps\Ravine Bridge*.dungeondraft_map`.
+`.dungeondraft_map` is Godot-flavoured JSON, and vectors and arrays are
+**strings**: `Vector2( 960.533, 1052.2 )`, `PoolVector2Array( x1, y1, ... )`,
+`PoolByteArray( ... )`, `PoolIntArray( ... )`.
 
-Vectors are **strings**, not arrays: `"Vector2( 960.533, 1052.2 )"`, and point
-lists are `"PoolVector2Array( x1, y1, x2, y2, ... )"`.
+Top level is two keys, `header` and `world`:
 
-The object and pathway entries are confirmed exactly, read out of the example
-prefabs Dungeondraft ships in `res://prefabs/Examples/*.dungeondraft_prefab`:
+```
+header
+  creation_build      "1.1.0.0 newborn phoenix"
+  creation_date       { year, month, day, weekday, dst, hour, minute, second }
+  uses_default_assets bool
+  asset_manifest      [ one entry per pack the map uses ]
+  editor_state        camera, palettes, tag memory - cosmetic
+world
+  format              3        <- the version number to write
+  width, height       25, 30   <- in grid cells
+  next_node_id, next_prefab_id
+  msi                 { offset_map_size, max_offset_distance, cell_size, seed }
+  grid                { color, texture }
+  wall_shadow, object_shadow, building_wear, trace_image_visible
+  embedded            {}
+  levels              { "0": { ... } }   <- keyed by string index
+```
+
+An `asset_manifest` entry:
+
+```json
+{ "name": "CH - Season Summer", "id": "3DDXdf2M", "version": "0,8",
+  "author": "Crosshead", "keywords": null,
+  "allow_3rd_party_mapping_software_to_read": false,
+  "custom_color_overrides": { } }
+```
+
+**`allow_3rd_party_mapping_software_to_read` is a licence flag set by the pack
+author, and it travels inside the map file itself.** Some packs set it to
+false. Honour it - see section 9.
+
+A level holds these keys:
+
+```
+label         str                  environment { baked_lighting, ambient_light }
+layers        { "-400": "Below Ground", "-100": "Below Water",
+                "100".."400": user layers, "700": "Above Walls",
+                "900": "Above Roofs" }
+terrain       { enabled, expand_slots, smooth_blending,
+                texture_1 .. texture_8, splat, splat2 }
+tiles         { cells, colors, lookup }
+cave          { bitmap, entrance_bitmap, ground_color, wall_color, texture }
+water         { disable_border }      shapes { polygons: [], walls: [] }
+materials {}  patterns []  paths []   objects []  walls []  portals []
+lights []     texts []     roofs { shade, shade_contrast, sun_direction, roofs }
+```
+
+**Terrain is a splatmap, and that is good news.** Up to eight texture slots and
+two `PoolByteArray` splats. On a 25 x 30 map each splat is exactly 48 000 bytes
+= 4 channels x 12 000 samples = 4 channels x (100 x 120), which is **four
+samples per grid cell per axis**. `splat` carries the weights for textures 1-4,
+`splat2` for textures 5-8; values run 0-255. A grid of blend weights is far
+easier to write from our plan than the polygon soup this could have been.
+
+**Tiles are a plain grid.** `tiles.cells` is a `PoolIntArray` of exactly
+`width * height` ints in row order, `-1` meaning empty, otherwise an index into
+`tiles.lookup`, a map from index string to texture path. This is the closest
+thing in the format to our own plan grid.
+
+**Caves are a bitmap.** `cave.bitmap` and `cave.entrance_bitmap` are
+`PoolByteArray`s, 1584 bytes each on a 25 x 30 map. The layout is **UNKNOWN**:
+all three sample maps have empty caves, so every byte is zero and the
+dimensions cannot be inferred. 1584 does not factor cleanly against 25 x 30 at
+1x, 2x or 4x. Do not guess - get a map with a cave drawn on it.
+
+The object, pathway and pattern-shape entries are confirmed exactly, read out
+of the example prefabs Dungeondraft ships at
+`res://prefabs/Examples/*.dungeondraft_prefab` inside `Dungeondraft.pck`:
 
 ```json
 { "position": "Vector2( 960.533, 1052.2 )",
@@ -188,10 +267,13 @@ prefabs Dungeondraft ships in `res://prefabs/Examples/*.dungeondraft_prefab`:
 
 Facts to take from those:
 
-- **`rotation` is radians.** `1.570796` is π/2, `0.785398` is π/4.
-- `layer` is 100 for objects, 200 for pathways, 300 for pattern shapes.
+- **`rotation` is radians.** 1.570796 is pi/2, 0.785398 is pi/4.
+- `layer` is 100 for objects, 200 for pathways, 300 for pattern shapes, and the
+  level's `layers` map names every legal value.
 - `custom_color` is optional, ARGB hex.
-- `edit_points` / `points` are **relative to `position`**, flat x,y pairs.
+- `edit_points` and `points` are **relative to `position`**, flat x,y pairs.
+- Asset paths appear verbatim: `res://packs/<id>/textures/...` for pack assets,
+  `res://textures/...` for built-ins.
 
 ### 2.5 The unit is 256
 
@@ -264,33 +346,30 @@ in-app "Import plan" button once the file path works.
 
 ## 3. What is still UNKNOWN
 
-**UNKNOWN-1 — the full map file schema.** We have `objects`, `pathways` and
-`pattern_shapes` exactly. We do **not** have the encoding of `terrain`,
-`materials`, `walls`, `portals`, `tilesets`, `roofs`, `lights`, nor the
-top-level header, the format version field, or the level structure.
+Reading three real maps answered most of the format. What remains:
 
-*How to resolve:* create a small map by hand in Dungeondraft containing two
-different terrains, one wall run, one door, one window, several objects and one
-light; save it; read the JSON. This is step 0 and blocks steps 3 onward.
+**UNKNOWN-1 - walls, portals, lights, materials and `shapes.polygons`.** All
+three sample maps are outdoor ravine scenes and every one of those lists is
+empty, so the shape of their entries is unknown. Everything else about a level
+is known.
 
-**UNKNOWN-2 — how terrain is represented.** This is the biggest risk in the
-plan. Objects are points and are easy. Terrain is very likely a mesh, a
-polygon set or a painted bitmap rather than a grid, and if it is painful, v1
-should ship objects and walls onto a hand-picked terrain and still save most of
-the work. Decide after step 0, not before.
+*How to resolve:* one more hand-made map containing a wall run, a door, a
+window, a light, a material area and a cave region. Twenty minutes in
+Dungeondraft settles the rest of the format.
 
-**UNKNOWN-3 — are pack ids stable across machines?** Texture paths embed the id
-(`res://packs/C7GVCedk/...`). If a pack gets a different id on a different
-install, maps we write are not portable and every path must be resolved
-against the local index at write time. Check by comparing a pack's id against
-its published id, or simply always resolve locally — which is the safe
-behaviour regardless.
+**UNKNOWN-2 - the cave bitmap layout.** 1584 bytes on a 25 x 30 map, every byte
+zero. Needs a map with a cave actually drawn. This matters more than it looks:
+in a cave scene the walls *are* the cave bitmap, not the `walls` list - which
+is very likely how our own cave styles will have to be built.
 
-**UNKNOWN-4 — what `DungeondraftConsole.exe` does.** It ships in the install
-folder. If it can render or convert headlessly, it changes step 6. Worth ten
-minutes; not worth blocking on.
+**UNKNOWN-3 - are pack ids stable across machines?** Texture paths embed the id.
+If a pack gets a different id on another install, maps we write are not
+portable. The safe behaviour is to resolve every path against the local index
+at write time, which costs nothing and removes the question.
 
----
+**UNKNOWN-4 - what `DungeondraftConsole.exe` does.** It ships in the install
+folder. If it renders or converts headlessly it changes step 6. Ten minutes of
+work to find out, not a blocker.
 
 ## 4. Architecture
 
@@ -427,26 +506,63 @@ invention is indistinguishable from an answer once it is in the database.
 Low-confidence rows are not failures — they are a work queue. Never let a
 low-confidence guess silently become the reason a prop was chosen.
 
-### 5.5 Measure before you run 19 000 of them
+### 5.5 248 000 objects will not fit through a blanket vision pass
 
-**Do not start the full pass until the quality is known.** The pass is five to
-ten hours and its output is cached; running it blind means discovering the
-problem after paying for it.
+This is the number that decides the design, so do the arithmetic before writing
+any code. At one to two seconds per asset, **248 011 objects is 70 to 140 hours
+of continuous inference.** That is not an overnight job, dedup will not rescue
+it (section 2.2), and a run that long will be interrupted.
 
-1. Take a **stratified sample of ~200 assets** — across categories, across
-   packs, across sizes, deliberately including the awkward ones (very small,
-   very wide, mostly transparent, near-monochrome).
+Everything that is *not* an object is a different story: **16 588 assets**
+across terrain, walls, portals, paths, patterns, tilesets and lights - roughly
+five to nine hours, one real overnight run. And those are precisely the assets
+that decide whether a map looks like the style it claims: terrain and walls are
+the look; a barrel is a detail.
+
+So the enrichment is tiered, and the tiers are not an optimisation - they are
+the design:
+
+**Tier 0 - free, everything, no model.** Pack name, folder path, file name,
+pack tags, plus the measured facts from section 5.1. Dungeondraft packs are
+organised: paths like `textures/objects/supplies/crates/fruit_box_05.webp`
+carry real signal, and Forgotten Adventures and WFW have disciplined trees.
+This alone is a usable shortlist index, and it costs one scan.
+
+**Tier 1 - vision, all 16 588 non-objects, run once.** Terrain, walls, portals,
+paths, patterns, tilesets, lights. Overnight. These are what style matching
+turns on.
+
+**Tier 2 - vision, objects, on demand.** The matcher shortlists candidates out
+of Tier 0, and only the shortlist gets looked at - then cached forever. The
+working set converges on what this user's maps actually need instead of paying
+for a warehouse they will never open. Run it as a background queue, seeded by
+what the plans ask for.
+
+**A measurement worth taking first:** FA's 129 098 textures are not 129 098
+distinct objects - packs like that ship many recolours and variants of one
+piece. Group object paths by folder plus base name with trailing variant
+suffixes stripped, count the groups, and if the collapse is large, enrich one
+representative per group and propagate. If it is not large, Tier 2 stands as
+described. **Measure it; do not assume it either way.**
+
+### 5.5b Measure quality before running any tier at scale
+
+Whichever tier is running, the same discipline applies, because the output is
+cached and a bad pass is paid for twice.
+
+1. Take a **stratified sample of ~200 assets** - across categories, packs and
+   sizes, deliberately including the awkward ones: very small, very wide,
+   mostly transparent, near-monochrome.
 2. Run the enrichment on those 200.
 3. **A human reads all 200** against their thumbnails and marks each right,
-   partly right, or wrong. Two hundred is an hour's work and it is the
-   cheapest hour in this project.
+   partly right or wrong. Two hundred is an hour and it is the cheapest hour in
+   this project.
 4. Fix the prompt, the thumbnail rendering or the vocabulary. Bump
    `prompt_version`. Repeat.
-5. Only when the sample is convincing does the full run start.
+5. Only then start a tier at scale.
 
-Keep the labelled 200 in the repository as a fixture. Every later prompt change
-gets re-scored against it, so "I improved the prompt" becomes a number instead
-of a feeling.
+Keep the labelled 200 in the repository as a fixture, so that "I improved the
+prompt" becomes a number instead of a feeling.
 
 ### 5.6 Checks that run after the full pass
 
@@ -717,6 +833,19 @@ That is the regression suite for this project and it should stay that way.
   the spacing Dungeondraft writes; do not assume it is cosmetic until proved.
 - **Do not extract full textures to disk.** Read, measure, thumbnail, discard.
 - **Never generate terrain or walls.** Props only. This is the whole point.
+- **Assets are WebP, not PNG.** 249 587 webp against 14 255 png. Match on
+  category and folder, never on extension.
+- **The PCK md5 field is zeros.** Hash content yourself if you need identity.
+- **The asset directory moves and the active list changes.** Both came from
+  `config.ini` and both changed during a single afternoon. Re-read, never
+  cache.
+- **Nine enabled packs set `allow_3rd_party_mapping_software_to_read` to
+  false** - among them several Caeora packs and `[NBS1]`/`[NBS2]`. The flag is
+  set by the pack author, it travels in `pack.json` and in the map file's
+  `asset_manifest`, and it is a licence term, not a hint. **Honour it: do not
+  index, describe, thumbnail or reference the contents of a pack that says no.**
+  Record that the pack was skipped and why, and tell the user which of their
+  packs are unavailable to us and that this is the author's choice.
 - **Never copy a third-party pack's art.** We reference assets by `res://` path
   and the map's `asset_manifest` names the packs. Only props we generate go
   into a pack of ours. State this before anything ships.
