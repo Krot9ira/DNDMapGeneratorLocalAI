@@ -136,6 +136,105 @@ def make_procedural_prop(
     return final_img
 
 
+def make_prop_ideogram_caption(kind: str, style: str = "default", description: str = "") -> str:
+    """Build Ideogram 4 spatial JSON caption for rendering an isolated tabletop prop."""
+    desc = description or f"A detailed {kind.replace('_', ' ')} for a tabletop battlemap"
+    caption_dict = {
+        "background": "A solid plain flat pure uniform white background with zero texture, zero shadow, zero gradient.",
+        "elements": [
+            {
+                "box_2d": [100, 100, 900, 900],
+                "label": kind.replace("_", " "),
+                "description": (
+                    f"Top-down directly overhead view of a single isolated {kind.replace('_', ' ')}, "
+                    f"{desc}, {style} style, tabletop RPG battlemap prop, completely centered, "
+                    f"crisp clean edges, isolated on solid white background, no floor, no people, no creatures."
+                ),
+            }
+        ],
+    }
+    return json.dumps(caption_dict, ensure_ascii=False)
+
+
+def render_comfy_prop(
+    kind: str,
+    style: str = "default",
+    description: str = "",
+    grid_w: float = 1.0,
+    grid_h: float = 1.0,
+    seed: int = 42,
+    base_url: str = "http://127.0.0.1:8188",
+) -> Optional[Image.Image]:
+    """Attempt to render a standalone prop using ComfyUI Ideogram 4 + Rembg cutout."""
+    try:
+        from comfy import ComfyClient
+        from workflow import build_ideogram4
+
+        client = ComfyClient(base_url=base_url)
+        ok, _ = client.health()
+        if not ok:
+            return None
+
+        # Load app config
+        config_path = PROJECT_ROOT / "config.json"
+        cfg = json.loads(config_path.read_text(encoding="utf-8")) if config_path.exists() else {}
+
+        # Use fast turbo/default preset for single prop sprite
+        ideogram_cfg = dict(cfg.get("ideogram", {}))
+        ideogram_cfg["preset"] = "Turbo"
+        ideogram_cfg["steps"] = 16
+        cfg_prop = dict(cfg)
+        cfg_prop["ideogram"] = ideogram_cfg
+
+        caption_json = make_prop_ideogram_caption(kind=kind, style=style, description=description)
+        graph = build_ideogram4(cfg_prop, caption_json=caption_json, seed=seed, width=768, height=768)
+
+        print(f"[foundry] Queuing Ideogram render in ComfyUI for prop '{kind}'...")
+        prompt_id = client.queue_prompt(graph)
+        outputs = client.wait(prompt_id, timeout=300)
+
+        # Download rendered image
+        import tempfile
+        with tempfile.TemporaryDirectory() as tmpdir:
+            images = client.get_images(outputs, tmpdir)
+            if not images:
+                return None
+            raw_img = Image.open(images[0]).convert("RGBA")
+
+        # Background cutout via rembg
+        try:
+            import rembg
+            cutout_img = rembg.remove(raw_img, alpha_matting=True)
+        except Exception:
+            cutout_img = raw_img
+
+        # Crop to content bounding box
+        bbox = cutout_img.getbbox()
+        if bbox:
+            cutout_img = cutout_img.crop(bbox)
+
+        # Scale to fit intended grid cell dimensions (256px / cell)
+        target_w = int(max(64, round(grid_w * 256)))
+        target_h = int(max(64, round(grid_h * 256)))
+
+        cur_w, cur_h = cutout_img.size
+        scale = min(target_w / cur_w, target_h / cur_h)
+        scaled_w = max(1, int(cur_w * scale))
+        scaled_h = max(1, int(cur_h * scale))
+        resized = cutout_img.resize((scaled_w, scaled_h), Image.LANCZOS)
+
+        # Place onto transparent canvas
+        final_canvas = Image.new("RGBA", (target_w, target_h), (0, 0, 0, 0))
+        off_x = (target_w - scaled_w) // 2
+        off_y = (target_h - scaled_h) // 2
+        final_canvas.paste(resized, (off_x, off_y), resized)
+
+        return final_canvas
+    except Exception as exc:
+        print(f"[foundry] ComfyUI generation failed for {kind} ({exc}); using procedural generator")
+        return None
+
+
 class PropFoundry:
     """Foundry for creating, cataloguing and packaging custom props into Dungeondraft packs."""
 
@@ -177,6 +276,7 @@ class PropFoundry:
         grid_w: float = 1.0,
         grid_h: float = 1.0,
         seed: int = 42,
+        force_procedural: bool = False,
     ) -> Dict[str, Any]:
         """Generate a single prop, write PNG, and record in generated_props table."""
         clean_name = kind.lower().replace(" ", "_")
@@ -189,8 +289,25 @@ class PropFoundry:
         style_dir.mkdir(parents=True, exist_ok=True)
         png_path = style_dir / prop_filename
 
-        # Generate sprite
-        img = make_procedural_prop(kind=kind, style=style, grid_w=grid_w, grid_h=grid_h, seed=seed)
+        # 1. Try ComfyUI Ideogram + Rembg cutout
+        img = None
+        backend = "procedural_foundry"
+        if not force_procedural:
+            img = render_comfy_prop(
+                kind=kind,
+                style=style,
+                description=description,
+                grid_w=grid_w,
+                grid_h=grid_h,
+                seed=seed,
+            )
+            if img is not None:
+                backend = "ideogram_comfyui_rembg"
+
+        # 2. Fallback to procedural generator
+        if img is None:
+            img = make_procedural_prop(kind=kind, style=style, grid_w=grid_w, grid_h=grid_h, seed=seed)
+
         img.save(png_path, "PNG")
 
         metrics = analyze_image(img)
@@ -206,7 +323,7 @@ class PropFoundry:
             "png_path": str(png_path),
             "grid_w": grid_w,
             "grid_h": grid_h,
-            "backend": "procedural_foundry",
+            "backend": backend,
             "seed": seed,
             "packed_into": PACK_ID,
             "created_at": int(time.time()),

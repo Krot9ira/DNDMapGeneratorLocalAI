@@ -160,6 +160,22 @@ def cmd_dungeondraft(args):
 
     res = agent_api.assemble_dungeondraft(args.map, out_path=out, seed=args.seed or 42)
     rep = res["report"]
+    unmatched = rep.get("unmatched_props", [])
+
+    if getattr(args, "auto_foundry", False) and unmatched:
+        from dungeondraft_foundry import PropFoundry
+        style = rep.get("style", "default")
+        print(f"[foundry] Auto-generating {len(unmatched)} missing props with Ideogram & Rembg...")
+        foundry = PropFoundry()
+        try:
+            foundry.satisfy_unmatched(unmatched, style=style)
+        finally:
+            foundry.close()
+        # Re-assemble with newly generated props now in database
+        res = agent_api.assemble_dungeondraft(args.map, out_path=out, seed=args.seed or 42)
+        rep = res["report"]
+        unmatched = rep.get("unmatched_props", [])
+
     print(f"[dungeondraft] map:    {res['map_path']}")
     print(f"[dungeondraft] report: {res['report_path']}")
     print(f"[dungeondraft] walls:  {rep.get('walls_placed', 0)} | doors: {rep.get('portals_placed', 0)} "
@@ -167,7 +183,6 @@ def cmd_dungeondraft(args):
           f"| packs: {len(rep.get('packs_referenced', []))}")
     print(f"[dungeondraft] props matched: {rep.get('props_matched_by_description', 0)} from the "
           f"catalogue, {rep.get('props_matched_by_name', 0)} from the file name alone")
-    unmatched = rep.get("unmatched_props", [])
     if unmatched:
         print(f"[dungeondraft] {len(unmatched)} plan props found no asset: "
               + ", ".join(sorted({u['kind'] for u in unmatched})))
@@ -248,6 +263,7 @@ def main():
 
     p = sub.add_parser("dungeondraft", help="assemble a native .dungeondraft_map file")
     p.add_argument("map")
+    p.add_argument("--auto-foundry", action="store_true", help="auto-generate missing props via ComfyUI/Foundry")
     add_common(p)
 
     p = sub.add_parser("auto", help="stage 1 then stage 2, sequentially")

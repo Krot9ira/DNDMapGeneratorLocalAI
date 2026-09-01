@@ -2717,12 +2717,16 @@ static void StartDungeondraftExport() {
 
     int seed = g_app.ddRandomSeed ? (int)(std::chrono::system_clock::now().time_since_epoch().count() & 0x7FFFFFFF) : g_app.ddSeed;
     bool autoOpen = g_app.ddAutoOpen;
+    bool autoFoundry = g_app.ddAutoFoundry;
     std::string appPath = g_app.config.dungeondraft.app_path;
 
-    std::thread([mapPath, outPath, seed, autoOpen, appPath]() {
+    std::thread([mapPath, outPath, seed, autoOpen, autoFoundry, appPath]() {
         Job& job = g_app.job;
         job.Log("Exporting plan: " + mapPath + " -> " + outPath);
         std::string cmd = "python -u tools/pipeline.py dungeondraft \"" + mapPath + "\" --out \"" + outPath + "\" --seed " + std::to_string(seed);
+        if (autoFoundry) {
+            cmd += " --auto-foundry";
+        }
         job.Log("Running: " + cmd);
 
         bool ok = RunProcessCapture(cmd, "", [&](const std::string& line) {
@@ -2887,6 +2891,24 @@ static void StartDungeondraftValidate() {
     }).detach();
 }
 
+static void StartDungeondraftFoundrySatisfy(const std::string& exportPath) {
+    std::string reportPath = fs::path(exportPath).replace_extension(".report.json").string();
+    if (!fs::exists(reportPath)) return;
+    if (!BeginJob("Generating missing props via Foundry (Ideogram + Cutout)...")) return;
+
+    std::thread([reportPath]() {
+        Job& job = g_app.job;
+        std::string cmd = "python -u tools/dungeondraft_foundry.py satisfy \"" + reportPath + "\"";
+        job.Log("Running: " + cmd);
+        bool ok = RunProcessCapture(cmd, "", [&](const std::string& line) {
+            job.Log(line);
+        });
+        RefreshDungeondraftStatsAsync();
+        FinishJob(ok, ok ? "Foundry generation and pack assembly complete! Export again to place new props."
+                         : "Foundry generation failed - see log.");
+    }).detach();
+}
+
 static void TabDungeondraft() {
     if (!g_app.ddDbStatsLoaded) {
         RefreshDungeondraftStatsAsync();
@@ -2933,6 +2955,9 @@ static void TabDungeondraft() {
         ImGui::InputInt("Seed##ddseed", &g_app.ddSeed);
     }
 
+    ImGui::Checkbox("Auto-render missing props via Foundry (Ideogram + Cutout)", &g_app.ddAutoFoundry);
+    ImGui::SetItemTooltip("If any prop in the plan has no match in your asset packs, automatically render it via ComfyUI Ideogram 4, cut out its background, and package it into a custom .dungeondraft_pack.");
+
     if (!g_app.config.dungeondraft.app_path.empty()) {
         ImGui::Checkbox("Launch in Dungeondraft when done", &g_app.ddAutoOpen);
     }
@@ -2962,6 +2987,11 @@ static void TabDungeondraft() {
         if (g_app.ddUnmatchedProps > 0) {
             ImGui::TextColored(ImVec4(0.95f, 0.75f, 0.35f, 1.0f),
                                "%d plan props found no asset and were left out.", g_app.ddUnmatchedProps);
+            ImGui::BeginDisabled(g_app.job.running.load());
+            if (ImGui::Button("Render Missing Props Now with Foundry", ImVec2(-1, 30))) {
+                StartDungeondraftFoundrySatisfy(g_app.ddLastExportFile);
+            }
+            ImGui::EndDisabled();
         }
 
         ImGui::Spacing();

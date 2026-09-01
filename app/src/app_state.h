@@ -145,6 +145,7 @@ struct AppState {
     int ddSeed = 42;
     bool ddRandomSeed = true;
     bool ddAutoOpen = false;
+    bool ddAutoFoundry = true;
     std::string ddLastExportFile;
     std::string ddLastReportJson;
     int ddPlacedWalls = 0;
