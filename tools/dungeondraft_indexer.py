@@ -16,6 +16,12 @@ import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Set, Tuple
 
+if hasattr(sys.stdout, "reconfigure"):
+    try:
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    except (ValueError, OSError):
+        pass
+
 from paths import ROOT as PROJECT_ROOT
 from dungeondraft_pck import PckReader, PckError
 from dungeondraft_db import (
@@ -448,9 +454,6 @@ class DungeondraftIndexer:
                         self.db.conn.execute("UPDATE assets SET state = 'gone' WHERE pack_id = ?;", (pid,))
 
         return results
-
-        return results
-
 
     def validate(self, assets_dir=None) -> Dict[str, Any]:
         """Compare the index against the packs on disk and the enrichment it has.

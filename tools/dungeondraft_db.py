@@ -244,6 +244,13 @@ class AssetDatabase:
     def close(self):
         self.conn.close()
 
+    def get_packs(self) -> Dict[str, dict]:
+        """Return dict of pack_id -> pack_dict."""
+        cur = self.conn.cursor()
+        cur.execute("SELECT id, name, author, version, file_path, file_size, file_mtime, is_builtin, enabled, duplicate_of, indexed_at, scan_version FROM packs;")
+        cols = [col[0] for col in cur.description]
+        return {row[0]: dict(zip(cols, row)) for row in cur.fetchall()}
+
     def upsert_pack(self, pack_dict: dict):
         """Insert or update pack metadata."""
         with self.conn:
