@@ -22,6 +22,11 @@
       "steps": 48
     }
   },
+  "dungeondraft": {
+    "vision_model": "gemma4:12b",
+    "custom_assets_dir": "D:\\programs\\dungeondraft\\assets",
+    "app_path": "D:\\programs\\dungeondraft\\Dungeondraft\\Dungeondraft.exe"
+  },
   "default_style": "city_harbour",
   "default_size": "medium",
   "styles_dir": "styles",

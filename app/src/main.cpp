@@ -10,6 +10,8 @@
 #define NOMINMAX  // windows.h min/max macros break std::min/std::max
 #include <windows.h>
 #include <commdlg.h>
+#include <shellapi.h>
+#include <shlobj.h>
 #include <d3d11.h>
 
 #include <imgui.h>
@@ -31,7 +33,6 @@
 #include "ollama_service.h"
 
 #include <algorithm>
-#include <algorithm>
 #include <chrono>
 #include <filesystem>
 #include <fstream>
@@ -42,6 +43,7 @@
 
 #pragma comment(lib, "d3d11.lib")
 #pragma comment(lib, "dxgi.lib")
+#pragma comment(lib, "shell32.lib")
 
 namespace fs = std::filesystem;
 using namespace dnd;
@@ -52,6 +54,7 @@ static ID3D11DeviceContext* g_context = nullptr;
 static IDXGISwapChain* g_swapChain = nullptr;
 static ID3D11RenderTargetView* g_rtv = nullptr;
 static UINT g_resizeW = 0, g_resizeH = 0;
+static HWND g_hwnd = nullptr;
 
 static AppState g_app;
 static ID3D11ShaderResourceView* g_resultTex = nullptr;
@@ -2497,6 +2500,567 @@ static void TabRender() {
     ImGui::EndChild();
 }
 
+// ---------------------------------------------------------------- Dungeondraft export & tools
+static bool RunProcessCapture(const std::string& cmdLine, const std::string& workingDir,
+                              const std::function<void(const std::string&)>& onLine) {
+    SECURITY_ATTRIBUTES sa{};
+    sa.nLength = sizeof(sa);
+    sa.bInheritHandle = TRUE;
+
+    HANDLE hRead = NULL, hWrite = NULL;
+    if (!CreatePipe(&hRead, &hWrite, &sa, 0)) return false;
+    SetHandleInformation(hRead, HANDLE_FLAG_INHERIT, 0);
+
+    STARTUPINFOW si{};
+    si.cb = sizeof(si);
+    si.hStdOutput = hWrite;
+    si.hStdError = hWrite;
+    si.dwFlags |= STARTF_USESTDHANDLES | STARTF_USESHOWWINDOW;
+    si.wShowWindow = SW_HIDE;
+
+    PROCESS_INFORMATION pi{};
+    int n = MultiByteToWideChar(CP_UTF8, 0, cmdLine.c_str(), -1, nullptr, 0);
+    std::wstring wcmd(n, 0);
+    MultiByteToWideChar(CP_UTF8, 0, cmdLine.c_str(), -1, wcmd.data(), n);
+
+    std::wstring wwd;
+    if (!workingDir.empty()) {
+        int nwd = MultiByteToWideChar(CP_UTF8, 0, workingDir.c_str(), -1, nullptr, 0);
+        wwd.resize(nwd);
+        MultiByteToWideChar(CP_UTF8, 0, workingDir.c_str(), -1, wwd.data(), nwd);
+    }
+
+    if (!CreateProcessW(nullptr, wcmd.data(), nullptr, nullptr, TRUE,
+                        CREATE_NO_WINDOW, nullptr, wwd.empty() ? nullptr : wwd.c_str(),
+                        &si, &pi)) {
+        CloseHandle(hWrite);
+        CloseHandle(hRead);
+        return false;
+    }
+    CloseHandle(hWrite);
+
+    // Read through PeekNamedPipe rather than a blocking ReadFile, so that Cancel
+    // is answered while the child is still running. Cataloguing a whole asset
+    // library takes days; a cancel button that only takes effect when the job
+    // ends by itself is not a cancel button.
+    char buf[512];
+    std::string lineAcc;
+    bool cancelled = false;
+
+    for (;;) {
+        if (g_app.job.cancel.load()) {
+            TerminateProcess(pi.hProcess, 1);
+            cancelled = true;
+            break;
+        }
+
+        DWORD avail = 0;
+        if (!PeekNamedPipe(hRead, nullptr, 0, nullptr, &avail, nullptr)) break;
+
+        if (avail == 0) {
+            // Nothing waiting. Either the child is still working, or it has
+            // exited and left the pipe empty for good.
+            if (WaitForSingleObject(pi.hProcess, 50) != WAIT_OBJECT_0) continue;
+            if (!PeekNamedPipe(hRead, nullptr, 0, nullptr, &avail, nullptr) || avail == 0) break;
+        }
+
+        DWORD toRead = avail < (DWORD)(sizeof(buf) - 1) ? avail : (DWORD)(sizeof(buf) - 1);
+        DWORD bytesRead = 0;
+        if (!ReadFile(hRead, buf, toRead, &bytesRead, nullptr) || bytesRead == 0) break;
+
+        for (DWORD i = 0; i < bytesRead; ++i) {
+            char c = buf[i];
+            if (c == '\r') continue;
+            if (c == '\n') {
+                if (onLine) onLine(lineAcc);
+                lineAcc.clear();
+            } else {
+                lineAcc.push_back(c);
+            }
+        }
+    }
+    if (!lineAcc.empty() && onLine) onLine(lineAcc);
+
+    WaitForSingleObject(pi.hProcess, INFINITE);
+    DWORD exitCode = 0;
+    GetExitCodeProcess(pi.hProcess, &exitCode);
+    CloseHandle(pi.hProcess);
+    CloseHandle(pi.hThread);
+    CloseHandle(hRead);
+    return !cancelled && exitCode == 0;
+}
+
+static void OpenFolderInExplorer(const std::string& path) {
+    int n = MultiByteToWideChar(CP_UTF8, 0, path.c_str(), -1, nullptr, 0);
+    std::wstring wpath(n, 0);
+    MultiByteToWideChar(CP_UTF8, 0, path.c_str(), -1, wpath.data(), n);
+    ShellExecuteW(nullptr, L"open", wpath.c_str(), nullptr, nullptr, SW_SHOWNORMAL);
+}
+
+static void OpenFileInDungeondraft(const std::string& appPath, const std::string& mapPath) {
+    int na = MultiByteToWideChar(CP_UTF8, 0, appPath.c_str(), -1, nullptr, 0);
+    std::wstring wapp(na, 0);
+    MultiByteToWideChar(CP_UTF8, 0, appPath.c_str(), -1, wapp.data(), na);
+
+    int nm = MultiByteToWideChar(CP_UTF8, 0, mapPath.c_str(), -1, nullptr, 0);
+    std::wstring wmap(nm, 0);
+    MultiByteToWideChar(CP_UTF8, 0, mapPath.c_str(), -1, wmap.data(), nm);
+
+    ShellExecuteW(nullptr, L"open", wapp.c_str(), wmap.c_str(), nullptr, SW_SHOWNORMAL);
+}
+
+static std::string PickFolderDialog(const std::string& title = "Select Folder") {
+    wchar_t path[MAX_PATH] = L"";
+    BROWSEINFOW bi{};
+    bi.hwndOwner = g_hwnd;
+    int nTitle = MultiByteToWideChar(CP_UTF8, 0, title.c_str(), -1, nullptr, 0);
+    std::wstring wTitle(nTitle, 0);
+    MultiByteToWideChar(CP_UTF8, 0, title.c_str(), -1, wTitle.data(), nTitle);
+    bi.lpszTitle = wTitle.c_str();
+    bi.ulFlags = BIF_RETURNONLYFSDIRS | BIF_NEWDIALOGSTYLE;
+    PIDLIST_ABSOLUTE pidl = SHBrowseForFolderW(&bi);
+    if (pidl) {
+        SHGetPathFromIDListW(pidl, path);
+        CoTaskMemFree(pidl);
+        int n = WideCharToMultiByte(CP_UTF8, 0, path, -1, nullptr, 0, nullptr, nullptr);
+        std::string out((size_t)std::max(0, n - 1), 0);
+        WideCharToMultiByte(CP_UTF8, 0, path, -1, out.data(), n, nullptr, nullptr);
+        return out;
+    }
+    return {};
+}
+
+static std::string PickExecutableFile() {
+    wchar_t buf[MAX_PATH] = L"";
+    OPENFILENAMEW ofn{};
+    ofn.lStructSize = sizeof(ofn);
+    ofn.hwndOwner = g_hwnd;
+    ofn.lpstrFilter = L"Executables (*.exe)\0*.exe\0All files\0*.*\0";
+    ofn.lpstrFile = buf;
+    ofn.nMaxFile = MAX_PATH;
+    ofn.lpstrTitle = L"Select Dungeondraft Executable";
+    ofn.Flags = OFN_FILEMUSTEXIST | OFN_PATHMUSTEXIST | OFN_NOCHANGEDIR;
+    if (!GetOpenFileNameW(&ofn)) return {};
+    int n = WideCharToMultiByte(CP_UTF8, 0, buf, -1, nullptr, 0, nullptr, nullptr);
+    std::string out((size_t)std::max(0, n - 1), 0);
+    WideCharToMultiByte(CP_UTF8, 0, buf, -1, out.data(), n, nullptr, nullptr);
+    return out;
+}
+
+static std::string PickDungeondraftSaveFile(const std::string& defaultPath) {
+    wchar_t buf[MAX_PATH] = L"";
+    if (!defaultPath.empty()) {
+        MultiByteToWideChar(CP_UTF8, 0, defaultPath.c_str(), -1, buf, MAX_PATH);
+    }
+    OPENFILENAMEW ofn{};
+    ofn.lStructSize = sizeof(ofn);
+    ofn.hwndOwner = g_hwnd;
+    ofn.lpstrFilter = L"Dungeondraft Map (*.dungeondraft_map)\0*.dungeondraft_map\0All files\0*.*\0";
+    ofn.lpstrFile = buf;
+    ofn.nMaxFile = MAX_PATH;
+    ofn.lpstrDefExt = L"dungeondraft_map";
+    ofn.lpstrTitle = L"Save Dungeondraft Map As";
+    ofn.Flags = OFN_OVERWRITEPROMPT | OFN_PATHMUSTEXIST | OFN_NOCHANGEDIR;
+    if (!GetSaveFileNameW(&ofn)) return {};
+    int n = WideCharToMultiByte(CP_UTF8, 0, buf, -1, nullptr, 0, nullptr, nullptr);
+    std::string out((size_t)std::max(0, n - 1), 0);
+    WideCharToMultiByte(CP_UTF8, 0, buf, -1, out.data(), n, nullptr, nullptr);
+    return out;
+}
+
+static void RefreshDungeondraftStatsAsync() {
+    // The tab asks for these the first time it is drawn, and a failed read used
+    // to leave the "loaded" flag clear - which started a fresh python process on
+    // every frame. One attempt at a time, and a failure counts as an attempt.
+    if (g_app.ddDbStatsRefreshing.exchange(true)) return;
+
+    std::thread([]() {
+        std::string jsonStr;
+        RunProcessCapture("python -u tools/dungeondraft_indexer.py stats --json", "", [&](const std::string& line) {
+            jsonStr += line + "\n";
+        });
+        try {
+            nlohmann::json j = nlohmann::json::parse(jsonStr);
+            g_app.ddDbPacks = j.value("packs", 0);
+            g_app.ddDbActivePacks = j.value("enabled_packs", 0);
+            g_app.ddDbAssets = j.value("assets", 0);
+            g_app.ddDbStockAssets = j.value("stock_assets", 0);
+            g_app.ddDbCustomAssets = j.value("custom_assets", 0);
+            g_app.ddDbEnriched = j.value("enriched", 0);
+            g_app.ddDbStockEnriched = j.value("stock_enriched", 0);
+            g_app.ddDbCustomEnriched = j.value("custom_enriched", 0);
+            g_app.ddDbStatsOk = true;
+        } catch (...) {
+            g_app.ddDbStatsOk = false;
+        }
+        g_app.ddDbStatsLoaded = true;
+        g_app.ddDbStatsRefreshing = false;
+    }).detach();
+}
+
+static void StartDungeondraftExport() {
+    if (!BeginJob("Exporting to Dungeondraft (.dungeondraft_map)...")) return;
+
+    std::string mapPath;
+    if (!SaveCurrentPlan(&mapPath)) {
+        g_app.job.Log("[error] Could not save current map plan to disk.");
+        FinishJob(false, "Export failed - cannot save map.json");
+        return;
+    }
+
+    std::string outPath = g_app.ddOutputPath;
+    if (outPath.empty()) {
+        std::string dir = OutputDir(g_app.map.meta.name);
+        outPath = dir + "/" + g_app.map.meta.name + ".dungeondraft_map";
+        g_app.ddOutputPath = outPath;
+    }
+
+    int seed = g_app.ddRandomSeed ? (int)(std::chrono::system_clock::now().time_since_epoch().count() & 0x7FFFFFFF) : g_app.ddSeed;
+    bool autoOpen = g_app.ddAutoOpen;
+    std::string appPath = g_app.config.dungeondraft.app_path;
+
+    std::thread([mapPath, outPath, seed, autoOpen, appPath]() {
+        Job& job = g_app.job;
+        job.Log("Exporting plan: " + mapPath + " -> " + outPath);
+        std::string cmd = "python -u tools/pipeline.py dungeondraft \"" + mapPath + "\" --out \"" + outPath + "\" --seed " + std::to_string(seed);
+        job.Log("Running: " + cmd);
+
+        bool ok = RunProcessCapture(cmd, "", [&](const std::string& line) {
+            job.Log(line);
+        });
+
+        if (ok && fs::exists(outPath)) {
+            g_app.ddLastExportFile = outPath;
+            g_app.ddExportSuccess = true;
+
+            // The assembler writes its sidecar beside the map with the map's
+            // suffix replaced, not appended: name.dungeondraft_map ->
+            // name.report.json. Reading the appended form found nothing and
+            // silently left every count at zero.
+            std::string reportPath = fs::path(outPath).replace_extension(".report.json").string();
+            if (fs::exists(reportPath)) {
+                try {
+                    std::ifstream rf(reportPath);
+                    nlohmann::json rj;
+                    rf >> rj;
+                    g_app.ddPlacedWalls = rj.value("walls_placed", 0);
+                    g_app.ddPlacedObjects = rj.value("objects_placed", 0);
+                    g_app.ddPlacedPortals = rj.value("portals_placed", 0);
+                    g_app.ddUnmatchedProps = rj.contains("unmatched_props") && rj["unmatched_props"].is_array()
+                                                 ? (int)rj["unmatched_props"].size() : 0;
+                    g_app.ddPropsDescribed = rj.value("props_matched_by_description", 0);
+                    g_app.ddPropsNamed = rj.value("props_matched_by_name", 0);
+                    if (rj.contains("packs_referenced") && rj["packs_referenced"].is_array()) {
+                        g_app.ddReferencedPacksCount = (int)rj["packs_referenced"].size();
+                    }
+                } catch (...) {}
+            } else {
+                job.Log("[warn] No report written next to the map: " + reportPath);
+            }
+
+            job.Log("Dungeondraft export complete: " + outPath);
+            if (autoOpen && !appPath.empty() && fs::exists(appPath)) {
+                job.Log("Opening in Dungeondraft: " + appPath);
+                OpenFileInDungeondraft(appPath, outPath);
+            }
+            // A map with rooms and no furniture is not a success worth reporting
+            // as one: on a machine that has never scanned its packs, that is
+            // exactly what comes out, and the reason is fixable in one click.
+            if (g_app.ddPlacedObjects == 0 && g_app.ddUnmatchedProps > 0) {
+                job.Log("[warn] No asset matched any prop in the plan. Scan your asset packs first.");
+                FinishJob(true, "Map written, but empty - scan your asset packs, then export again.");
+            } else {
+                FinishJob(true, "Dungeondraft map created successfully!");
+            }
+        } else {
+            g_app.ddExportSuccess = false;
+            job.Log("[error] Dungeondraft map export failed. See log output above.");
+            FinishJob(false, "Export failed - see log.");
+        }
+    }).detach();
+}
+
+static void StartDungeondraftScan() {
+    if (!BeginJob("Scanning Dungeondraft asset packs...")) return;
+    std::string assetsDir = g_app.config.dungeondraft.custom_assets_dir;
+
+    std::thread([assetsDir]() {
+        Job& job = g_app.job;
+        std::string cmd = "python -u tools/dungeondraft_indexer.py scan";
+        if (!assetsDir.empty()) {
+            cmd += " --assets-dir \"" + assetsDir + "\"";
+        }
+        job.Log("Running asset scan: " + cmd);
+        bool ok = RunProcessCapture(cmd, "", [&](const std::string& line) {
+            job.Log(line);
+        });
+        RefreshDungeondraftStatsAsync();
+        if (g_app.job.cancel.load()) {
+            FinishJob(false, "Asset pack scan cancelled.");
+            return;
+        }
+        FinishJob(ok, ok ? "Asset pack scan complete!" : "Asset pack scan failed - see log.");
+    }).detach();
+}
+
+static void StartDungeondraftEnrich(const std::string& scope = "all") {
+    std::string scopeTitle = (scope == "stock") ? "Stock/Default Assets" :
+                             (scope == "custom") ? "Custom Pack Assets" : "All Assets";
+    std::string jobName = "Running Vision Model Tagging on " + scopeTitle + "...";
+    if (!BeginJob(jobName.c_str())) return;
+    std::string model = g_app.config.dungeondraft.vision_model;
+    if (model.empty()) model = "gemma4:12b";
+
+    std::thread([model, scope, scopeTitle]() {
+        Job& job = g_app.job;
+        std::string cmd = "python -u tools/dungeondraft_enrich.py --model \"" + model + "\" --scope " + scope;
+        job.Log("Running vision tagging (" + scopeTitle + ") with model " + model + ": " + cmd);
+        bool ok = RunProcessCapture(cmd, "", [&](const std::string& line) {
+            job.Log(line);
+        });
+        RefreshDungeondraftStatsAsync();
+        if (g_app.job.cancel.load()) {
+            job.Log("[info] Stopped. Everything catalogued so far is saved; running again resumes here.");
+            FinishJob(false, scopeTitle + " vision tagging cancelled.");
+            return;
+        }
+        FinishJob(ok, ok ? (scopeTitle + " vision tagging pass complete!") : (scopeTitle + " vision tagging failed - see log."));
+    }).detach();
+}
+
+// The gate in front of the long pass. Two hundred assets, catalogued and
+// scored, so a model that reads file names back at you is caught before it
+// writes a quarter of a million descriptions nobody will re-check.
+static void StartDungeondraftQualityCheck() {
+    if (!BeginJob("Checking cataloguing quality on 200 sampled assets...")) return;
+    std::string model = g_app.config.dungeondraft.vision_model;
+    if (model.empty()) model = "gemma4:12b";
+
+    std::thread([model]() {
+        Job& job = g_app.job;
+        const std::string sheet = "output/enrichment_sample.html";
+        std::string cmd = "python -u tools/check_enrichment_quality.py --model \"" + model +
+                          "\" --sample 200 --out \"" + sheet + "\"";
+        job.Log("Running: " + cmd);
+        bool ok = RunProcessCapture(cmd, "", [&](const std::string& line) { job.Log(line); });
+
+        if (g_app.job.cancel.load()) {
+            FinishJob(false, "Quality check cancelled.");
+            return;
+        }
+        if (ok && fs::exists(sheet)) {
+            job.Log("Contact sheet: " + fs::absolute(sheet).string());
+            OpenFolderInExplorer(fs::absolute(sheet).string());   // opens it in the browser
+        }
+        FinishJob(ok, ok ? "Quality check done - read the numbers and the contact sheet."
+                         : "Quality check failed - see log.");
+    }).detach();
+}
+
+static void StartOllamaPull(const std::string& modelName) {
+    if (modelName.empty()) return;
+    std::string jobName = "Pulling model " + modelName + " into Ollama...";
+    if (!BeginJob(jobName.c_str())) return;
+
+    std::thread([modelName]() {
+        Job& job = g_app.job;
+        std::string cmd = "python -u tools/ollama_client.py pull \"" + modelName + "\"";
+        job.Log("Pulling model from Ollama registry: " + cmd);
+        bool ok = RunProcessCapture(cmd, "", [&](const std::string& line) {
+            job.Log(line);
+        });
+        StartConnectionCheck();
+        FinishJob(ok, ok ? ("Successfully pulled " + modelName + "!") : ("Failed to pull " + modelName + " - see log."));
+    }).detach();
+}
+
+static void StartDungeondraftValidate() {
+    if (!BeginJob("Validating Asset Database...")) return;
+    std::thread([]() {
+        Job& job = g_app.job;
+        std::string cmd = "python -u tools/dungeondraft_indexer.py validate";
+        job.Log("Running: " + cmd);
+        bool ok = RunProcessCapture(cmd, "", [&](const std::string& line) {
+            job.Log(line);
+        });
+        FinishJob(ok, ok ? "Asset DB validation complete!" : "Validation found issues - see log.");
+    }).detach();
+}
+
+static void TabDungeondraft() {
+    if (!g_app.ddDbStatsLoaded) {
+        RefreshDungeondraftStatsAsync();
+    }
+
+    float logH = 160.0f;
+    float leftW = PanelWidth(0.50f, 440.0f, 850.0f);
+
+    ImGui::BeginChild("##dd_left", ImVec2(leftW, -logH), ImGuiChildFlags_Borders);
+    ImGui::TextColored(AccentGold(), "Dungeondraft Map Export");
+    ImGui::TextDisabled("Assemble the current blueprint layout into a native .dungeondraft_map file.");
+    ImGui::Separator();
+
+    // Map summary card
+    ImGui::TextColored(AccentGold(), "Current Layout Blueprint");
+    ImGui::BulletText("Title: %s", g_app.map.meta.title.empty() ? "(untitled)" : g_app.map.meta.title.c_str());
+    ImGui::BulletText("Style: %s | Layout: %s", g_app.map.meta.style.c_str(), g_app.map.meta.layout.c_str());
+    int sb = g_app.map.meta.border;
+    ImGui::BulletText("Grid: %d x %d playable (%d x %d total with %d bleed margin)",
+                      g_app.grid.cols - 2 * sb, g_app.grid.rows - 2 * sb,
+                      g_app.grid.cols, g_app.grid.rows, sb);
+    ImGui::BulletText("Rooms/Areas: %d | Placed props: %d | Annotations: %d",
+                      (int)g_app.map.areas.size(), (int)g_app.features.size(), (int)g_app.annotations.size());
+
+    ImGui::Spacing();
+    ImGui::Separator();
+    ImGui::TextColored(AccentGold(), "Export Settings");
+
+    if (g_app.ddOutputPath.empty() && !g_app.map.meta.name.empty()) {
+        g_app.ddOutputPath = OutputDir(g_app.map.meta.name) + "/" + g_app.map.meta.name + ".dungeondraft_map";
+    }
+
+    InputTextString("Output .dungeondraft_map", &g_app.ddOutputPath);
+    ImGui::SameLine();
+    if (ImGui::Button("Browse...##ddout")) {
+        std::string p = PickDungeondraftSaveFile(g_app.ddOutputPath);
+        if (!p.empty()) g_app.ddOutputPath = p;
+    }
+
+    ImGui::Checkbox("Random variation seed", &g_app.ddRandomSeed);
+    if (!g_app.ddRandomSeed) {
+        ImGui::SameLine();
+        ImGui::SetNextItemWidth(140);
+        ImGui::InputInt("Seed##ddseed", &g_app.ddSeed);
+    }
+
+    if (!g_app.config.dungeondraft.app_path.empty()) {
+        ImGui::Checkbox("Launch in Dungeondraft when done", &g_app.ddAutoOpen);
+    }
+
+    ImGui::Spacing();
+    ImGui::BeginDisabled(g_app.job.running.load() || g_app.grid.cols <= 0);
+    ImGui::PushStyleColor(ImGuiCol_Button, GoButton());
+    if (ImGui::Button("EXPORT TO DUNGEONDRAFT (.dungeondraft_map)", ImVec2(-1, 40))) {
+        StartDungeondraftExport();
+    }
+    ImGui::PopStyleColor();
+    ImGui::EndDisabled();
+
+    if (g_app.ddExportSuccess && !g_app.ddLastExportFile.empty()) {
+        ImGui::Spacing();
+        ImGui::Separator();
+        ImGui::TextColored(ImVec4(0.45f, 0.90f, 0.55f, 1.0f), "Export Successful!");
+        ImGui::TextWrapped("Saved to: %s", g_app.ddLastExportFile.c_str());
+        ImGui::BulletText("Placed walls: %d", g_app.ddPlacedWalls);
+        ImGui::BulletText("Placed objects: %d", g_app.ddPlacedObjects);
+        ImGui::BulletText("Portals/doors: %d", g_app.ddPlacedPortals);
+        ImGui::BulletText("Referenced packs: %d", g_app.ddReferencedPacksCount);
+        ImGui::BulletText("Props chosen from the catalogue: %d, from the file name alone: %d",
+                          g_app.ddPropsDescribed, g_app.ddPropsNamed);
+        ImGui::SetItemTooltip("A prop chosen by file name is a guess. Tag your assets with the "
+                              "vision model to choose by what the picture actually shows.");
+        if (g_app.ddUnmatchedProps > 0) {
+            ImGui::TextColored(ImVec4(0.95f, 0.75f, 0.35f, 1.0f),
+                               "%d plan props found no asset and were left out.", g_app.ddUnmatchedProps);
+        }
+
+        ImGui::Spacing();
+        if (!g_app.config.dungeondraft.app_path.empty() && fs::exists(g_app.config.dungeondraft.app_path)) {
+            if (ImGui::Button("Open in Dungeondraft", ImVec2(200, 32))) {
+                OpenFileInDungeondraft(g_app.config.dungeondraft.app_path, g_app.ddLastExportFile);
+            }
+            ImGui::SameLine();
+        }
+        if (ImGui::Button("Open Output Folder", ImVec2(180, 32))) {
+            fs::path p(g_app.ddLastExportFile);
+            OpenFolderInExplorer(p.parent_path().string());
+        }
+    }
+
+    ImGui::EndChild();
+
+    ImGui::SameLine();
+
+    // Right Column: Asset Library & Vision Tools
+    ImGui::BeginChild("##dd_right", ImVec2(0, -logH), ImGuiChildFlags_Borders);
+    ImGui::TextColored(AccentGold(), "Dungeondraft Asset Library");
+    ImGui::TextDisabled("Indexed assets and packs from Dungeondraft.pck and custom packs.");
+    ImGui::Separator();
+
+    ImGui::Text("Database file: %s", fs::exists("data/assets.db") ? "data/assets.db (Found)" : "data/assets.db (Not found)");
+    if (g_app.ddDbStatsLoaded && !g_app.ddDbStatsOk) {
+        ImGui::TextColored(ImVec4(0.95f, 0.55f, 0.45f, 1.0f),
+                           "Could not read the library. Is Python on PATH? Scan the packs to build it.");
+    }
+    ImGui::BulletText("Total Packs in DB:    %d", g_app.ddDbPacks);
+    ImGui::BulletText("Active/Enabled Packs: %d", g_app.ddDbActivePacks);
+    ImGui::BulletText("Total Textures:       %d (Enriched: %d)", g_app.ddDbAssets, g_app.ddDbEnriched);
+    ImGui::Indent(16.0f);
+    ImGui::BulletText("Stock / Default:  %d textures (Enriched: %d)", g_app.ddDbStockAssets, g_app.ddDbStockEnriched);
+    ImGui::BulletText("Custom Packs:     %d textures (Enriched: %d)", g_app.ddDbCustomAssets, g_app.ddDbCustomEnriched);
+    ImGui::Unindent(16.0f);
+
+    ImGui::Spacing();
+    if (ImGui::Button("Refresh Statistics", ImVec2(-1, 28))) {
+        RefreshDungeondraftStatsAsync();
+    }
+
+    ImGui::Spacing();
+    ImGui::Separator();
+    ImGui::TextColored(AccentGold(), "Asset Indexing & Vision Tools");
+
+    ImGui::BeginDisabled(g_app.job.running.load());
+    if (ImGui::Button("Scan & Index Asset Packs", ImVec2(-1, 32))) {
+        StartDungeondraftScan();
+    }
+    ImGui::SetItemTooltip("Scans stock Dungeondraft assets and your custom packs folder, extracting metadata and thumbnails.");
+
+    ImGui::Spacing();
+    ImGui::Text("Vision Tagging (Ollama: %s):", g_app.config.dungeondraft.vision_model.c_str());
+
+    if (ImGui::Button("Check Quality on 200 Assets First", ImVec2(-1, 30))) {
+        StartDungeondraftQualityCheck();
+    }
+    ImGui::SetItemTooltip("Catalogues 200 sampled assets, scores how often the model just reworded "
+                          "the file name, and opens a contact sheet. Do this before a full pass: a "
+                          "bad description is cached and never looked at again.");
+
+    if (ImGui::Button("Tag Stock Assets Only", ImVec2(-1, 30))) {
+        StartDungeondraftEnrich("stock");
+    }
+    ImGui::SetItemTooltip("Runs vision model tagging ONLY on stock/default Dungeondraft assets (%d textures).", g_app.ddDbStockAssets);
+
+    if (ImGui::Button("Tag Custom Assets Only", ImVec2(-1, 30))) {
+        StartDungeondraftEnrich("custom");
+    }
+    ImGui::SetItemTooltip("Runs vision model tagging ONLY on custom pack assets (%d textures).", g_app.ddDbCustomAssets);
+
+    if (ImGui::Button("Tag All Assets (Stock + Custom)", ImVec2(-1, 30))) {
+        StartDungeondraftEnrich("all");
+    }
+    ImGui::SetItemTooltip("Runs vision model tagging on all unenriched textures across both stock and custom packs.");
+
+    ImGui::Spacing();
+    if (ImGui::Button("Validate Asset Database", ImVec2(-1, 28))) {
+        StartDungeondraftValidate();
+    }
+    ImGui::EndDisabled();
+
+    if (g_app.job.running.load()) {
+        ImGui::Spacing();
+        ImGui::Separator();
+        if (ImGui::Button("Cancel Current Task", ImVec2(-1, 30))) {
+            g_app.job.cancel = true;
+            g_app.job.Log("[info] Cancel requested.");
+        }
+    }
+
+    ImGui::EndChild();
+
+    // Bottom log
+    DrawJobLog(logH);
+}
+
 // What each section of the wording file is for, in the user's words.
 struct PhraseSection {
     const char* key;
@@ -2805,15 +3369,37 @@ static void TabSettings() {
 
     InputTextString("Ollama address", &g_app.config.ollama.base_url);
     if (!g_app.ollamaModels.empty()) {
-        if (ImGui::BeginCombo("Model", g_app.config.ollama.model.c_str())) {
+        if (ImGui::BeginCombo("Planner Model (LLM)", g_app.config.ollama.model.c_str())) {
             for (const auto& m : g_app.ollamaModels)
                 if (ImGui::Selectable(m.c_str(), m == g_app.config.ollama.model))
                     g_app.config.ollama.model = m;
             ImGui::EndCombo();
         }
     } else {
-        InputTextString("Model", &g_app.config.ollama.model);
+        InputTextString("Planner Model (LLM)", &g_app.config.ollama.model);
     }
+
+    // Recommended Planner models helper
+    ImGui::Indent(12.0f);
+    ImGui::TextDisabled("Recommended Planner: qwen3.8:27b (best floorplan reasoning, ~18GB)");
+    ImGui::SameLine();
+    bool hasPlannerRec = false;
+    for (const auto& m : g_app.ollamaModels) {
+        if (m.find("qwen3.8") != std::string::npos || m.find("qwen2.5:27b") != std::string::npos) {
+            hasPlannerRec = true; break;
+        }
+    }
+    if (!hasPlannerRec) {
+        ImGui::BeginDisabled(g_app.job.running.load());
+        if (ImGui::SmallButton("Download qwen3.8:27b")) {
+            StartOllamaPull("qwen3.8:27b");
+        }
+        ImGui::EndDisabled();
+    } else {
+        ImGui::TextColored(ImVec4(0.45f, 0.85f, 0.55f, 1.0f), "[Installed]");
+    }
+    ImGui::Unindent(12.0f);
+
     ImGui::SliderFloat("Planner creativity", &g_app.config.ollama.temperature, 0.0f, 1.2f, "%.2f");
     ImGui::TextColored(g_app.ollamaOk ? ImVec4(0.45f, 0.9f, 0.55f, 1) : ImVec4(1, 0.5f, 0.45f, 1),
                        "Ollama: %s", g_app.ollamaStatus.c_str());
@@ -2849,6 +3435,71 @@ static void TabSettings() {
 
     ImGui::Separator();
     InputTextString("Output folder", &g_app.config.output_dir);
+
+    ImGui::Separator();
+    ImGui::TextColored(AccentGold(), "Dungeondraft & Vision Tagging");
+    if (!g_app.ollamaModels.empty()) {
+        if (ImGui::BeginCombo("Vision Model (Tagging)", g_app.config.dungeondraft.vision_model.c_str())) {
+            for (const auto& m : g_app.ollamaModels)
+                if (ImGui::Selectable(m.c_str(), m == g_app.config.dungeondraft.vision_model))
+                    g_app.config.dungeondraft.vision_model = m;
+            ImGui::EndCombo();
+        }
+    } else {
+        InputTextString("Vision Model (Tagging)", &g_app.config.dungeondraft.vision_model);
+    }
+    ImGui::SetItemTooltip("Ollama vision model (e.g. gemma4:12b) used to catalogue and enrich Dungeondraft asset thumbnails.");
+
+    // Vision model recommendation & pull helpers
+    ImGui::Indent(12.0f);
+    bool hasGemma4 = false;
+    for (const auto& m : g_app.ollamaModels) {
+        if (m.find("gemma4") != std::string::npos) { hasGemma4 = true; break; }
+    }
+    ImGui::TextDisabled("Recommended: gemma4:12b (7.6GB - highest quality object descriptions)");
+    ImGui::SameLine();
+    if (!hasGemma4) {
+        ImGui::BeginDisabled(g_app.job.running.load());
+        if (ImGui::SmallButton("Download gemma4:12b")) {
+            StartOllamaPull("gemma4:12b");
+        }
+        ImGui::EndDisabled();
+    } else {
+        ImGui::TextColored(ImVec4(0.45f, 0.85f, 0.55f, 1.0f), "[Installed]");
+    }
+
+    bool hasOrnith = false;
+    for (const auto& m : g_app.ollamaModels) {
+        if (m.find("ornith") != std::string::npos) { hasOrnith = true; break; }
+    }
+    ImGui::TextDisabled("Alternative: ornith-1.5:9b (6.6GB - fast cataloguer)");
+    ImGui::SameLine();
+    if (!hasOrnith) {
+        ImGui::BeginDisabled(g_app.job.running.load());
+        if (ImGui::SmallButton("Download ornith-1.5:9b")) {
+            StartOllamaPull("ornith-1.5:9b");
+        }
+        ImGui::EndDisabled();
+    } else {
+        ImGui::TextColored(ImVec4(0.45f, 0.85f, 0.55f, 1.0f), "[Installed]");
+    }
+    ImGui::Unindent(12.0f);
+
+    InputTextString("Custom Assets Folder", &g_app.config.dungeondraft.custom_assets_dir);
+    ImGui::SameLine();
+    if (ImGui::Button("Browse...##ddassets")) {
+        std::string p = PickFolderDialog("Select Dungeondraft Custom Assets Folder");
+        if (!p.empty()) g_app.config.dungeondraft.custom_assets_dir = p;
+    }
+    ImGui::SetItemTooltip("Folder containing your custom .dungeondraft_pack files (e.g. D:\\programs\\dungeondraft\\assets)");
+
+    InputTextString("Dungeondraft Executable", &g_app.config.dungeondraft.app_path);
+    ImGui::SameLine();
+    if (ImGui::Button("Browse...##ddexe")) {
+        std::string p = PickExecutableFile();
+        if (!p.empty()) g_app.config.dungeondraft.app_path = p;
+    }
+    ImGui::SetItemTooltip("Path to Dungeondraft.exe (optional, allows launching maps directly from the app)");
 
     ImGui::Spacing();
     if (ImGui::Button("Save settings", ImVec2(200, 32))) {
@@ -2896,8 +3547,6 @@ static void ReleaseMapEntries() {
 // The native open dialog. Worth the Win32 for this one job: an agent writes a
 // plan wherever it likes, and asking somebody to type that path is not a
 // serious answer.
-static HWND g_hwnd = nullptr;
-
 static std::string PickMapFile() {
     wchar_t buf[MAX_PATH] = L"";
     OPENFILENAMEW ofn{};
@@ -3487,6 +4136,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int nCmdShow) {
             if (ImGui::BeginTabItem("Create")) { TabCreate(); ImGui::EndTabItem(); }
             if (ImGui::BeginTabItem("Editor")) { TabEditor(); ImGui::EndTabItem(); }
             if (ImGui::BeginTabItem("Render")) { TabRender(); ImGui::EndTabItem(); }
+            if (ImGui::BeginTabItem("Dungeondraft")) { TabDungeondraft(); ImGui::EndTabItem(); }
             if (ImGui::BeginTabItem("Styles")) { TabStyles(); ImGui::EndTabItem(); }
             if (ImGui::BeginTabItem("Settings")) { TabSettings(); ImGui::EndTabItem(); }
             ImGui::EndTabBar();

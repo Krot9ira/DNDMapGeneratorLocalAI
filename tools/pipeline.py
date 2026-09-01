@@ -11,6 +11,7 @@ Usage:
   python pipeline.py build spec.json [--out DIR]        # spec -> map, no LLM
   python pipeline.py preview map.json [--out DIR]       # redraw the human preview
   python pipeline.py generate map.json [--seed N]
+  python pipeline.py dungeondraft map.json [--out DIR_OR_FILE] [--seed N]
   python pipeline.py auto "scene description" [--style ID] [--size medium]
   python pipeline.py validate map.json
 """
@@ -149,6 +150,31 @@ def cmd_generate(args, map_data=None):
     return result["images"]
 
 
+def cmd_dungeondraft(args):
+    # --out is a directory everywhere else in this file, so accept one here too
+    # rather than writing a map file named after a folder.
+    out = args.out
+    if out and (Path(out).is_dir() or not out.lower().endswith(".dungeondraft_map")):
+        name = json.loads(Path(args.map).read_text(encoding="utf-8")).get("meta", {}).get("name", "map")
+        out = str(Path(out) / f"{name}.dungeondraft_map")
+
+    res = agent_api.assemble_dungeondraft(args.map, out_path=out, seed=args.seed or 42)
+    rep = res["report"]
+    print(f"[dungeondraft] map:    {res['map_path']}")
+    print(f"[dungeondraft] report: {res['report_path']}")
+    print(f"[dungeondraft] walls:  {rep.get('walls_placed', 0)} | doors: {rep.get('portals_placed', 0)} "
+          f"| objects: {rep.get('objects_placed', 0)} | lights: {rep.get('lights_placed', 0)} "
+          f"| packs: {len(rep.get('packs_referenced', []))}")
+    print(f"[dungeondraft] props matched: {rep.get('props_matched_by_description', 0)} from the "
+          f"catalogue, {rep.get('props_matched_by_name', 0)} from the file name alone")
+    unmatched = rep.get("unmatched_props", [])
+    if unmatched:
+        print(f"[dungeondraft] {len(unmatched)} plan props found no asset: "
+              + ", ".join(sorted({u['kind'] for u in unmatched})))
+    if rep.get("doors_unattached"):
+        print(f"[dungeondraft] {rep['doors_unattached']} doors had no wall within reach and were dropped")
+
+
 def cmd_auto(args):
     map_data = cmd_plan(args)
     print("\n[stage 2] starting render (Ollama has finished, VRAM is free)\n")
@@ -220,6 +246,10 @@ def main():
     p.add_argument("--timeout", type=int, default=2400)
     add_common(p)
 
+    p = sub.add_parser("dungeondraft", help="assemble a native .dungeondraft_map file")
+    p.add_argument("map")
+    add_common(p)
+
     p = sub.add_parser("auto", help="stage 1 then stage 2, sequentially")
     p.add_argument("description")
     p.add_argument("--style")
@@ -239,8 +269,8 @@ def main():
 
     args = parser.parse_args()
     {"styles": cmd_styles, "plan": cmd_plan, "build": cmd_build, "preview": cmd_preview,
-     "generate": cmd_generate, "auto": cmd_auto, "caption": cmd_caption,
-     "validate": cmd_validate}[args.command](args)
+     "generate": cmd_generate, "dungeondraft": cmd_dungeondraft, "auto": cmd_auto,
+     "caption": cmd_caption, "validate": cmd_validate}[args.command](args)
 
 
 if __name__ == "__main__":

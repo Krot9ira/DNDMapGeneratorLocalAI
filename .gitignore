@@ -18,6 +18,11 @@
 # output of running it.
 /assets/
 
+# The Dungeondraft asset library: an SQLite index of the packs on this machine
+# and a thumbnail per texture. Built by tools/dungeondraft_indexer.py, hundreds
+# of megabytes, and it describes somebody's own installation - not the project.
+/data/
+
 # Scratch. Masks, sheets, cut tiles, contact sheets, anything a tool needed to
 # write down on the way to a result. Safe to delete at any time.
 /temp/

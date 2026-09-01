@@ -117,6 +117,32 @@ class OllamaClient:
             text = result.get("thinking", "")
         return text
 
+    def pull(self, model_name: str, callback=None):
+        """Pull a model into Ollama, streaming progress output."""
+        url = f"{self.base_url}/api/pull"
+        data = json.dumps({"name": model_name}).encode("utf-8")
+        req = urllib.request.Request(url, data=data, headers={"Content-Type": "application/json"})
+        with urllib.request.urlopen(req, timeout=3600) as resp:
+            for line in resp:
+                if not line:
+                    continue
+                try:
+                    obj = json.loads(line.decode("utf-8", errors="replace"))
+                    status = obj.get("status", "")
+                    total = obj.get("total", 0)
+                    completed = obj.get("completed", 0)
+                    if total > 0:
+                        pct = (completed / total) * 100.0
+                        msg = f"{status}: {pct:.1f}% ({completed // (1024*1024)}MB / {total // (1024*1024)}MB)"
+                    else:
+                        msg = status
+                    if callback:
+                        callback(msg)
+                    else:
+                        print(f"  {msg}", flush=True)
+                except Exception:
+                    pass
+
     @staticmethod
     def extract_json(raw_text):
         """Pull a JSON object out of model output, tolerating think blocks,
@@ -163,3 +189,14 @@ def _try_parse(text):
         return obj
     except ValueError:
         return None
+
+
+if __name__ == "__main__":
+    import sys
+    if len(sys.argv) >= 3 and sys.argv[1] == "pull":
+        model_to_pull = sys.argv[2]
+        client = OllamaClient()
+        print(f"Pulling model '{model_to_pull}' from Ollama registry...")
+        client.pull(model_to_pull)
+        print("Pull complete.")
+

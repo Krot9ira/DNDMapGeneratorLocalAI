@@ -360,9 +360,16 @@ struct ComfyConfig {
     int64_t seed = -1;                   // -1 = random each run
 };
 
+struct DungeondraftConfig {
+    std::string vision_model = "gemma4:12b";
+    std::string custom_assets_dir = "";
+    std::string app_path = "";
+};
+
 struct AppConfig {
     OllamaConfig ollama;
     ComfyConfig comfy;
+    DungeondraftConfig dungeondraft;
     std::string default_style = "city_harbour";
     std::string default_size = "medium";
     std::string output_dir = "output";

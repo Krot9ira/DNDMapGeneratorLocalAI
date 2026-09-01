@@ -64,9 +64,10 @@ WHAT IS IN THIS FOLDER
   config.json                 service addresses and model filenames
   styles/                     the style library, editable inside the program
   presets/                    saved maps
-  output/                     your results land here
-  tools/                      command line and AI agent API
-  docs/Manual.pdf             the full manual
+  data/                       asset database and generated thumbnails
+  output/                     your results land here (PNGs and .dungeondraft_map files)
+  tools/                      command line, Dungeondraft assembler and AI agent API
+  docs/                       the user manual and map format specifications
   AGENTS.md                   instructions for AI agents
   LICENSE, THIRD_PARTY.md     licences
 
@@ -77,11 +78,13 @@ docs/Manual.pdf is written for somebody who has never opened ComfyUI. Every tab,
 every button, and what to do when something goes wrong.
 
 
-COMMAND LINE
-------------
-Needs Python 3.10+ and Pillow (pip install pillow):
+COMMAND LINE & DUNGEONDRAFT
+---------------------------
+Needs Python 3.10+ and Pillow (pip install pillow requests):
 
   python tools/pipeline.py styles
   python tools/pipeline.py auto "a harbour with one large moored ship" --style city_harbour
+  python tools/pipeline.py dungeondraft output/my_map/map.json
+  python tools/dungeondraft_indexer.py stats
 
 For AI agents, see AGENTS.md.

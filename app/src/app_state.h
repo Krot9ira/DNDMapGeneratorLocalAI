@@ -140,6 +140,35 @@ struct AppState {
     bool ollamaOk = false, comfyOk = false;
     std::vector<std::string> ollamaModels;
 
+    // -- dungeondraft tab ----------------------------------------------
+    std::string ddOutputPath;
+    int ddSeed = 42;
+    bool ddRandomSeed = true;
+    bool ddAutoOpen = false;
+    std::string ddLastExportFile;
+    std::string ddLastReportJson;
+    int ddPlacedWalls = 0;
+    int ddPlacedObjects = 0;
+    int ddPlacedPortals = 0;
+    int ddReferencedPacksCount = 0;
+    int ddUnmatchedProps = 0;
+    int ddPropsDescribed = 0;
+    int ddPropsNamed = 0;
+    bool ddExportSuccess = false;
+
+    // Asset library cache
+    int ddDbPacks = 0;
+    int ddDbActivePacks = 0;
+    int ddDbAssets = 0;
+    int ddDbStockAssets = 0;
+    int ddDbCustomAssets = 0;
+    int ddDbEnriched = 0;
+    int ddDbStockEnriched = 0;
+    int ddDbCustomEnriched = 0;
+    bool ddDbStatsLoaded = false;
+    bool ddDbStatsOk = false;
+    std::atomic<bool> ddDbStatsRefreshing{false};
+
     // -- helpers -------------------------------------------------------
     void SyncGridFromMap() {
         grid = arch::ZonesToGrid(map);

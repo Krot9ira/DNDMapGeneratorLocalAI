@@ -95,17 +95,34 @@ add_custom_command(TARGET DndBattlemapGenerator POST_BUILD
             "${CMAKE_CURRENT_SOURCE_DIR}/tools/planner.py"
             "${CMAKE_CURRENT_SOURCE_DIR}/tools/render.py"
             "${CMAKE_CURRENT_SOURCE_DIR}/tools/workflow.py"
+            "${CMAKE_CURRENT_SOURCE_DIR}/tools/dungeondraft_pck.py"
+            "${CMAKE_CURRENT_SOURCE_DIR}/tools/dungeondraft_db.py"
+            "${CMAKE_CURRENT_SOURCE_DIR}/tools/dungeondraft_indexer.py"
+            "${CMAKE_CURRENT_SOURCE_DIR}/tools/dungeondraft_enrich.py"
+            "${CMAKE_CURRENT_SOURCE_DIR}/tools/dungeondraft_matcher.py"
+            "${CMAKE_CURRENT_SOURCE_DIR}/tools/dungeondraft_assembler.py"
+            "${CMAKE_CURRENT_SOURCE_DIR}/tools/dungeondraft_foundry.py"
+            "${CMAKE_CURRENT_SOURCE_DIR}/tools/check_dungeondraft.py"
+            "${CMAKE_CURRENT_SOURCE_DIR}/tools/check_enrichment_quality.py"
             "${DIST_DIR}/tools"
     # The scene files and the descriptions they were built from travel together:
     # a scene without its description cannot be checked against anything.
     COMMAND ${CMAKE_COMMAND} -E copy_directory
             "${CMAKE_CURRENT_SOURCE_DIR}/tools/scenes" "${DIST_DIR}/tools/scenes"
 
+    # The asset library is built on the user's machine from the packs they own,
+    # by the Dungeondraft tab. Only the folder ships. Copying this machine's
+    # copy would ship 250 000 thumbnails and an index of somebody else's packs,
+    # and rewrite it on every build.
+    COMMAND ${CMAKE_COMMAND} -E make_directory "${DIST_DIR}/data"
+
     # Documentation. Only the finished manual ships; the HTML source and the
     # development report stay in the repository.
     COMMAND ${CMAKE_COMMAND} -E make_directory "${DIST_DIR}/docs"
     COMMAND ${CMAKE_COMMAND} -E copy
-            "${CMAKE_CURRENT_SOURCE_DIR}/docs/Manual.pdf" "${DIST_DIR}/docs/"
+            "${CMAKE_CURRENT_SOURCE_DIR}/docs/Manual.pdf"
+            "${CMAKE_CURRENT_SOURCE_DIR}/docs/dungeondraft_map_format.md"
+            "${DIST_DIR}/docs/"
     COMMAND ${CMAKE_COMMAND} -E copy
             "${CMAKE_CURRENT_SOURCE_DIR}/AGENTS.md" "${DIST_DIR}/"
     COMMAND ${CMAKE_COMMAND} -E copy

@@ -1,12 +1,22 @@
 # Assembling our map plans in Dungeondraft — implementation plan
 
-Status: proposed, not started. Written 2026-08-30, for a fresh implementer.
+Status: **in progress.** Written 2026-08-30 as a proposal; revised 2026-09-01,
+after steps 1 to 4 were built, the first maps came out of the assembler, and a
+review of that work found twelve defects worth writing down. Nothing is
+committed yet - the whole feature sits in the working tree on
+`feature/dungeondraftintegration`.
+
+**Start at section 9.** It says what is finished, what is half finished, what
+has not been started, and what is a decision somebody has to take with
+Dungeondraft open. Sections 2 to 8 are background and have not changed except
+where marked.
 
 This document is self-contained. It assumes no memory of the conversation that
 produced it. Everything stated as fact below was verified on this machine or
 read out of official documentation; where something is unverified it is marked
 **UNKNOWN** and given a way to find out. Do not replace an UNKNOWN with a
-guess.
+guess. Where a number is quoted - assets indexed, doors placed, props matched -
+it came from running the thing, and the command that produced it is named.
 
 ---
 
@@ -523,6 +533,30 @@ Four components. Build them in this order; each is useful alone.
                      <name>.dungeondraft_map
 ```
 
+### 4.0 What exists on disk
+
+All of it is built. Every tool runs alone from the command line and prints
+something a human can read, as the house style requires.
+
+| file | what it is | state |
+|---|---|---|
+| `tools/dungeondraft_pck.py` | Godot 3 PCK reader: opens a pack, lists and extracts textures, reads `pack.json` and the licence flag | done |
+| `tools/dungeondraft_db.py` | SQLite schema, content hashing, image measurement, thumbnails | done |
+| `tools/dungeondraft_indexer.py` | `scan`, `stats`, `validate` | done |
+| `tools/dungeondraft_enrich.py` | the cataloguing pass over Ollama | done, never yet run at scale |
+| `tools/dungeondraft_matcher.py` | plan element to asset | done, weak - see step 2 |
+| `tools/dungeondraft_assembler.py` | map plan to `.dungeondraft_map` + report | done |
+| `tools/check_dungeondraft.py` | the 13 scenes through the assembler | done |
+| `tools/check_enrichment_quality.py` | 200-asset quality gate, numbers and a contact sheet | done |
+| `tools/pipeline.py dungeondraft` | the command line entry | done |
+| `tools/agent_api.py assemble_dungeondraft()` | the agent entry | done |
+| app, **Dungeondraft** tab | export, scan, catalogue, quality check, validate | done |
+| the prop foundry | section 4.4 | **not started** |
+
+The app shells out to these tools with `python -u`; it does not reimplement any
+of them. That is deliberate - the checks and the agent path run the same code
+the buttons do, so a bug found from the command line is the bug the user has.
+
 ### 4.1 Component 1 — the indexer
 
 Reads `config.ini`, walks the asset directory, opens each pack with the PCK
@@ -537,19 +571,26 @@ more. Read the blob, measure it, write a small thumbnail, discard the blob.
 
 ### 4.2 Component 2 — enrichment
 
-`qwen3.8:27b` — already the project's model, already in `config.json`, already
-used by `tools/ollama_client.py`. Ollama reports its capabilities as
-`completion, vision, tools, thinking` with a 262 144 context, so it can look at
-the thumbnail. Nothing new to install.
+**`gemma4:12b`, not the planner.** This paragraph used to name `qwen3.8:27b`
+because that was already the project's model; section 5.7 then measured the
+alternatives and that answer did not survive. The 27B lands 85 % on the CPU and
+is ten to thirteen times slower than a model that fits in VRAM. Read 5.7 before
+changing the cataloguer.
 
 `tools/ollama_client.py` **already supports images**: `generate(...,
 images=[...])` base64-encodes them, and `format=` takes a JSON schema, so the
 answer comes back schema-constrained rather than parsed out of prose.
 
-One pass per asset, cached by content hash forever. At ~19 200 objects and a
-second or two each this is a **five to ten hour first run** and seconds
-thereafter. Make it resumable, make it show progress, and let it be run for one
-pack at a time.
+One pass per asset, **cached by content hash forever** - and the query that
+selects work groups by that hash, so the same picture in four packs is one
+question, not four. Resumable by construction: an asset that already has a row
+at the current `prompt_version` is not selected again, so a cancelled pass
+loses nothing but the item it was on.
+
+Scale, measured on the five packs enabled today: 47 397 assets, 47 006 distinct
+pictures. At the 2.0 s median of section 5.7 that is about **26 hours**. The
+user's full library is five times that; section 5.7 puts it at just under six
+days, which is why the quality gate in 5.9 exists.
 
 ### 4.3 Component 3 — matcher and assembler
 
@@ -633,6 +674,23 @@ a taxonomy that will not answer.
 
 Version the vocabulary alongside `prompt_version`. Changing it means the rows
 written under the old one are stale, and you must be able to find them.
+
+**Half built, and the missing half has a deadline.** `footprint` is an `enum`
+as required. `style_tags` and `setting_tags` are still free strings with a
+length cap - the vocabularies were never drafted - and there is no
+`vocabulary_version` column.
+
+This is the one piece of unfinished work with a hard ordering constraint:
+**settle it before pass 2, not after.** Enrichment is cached by content hash
+and paid for in days; changing the schema afterwards means bumping
+`prompt_version` and re-asking the model about a quarter of a million pictures.
+Everything else in this document can be added later at the cost of an
+afternoon. This cannot.
+
+The lists themselves are not a design exercise: section 5.12 says to read them
+off the queries, and the queries are already written - `styles/*.json` and the
+`kind` values the planner emits, of which `tools/check_dungeondraft.py` will
+print the exact working set.
 
 ### 5.4 Let the model decline
 
@@ -727,6 +785,39 @@ Two properties make this work in practice:
 Validate belongs on both jobs. For the default assets it is the answer to
 "we shipped this catalogue, is it still true on this Dungeondraft version"; for
 the user's packs it is the answer to "I updated a pack, what do I owe".
+
+**Built, in two tiers** - `python tools/dungeondraft_indexer.py validate`, and
+the Validate button. The tiers matter, because the version of this that reads
+every texture on every press is one nobody presses:
+
+1. **Every pack, from its file.** Size and mtime against what the index
+   recorded, plus the active list re-read from `config.ini`. New, gone,
+   redrawn, newly enabled, newly disabled, unreadable, and the packs whose
+   author disallows third-party reading. Costs a `stat` per pack.
+2. **Every asset, but only inside a pack whose file changed.** New, gone,
+   redrawn and resized, by decoded-image content hash exactly as above. An
+   untouched pack file cannot contain a redrawn texture, so hashing a quarter
+   of a million of them to prove it would be an expensive way to learn nothing.
+
+Then the enrichment counts: unenriched, written under an older
+`prompt_version`, and orphaned - a description whose picture no pack contains
+any more. Exit code 0 when the index matches the packs on disk, 1 when there is
+work to do, which is what the app's Validate button reads.
+
+Two things in the list above are **not built yet** and are step 2b's remaining
+work: **Suspect** (weak enrichment - `unclear`, low confidence, empty tags,
+duplicate descriptions) is not detected, and **Re-catalogue** does not exist as
+a verb - the delta is reported, but acting on it means re-running a pass, which
+re-does everything unenriched rather than exactly the list. The `state = 'gone'`
+marking is in the schema and honoured by every query; the scan does not yet set
+it.
+
+One correction learnt the hard way: compare a pack against **the file the index
+actually read**, recorded in `packs.file_path`, not against whichever copy
+`os.walk` reaches first. Twenty pack ids exist twice on this machine under
+different filenames, and the naive version reported all twenty as redrawn on
+every single run - a check that cries wolf twenty times is a check nobody
+reads.
 
 ### 5.7 Which model to catalogue with, measured
 
@@ -873,6 +964,20 @@ is cached and a bad pass is paid for twice.
 Keep the labelled 200 in the repository as a fixture, so that "I improved the
 prompt" becomes a number instead of a feeling.
 
+**Built as `tools/check_enrichment_quality.py`**, and as the *first* button in
+the Dungeondraft tab's tagging section, above the three that start a real pass.
+It draws the stratified sample, runs the enrichment, writes a contact sheet,
+and - the part that makes it a gate rather than a gallery - prints the numbers:
+how many answers came back at all, how many were the file name reworded, how
+many said `unclear`, how many had a description under four words or confidence
+below 0.5, the mean confidence, and the footprint spread. Over a quarter
+echoing and it says so in words and tells you to change the model.
+
+Steps 3 and 4 above are still a human's job, and step 5's fixture does not
+exist: the labelled 200 are not kept, so a prompt change cannot yet be scored
+against the previous one. That is the remaining work here, and it is worth
+doing before the prompt is touched, not after.
+
 ### 5.10 Checks that run after a pass
 
 Quiet failures need active looking-for:
@@ -892,6 +997,14 @@ Quiet failures need active looking-for:
 - **Contact sheets for humans.** Generate pages of thumbnails with their
   descriptions underneath. A person scanning a page of forty spots a systematic
   failure in seconds that no aggregate would show.
+
+**None of this exists yet.** The contact sheet does, and the echo and `unclear`
+counts do, but only over the 200-asset sample in 5.9 - they run *before* a pass
+to choose a model, not *after* one to catch a run that went wrong halfway. The
+tag distribution, the duplicate-description check and the context cross-check
+have no code at all. Write them when the first real pass has finished and there
+is something to point them at; running a pass with nothing watching it is how a
+quarter of a million cached mistakes happen.
 
 ### 5.11 Determinism and repeatability
 
@@ -1141,6 +1254,13 @@ Bump `prompt_version` whenever the prompt, the schema or the thumbnail
 rendering changes, so stale rows can be found. All three are part of the
 question being asked.
 
+This is the schema as implemented, and it is **not yet what section 5.3 asks
+for**: only `footprint` is an `enum`, while `style_tags` and `setting_tags` are
+still free strings. The measurements in 5.7 and 5.8 were taken with this
+schema, so the numbers stand; the vocabulary work in 5.3 changes what the model
+is allowed to answer, and has to happen before a pass caches a quarter of a
+million free-text answers.
+
 ### 8.2 Assembler input
 
 The existing map plan JSON. Do not invent a new format; read what
@@ -1154,122 +1274,412 @@ found an asset, which packs were used, which props had to be generated, and
 what could not be satisfied at all. The report is how this gets checked
 without a human squinting at a picture.
 
+**The sidecar is written beside the map with the suffix replaced, not
+appended**: `crypt.dungeondraft_map` and `crypt.report.json`. Both the app and
+`check_dungeondraft.py` read it, so the keys are a contract - do not rename one
+without the other. What it contains today:
+
+```json
+{
+  "title": "...", "style": "gothic_crypt",
+  "grid": {"cols": 40, "rows": 30},
+  "packs_referenced": ["WFWFA2A"], "packs_referenced_count": 1,
+  "props_matched_by_description": 0,   // the catalogue answered
+  "props_matched_by_name": 57,         // only the file name matched - a guess
+  "walls_placed": 29, "portals_placed": 5,
+  "objects_placed": 57, "lights_placed": 8,
+  "doors_unattached": 0,               // no wall within reach; dropped
+  "matched_props":   [{"kind": "altar", "matched_asset": "res://...",
+                       "pack_id": "...", "x": 10, "y": 21, "scale": 1.0,
+                       "match_quality": "named"}],
+  "unmatched_props": [{"kind": "banner", "x": 4, "y": 9}],
+  "unattached_doors": []
+}
+```
+
+`props_matched_by_name` is the number that tells you whether cataloguing has
+happened. On an uncatalogued library it is the whole count, and every one of
+those is a filename guess. `unmatched_props` is the list the prop foundry
+exists to serve - do not let anything turn it into zero by inventing a match.
+
 ---
 
 ## 9. The work, in order
 
-### Step 0 - recon (mostly done)
+| step | what it is | state |
+|---|---|---|
+| 0 | recon | **done** - the format is read and written down; only the cave write-back is untested |
+| 1 | the indexer | **done** - 47 397 assets from 5 enabled packs and the built-ins |
+| 1b | model settings | **half done** - the vision check exists, the download UI does not |
+| 2 | cataloguing | **built, never run** - 0 assets have a description; fix the vocabulary (5.3) *before* running it |
+| 2b | validate and re-catalogue | **validate done**, re-catalogue and suspect-detection not |
+| 3 | objects only, end to end | **done in code, unproven in Dungeondraft** - nobody has opened one |
+| 4 | terrain, tiles, walls, portals, lights | **done except caves**, with one open design question |
+| 5 | the prop foundry | **not started** |
+| 6 | checks | **done** - 13 scenes, plus a quality gate for cataloguing |
+| 9.8 | use all 32 cores where it helps | **not started** - measured at x10 for the indexer, x1.04 for the cataloguer |
 
-Four of the user's own maps have been read and section 2 records what they say.
-What is left of step 0 is the cave-bitmap experiment in UNKNOWN-1 and the
-`wall.type` question in UNKNOWN-2: two small hand-made maps and a byte diff.
-Do them before step 4, not before step 1.
+Read 9.7 before touching walls, 9.8 before optimising anything, and 9.0 before
+believing any of the rest.
 
-*Done when:* `docs/dungeondraft_map_format.md` describes every top-level key
-with a real example, and the cave bitmap round-trips - written by us, opened in
-Dungeondraft, and showing the cave we meant.
+### 9.0 The one thing nobody has done yet
+
+**No human has opened a generated map in Dungeondraft.** Everything below was
+checked by reading the JSON we wrote and by validating it against section 2 -
+which catches a malformed file, a duplicate node id and a wrong array length,
+and catches nothing at all about whether the map *looks* right.
+
+Step 3 was written into this plan as the moment the idea is proved or killed,
+and that moment has not happened. **Do it first.** `python tools/pipeline.py
+dungeondraft output/agent_crypt/map.json`, open the result, and look at four
+things: are the props in the right squares and roughly the right size, do the
+doors sit in the walls, are the walls where the rooms are, and is the floor
+under the rooms. Everything after that is work; if that fails, stop and
+reconsider rather than building more on top.
+
+### Step 0 - recon
+
+**Done**, and section 2 records it. `docs/dungeondraft_map_format.md` describes
+every top-level key with a real example and ships with the release. Section 3
+lists what is still unknown, and the answer is: nothing that steps 1 to 4 need.
+
+One half of the original done-criterion is still outstanding, and it belongs to
+the cave branch of step 4: the cave bitmap has been **read** and confirmed
+against the map the user painted, but never **written** by us and opened again.
+Reading a format correctly does not prove you can write it - the bit order was
+settled by looking at a decoded picture, and only a round trip proves the
+encoder agrees with the decoder.
 
 ### Step 1 - the indexer, no model
 
-Read `config.ini` for `custom_assets_directory` and `active_asset_packs`; walk
-that directory with `os.walk`; open every pack with the PCK reader; write
-`packs` and `assets`; measure every image and build its thumbnail; index the
-built-ins out of `Dungeondraft.pck`. Skip packs whose author set
-`allow_3rd_party_mapping_software_to_read` to false and record that you did.
+**Done.** `python tools/dungeondraft_indexer.py scan` reads `config.ini` for
+`custom_assets_directory` and `active_asset_packs`, walks with `os.walk`, opens
+every pack with the PCK reader, measures every image, writes a thumbnail, and
+indexes the built-ins out of `Dungeondraft.pck`. Duplicate ids are recorded
+rather than overwritten; an enabled pack that is not on disk is reported and
+does not stop the scan; WebP is indexed like PNG.
 
-*Done when:* the database reproduces a fresh scan's counts, the enabled-but-
-absent pack is reported rather than fatal, duplicate pack ids are recorded
-rather than silently overwritten, and WebP is indexed as readily as PNG.
+Packs whose author set `allow_3rd_party_mapping_software_to_read` to false are
+skipped, the pack row is kept so the user can be told why, and **no texture of
+theirs is read, hashed, thumbnailed or referenced**. Ten such packs are
+installed here. Validate lists them under SKIPPED every run, deliberately: the
+user should be able to see which of their packs are unavailable to us and that
+it is the author's choice, not a bug.
+
+What it produced here: 134 packs, 5 enabled, 47 397 assets, 47 006 distinct
+pictures, 44 788 of them objects. `data/assets.db` is 55 MB and the thumbnails
+are 737 MB - both machine-local, both now in `.gitignore`, and neither ships.
+
+*Still open:* the scan indexes textures only for **enabled** packs. That is a
+sensible default and it is why the numbers above are 47 397 rather than the
+264 599 in section 2.2, but `--all-packs` has had far less use. Also, the scan
+does not mark a vanished asset `state = 'gone'`; it simply stops seeing it.
 
 ### Step 1b - model settings
 
-The dropdown and download buttons from section 6, plus the `vision` capability
-check. Small, and it comes before cataloguing because cataloguing is what needs
-a model the user may not have.
+**Half done.** The cataloguer is a separate config key (`dungeondraft.vision_model`,
+default `gemma4:12b`) with its own dropdown on the Settings page listing what
+Ollama has, and `num_ctx` is sent per request as 4 096 rather than inherited
+from the planner. `check_vision_capability()` asks `GET /api/show` and a pass
+refuses to start on a model without `vision`, with the reason on the log.
 
-*Done when:* a fresh machine with an empty Ollama can be brought to a working
-state from the settings page alone, and choosing a text-only model as the
-cataloguer is refused with a reason.
+**Not done:** the recommended-models list, the sizes, and the **Download**
+button over `POST /api/pull` with a real progress bar. Today a user without
+`gemma4:12b` is told what is wrong and must go and pull it themselves. Section
+6 has the rules that make that UI honest; they still apply.
+
+The refusal is also in the wrong place to be kind: it happens when the job
+starts, not when the model is chosen in the dropdown. Moving the check into the
+dropdown is small and worth doing.
 
 ### Step 2 - cataloguing, in two passes the user starts
 
-**Pass 1, the default assets** (about 2 000, from `Dungeondraft.pck`). Ship the
-result as a data file: it is identical on every install, so no user should pay
-for it twice. After this the program can build a whole map from stock assets.
+**Built and never run at scale.** `python tools/dungeondraft_enrich.py --scope
+stock|custom|all`, and three buttons. Work is selected by content hash, so the
+same picture in four packs is one question; an asset already described at the
+current `prompt_version` is never selected again, which is what makes a pass
+resumable and a second pass free.
 
-**Pass 2, the user's own packs** (264 599 at the last count). Resumable, per
-pack, non-objects before objects. See sections 5.5 and 5.7.
+**Every prop on every map today is matched by file name**, because nothing has
+a description yet. That is the single biggest gap in the feature and it is not
+a code gap - somebody has to press the button and wait.
 
-Before either runs at scale, do the two-hundred-asset quality check in section
-5.9. A cached bad description is worse than no description.
+The order to do it in:
 
-*Done when:* a query like "wooden barrel, medieval, tavern, on the floor"
-returns sensible assets, and re-running costs nothing.
+0. **Settle the controlled vocabulary first.** Section 5.3 explains why this
+   one cannot wait: the schema is what the answers are cached under, and
+   changing it after pass 2 means paying for pass 2 twice.
+1. **Then the quality gate** - the button, or `python
+   tools/check_enrichment_quality.py --sample 200`. Section 5.9 says why, and
+   it now prints the numbers that decide: how often the model handed the file
+   name back, how often it said `unclear`, mean confidence. Over a quarter
+   echoing means the model is not looking at the pictures; change it before
+   cataloguing anything.
+2. **Pass 1, the default assets** - 1 996 of them, about an hour. After this
+   the program can furnish a map from stock assets alone on any machine.
+3. **Pass 2, the user's own packs** - 45 401 at the current enabled set, about
+   a day; five times that for the full library.
+
+The numbers above come from `python tools/dungeondraft_indexer.py stats`. Run
+it rather than trusting them; the enabled set changes.
+
+*Not done*, three things, in the order they are worth doing:
+
+- Pass 1's result is not **shipped as a data file**. It is identical on every
+  install and no user should pay for it twice - that was the whole argument for
+  splitting the passes, and the split exists while the shipping does not. What
+  ships today is an empty `data/` folder.
+- **Per-pack cataloguing is not reachable from the app.** The tool takes
+  `--pack <id>`; the buttons offer only stock, custom and all. Section 5.5
+  wanted somebody to be able to catalogue the three packs they care about
+  tonight and the rest whenever, and that is still a command line away.
+- **No progress bar**, only log lines. The tool prints a rate and an ETA every
+  ten assets and the app shows them, which is honest but is not the "two
+  progress bars, two honest estimates in hours" of section 5.5. For a job of
+  this length that is a real difference.
+
+Within pass 2 the work is already ordered non-objects first, as 5.5 asks.
 
 ### Step 2b - validate and re-catalogue
 
-The Validate and Re-catalogue buttons from section 5.6. Cheap to build once the
-indexer and a pass exist, and it is what keeps a shipped catalogue honest
-across Dungeondraft versions and pack updates.
+**Validate is done**, in the two tiers described in 5.6, with the asset-level
+comparison inside changed packs. Verified by corrupting a copy of the database
+and watching it name the redrawn, resized, gone and new assets correctly.
 
-*Done when:* installing a Dungeondraft update, or updating one pack, produces a
-correct list of what is new, gone, redrawn and stale - and re-cataloguing
-touches only that list.
+**Re-catalogue is not done**, nor is suspect-detection. See 5.6 for exactly
+what is missing.
 
 ### Step 3 - objects only, end to end
 
-Place only props from a plan onto an otherwise blank map. No terrain, no walls.
+**Done in code.** Props from a plan land on the map at their plan coordinates,
+`(x + w/2) * 256` for the centre, rotation in radians.
 
-*This is the moment the whole idea is proved or killed.* Open the result in
-Dungeondraft. If the objects land in the right places at the right sizes, the
-rest is work; if they do not, stop and reconsider before building more.
+Scale is not always 1. Half the object library is naturally under half a grid
+square and that is deliberate, so small art is left alone; but art more than
+1.5x bigger than the slot the plan gave it is scaled down to fit, because a
+14-square statue dropped on a one-square feature swallows the room. That
+tolerance is a constant, `PROP_OVERSIZE_TOLERANCE`, and it is a guess that
+wants a human eye on it in Dungeondraft.
 
-*Done when:* a map opens in Dungeondraft with the plan's props in the right
-squares, at the right rotations and sensible scales.
+**Unproven.** See 9.0. Nobody has opened one.
 
 ### Step 4 - terrain, tiles, walls, portals, lights
 
-Now the format is known, this is ordinary work, and there is an order to it:
+**Done except caves.** Tiles are one int per cell in row order; terrain writes
+both splat byte arrays at four samples per cell per axis; walls are polylines
+in absolute pixels; portals are attached to them by `point_index` and
+`wall_distance`; lights are placed for any prop whose kind reads as a flame.
+Node ids are unique and `world.next_node_id` is above the highest.
 
-- **Tiles first.** `tiles.cells` is one int per cell in row order - the
-  closest thing in the format to our own plan grid, and the cheapest win.
-- **Terrain** next: pick up to eight textures, write the two splat byte arrays
-  at four samples per cell per axis.
-- **Walls** as polylines in absolute pixels, then **portals attached to them**
-  by `point_index` and `wall_distance` - a door is placed along a wall, not at
-  a free coordinate, so the wall has to exist first.
-- **Lights** last; they are free-standing points.
-- Keep every `node_id` unique and leave `world.next_node_id` above the highest.
+Two things were wrong in the first version and are worth knowing about, because
+both produced a file that validated perfectly and would have looked broken:
 
-Caves are their own branch of this step and depend on UNKNOWN-1.
+- **Not one door was ever placed.** The test asked whether the door's centre
+  was nearer than half a cell to the wall line, and a door cell's centre is
+  always *exactly* half a cell from it. Thirteen scenes, zero portals, no
+  error. Doors are now attached by projecting onto the nearest wall segment,
+  which also fixed the other half of it: only the top edge of a room was
+  checked, though the comment claimed all four.
+- **Free-standing walls were drawn corner to corner**, so a wall zone became a
+  diagonal across the room. They are now the centre line of the zone's long
+  axis.
+
+The planner leaves a gap in the wall where a door goes, so the nearest point on
+a wall is often its own end. A portal parked on an endpoint hangs half off the
+wall, so the wall is extended through the opening and the door cuts it - which
+is also how a person draws it in Dungeondraft.
+
+*Not done:* **caves.** The `cave` key is written empty and valid, and section
+2.4b has the encoding - one bit per sample, packed eight to a byte, least
+significant bit first, over a `(4w + 3) x (4h + 3)` grid - confirmed by
+decoding a real map. Writing one has never been tried.
+
+This matters more than a missing key sounds, because **in a cave scene the
+walls are that bitmap, not the `walls` list**. The assembler does not know
+that: `cavern_lake`, the `underdark_cavern` scene, currently comes out with 25
+ordinary walls where it should have a painted cave. It is the one part of step
+4 where the output is not merely unproven but known to be wrong, and the same
+question - what does a natural, unbuilt space look like in this format -
+applies to the other outdoor styles that have no rooms.
+
+### 9.7 The open design question: two walls where there should be one
+
+**Somebody has to decide this with Dungeondraft open, and it should be the
+first thing after 9.0.**
+
+Walls are built from two sources that disagree by half a cell:
+
+- **`areas`** - room rectangles - each becomes a closed `type: 0` wall and the
+  matching entry in `shapes.polygons` / `shapes.walls`, which is what makes it
+  a building floor.
+- **`zones` of kind `wall`** - what the planner actually rasterised - each
+  becomes an open `type: 1` wall.
+
+In the crypt scene the reliquary's outline runs at y = 512 and the wall zone
+that *is* its north wall runs at y = 384. Two parallel walls, half a square
+apart, all the way round every room. In the JSON this is invisible; on screen
+it will not be.
+
+The three ways out, none of which should be chosen from a JSON dump:
+
+1. **Wall zones win.** Drop the room outlines as walls, keep the polygons as
+   floor shapes. Risk: `shapes.walls` wants a wall node id for every polygon,
+   and nothing we have read says what Dungeondraft does when there is not one.
+   Cheap to find out - write one map both ways and open both.
+2. **Room outlines win.** Drop wall zones that run within a cell of a room
+   edge, keep the rest. Risk: a zone is not the same length as the room edge it
+   overlaps - the crypt's north wall runs a cell past the reliquary at each end
+   - so dropping it whole loses real wall.
+3. **Snap.** Move each wall zone's line onto the room edge it is within a cell
+   of, and merge duplicates. Most work, best result, and only worth it once
+   somebody has confirmed 1 and 2 are wrong.
+
+### 9.8 Using the whole machine, where it actually helps
+
+Everything written so far runs on one core. This machine has **32**. The
+question is not whether to parallelise but *what* - and the answer is not the
+part that takes days.
+
+Every number below was measured on this machine, and each measurement says
+what it ran on so it can be rebuilt in a dozen lines: a fixed list of real
+assets, a warm start, and a fresh thumbnail directory per run - `save_thumbnail`
+returns early when the file exists, so reusing one makes every run after the
+first look free and the first parallel figure came out 40 % too good. Do not
+take these on trust once the code has changed. Take them again.
+
+#### The indexer: threads, and roughly ten times faster
+
+240 textures out of `WFW Fantasy A 2.01`, each one extracted from the pack,
+decoded, hashed, measured and thumbnailed - the whole per-asset pipeline:
+
+| | time | rate | speed-up |
+|---|---|---|---|
+| serial | 9.63 s | 24.9 assets/s | - |
+| threads x4 | 2.54 s | 94.6 assets/s | x3.8 |
+| threads x8 | 1.39 s | 172.6 assets/s | x6.9 |
+| threads x16 | 1.11 s | 216.8 assets/s | x8.7 |
+| threads x32 | 0.94 s | 255.1 assets/s | **x10.2** |
+| processes x8 | 5.55 s | 43.2 assets/s | x1.7 |
+| processes x16 | 4.15 s | 57.8 assets/s | x2.3 |
+
+**Threads, not processes**, and the reason matters because it is the opposite
+of the usual Python advice. Almost none of this work is Python: Pillow's WebP
+decode, its LANCZOS resize and its WebP encode, `hashlib.sha256` over the
+decoded bytes, and numpy's alpha and mean statistics all release the GIL, so
+threads run genuinely in parallel. Processes have to pay Windows `spawn` - a
+fresh interpreter, re-imported Pillow and numpy - and have to reopen the pack
+per item because a `PckReader` cannot be pickled. They lose four-fold to
+threads and win only 2x against doing nothing.
+
+What that is worth: the current 47 397 assets take about **32 minutes** serially
+and about **3**. The user's full 264 599 would be three hours against eighteen
+minutes. The scan is the one job in this feature that is pure CPU, and it is
+the one job the user re-runs whenever a pack changes.
+
+Two things make it safe:
+
+- **`PckReader.read_bytes` opens its own file handle per call**, so one reader
+  can be shared across threads without a lock. This was not designed for
+  threading; it is true by luck, and it is worth a comment in the reader so
+  nobody "optimises" it into a shared handle.
+- **The SQLite writes stay on one thread.** The connection is not shared across
+  threads, and `save_thumbnail` writes into hash-sharded directories with
+  `mkdir(exist_ok=True)`, which is safe concurrently. Structure it as a pool
+  that decodes and measures, and one consumer that upserts - and collect
+  results in submission order, not completion order, or section 5.11's
+  determinism promise quietly stops being true.
+
+Per texture within a pack, not per pack. Packs differ in size by two orders of
+magnitude, so a pack-level pool would leave 31 cores waiting on the largest
+one, and it would make the progress line meaningless.
+
+#### The cataloguer: no, and it is worth knowing why
+
+Sixteen real assets through `gemma4:12b`, warm model, first call discarded:
+
+| | time for 16 | each | speed-up |
+|---|---|---|---|
+| one at a time | 32.8 s | 2.05 s | - |
+| 2 in flight | 31.5 s | 1.97 s | x1.04 |
+| 4 in flight | 31.7 s | 1.98 s | x1.03 |
+
+**Nothing.** The 2.05 s also confirms section 5.7's measured 2.00 s median from
+a different direction, so the measurement is sound and the answer is real: one
+request already saturates the GPU, and Ollama serialises the rest.
+
+Do not try to fix this by raising `OLLAMA_NUM_PARALLEL`. Every parallel slot
+needs its own KV cache on a 12 GB card already holding 7.6 GB of weights, and
+section 5.7 measured what happens when a model stops fitting: it lands on the
+CPU and runs ten to thirteen times slower. The plausible-sounding optimisation
+here makes the six-day job a sixty-day job.
+
+The days are spent inside the GPU, and there is no core count that changes it.
+What *can* be overlapped is the small CPU work either side of each call -
+loading the thumbnail and base64-encoding it while the model is busy with the
+previous one. At 2 s per call against a few milliseconds of encoding that is
+worth about nothing today, and would only matter if the model ever got fast.
+
+#### The rest
+
+- **`validate`'s deep pass** re-decodes and re-hashes every texture inside a
+  changed pack. Same pipeline, same fix, same ten-fold - and it is the same
+  function, so do it once and both benefit.
+- **`check_dungeondraft.py`** runs 13 independent scenes serially. It takes
+  seconds; parallelising it would save seconds and make a failure harder to
+  read. Leave it.
+- **The assembler** is not a candidate. One map is milliseconds of work.
+- **The app** is already right: every long job runs on a worker thread and the
+  UI never blocks. There is one job at a time by design - `BeginJob` refuses a
+  second - and that should stay, because these jobs contend for the same GPU,
+  the same database and the same log.
+- **The C++ side has nothing worth threading.** The rasterizer works on a
+  50 x 40 grid, and the one heavy pixel loop - painting the bleed margin on a
+  finished render - runs once beside a ComfyUI job measured in minutes.
+
+The rule this leaves behind, which is the general one: **parallelise where the
+work is CPU and the items are independent, and measure before and after.** Two
+of the four candidates here looked equally promising and one of them was worth
+exactly four per cent.
 
 ### Step 5 - the prop foundry
 
-Ideogram generates, BiRefNet `lucida` cuts the background out, the result is
-scaled so its intended grid footprint x 256 gives its pixel size, then written
-into our own pack folder with a `default.dungeondraft_tags`, a `preview.png`
-and a `pack.json`, and packed.
+**Not started.** Unchanged from the original plan, and now with a first real
+list of what it is for: `check_dungeondraft.py` reports 5 plan elements across
+the 13 scenes that the library cannot answer - all of them banners.
 
-Packing needs either `Dungeondraft-GoPackager` (a CLI binary, the pragmatic
-choice) or our own Godot PCK writer - we already read the format, and writing
-it is perhaps another eighty lines, with no external dependency. Decide when
-you get there. Reading is proved; writing is not.
+That number is small and it is honest. It was zero until the matcher stopped
+inventing an answer: when the first two queries found nothing, a third returned
+the first fifty objects in the table and picked one by hash, so a banner came
+back as whatever happened to sort first. It looked like a match, it reported
+as a match, and it would have been a wrong picture on somebody's map. Removing
+it cost 5 objects out of 420 and made the check mean something.
+
+Everything else in the original step 5 still stands: Ideogram generates,
+BiRefNet `lucida` cuts the background out, the result is scaled so its intended
+grid footprint x 256 gives its pixel size, then written into our own pack with
+a `default.dungeondraft_tags`, a `preview.png` and a `pack.json`, and packed -
+with `Dungeondraft-GoPackager` or our own Godot PCK writer. Reading the format
+is proved; writing it is not.
 
 Reuse from the frozen branch: the `build_ideogram` and `make_cutout` graph
 builders from `tools/tile_backends.py`, `prop_prompt` from `tools/tilegen.py`,
-and `tools/check_library.py` as the quality gate - a refusal card is grey where
-real art is not, calibrated ten out of ten on real samples. Ideogram does
-refuse some prompts; the schema-shaped caption already cut that from two in
-three to one in four.
-
-*Done when:* a prop the packs do not have appears on the assembled map, at the
-right size, with a clean edge.
+and `tools/check_library.py` as the quality gate.
 
 ### Step 6 - checks
 
-Run the thirteen scenes in `tools/scenes/` through the assembler and report,
-per scene, how many plan elements found an asset and how many had to be
-generated. That is this project's regression suite and it should stay that way.
+**Done.** `python tools/check_dungeondraft.py` runs all thirteen scenes in
+`tools/scenes/` through the assembler and reports, per scene: grid, walls,
+doors, objects, plan elements with no asset, packs referenced, and a pass or
+fail from validating the written JSON against section 2. It ends with the list
+of kinds nothing in the library could answer - the prop foundry's work queue.
+
+Current output: 13 pass, 251 walls, 415 objects, 23 doors, 5 elements with no
+asset. This is the regression suite; keep it that way, and re-run it after
+anything that touches the assembler or the matcher.
+
+`python tools/check_enrichment_quality.py` is the other one, and it is a gate
+rather than a regression: it scores a model on 200 sampled assets before that
+model is allowed to write a quarter of a million descriptions.
 
 ## 10. Gotchas, each of which has already bitten
 
@@ -1304,6 +1714,41 @@ generated. That is this project's regression suite and it should stay that way.
   and the map's `asset_manifest` names the packs. Only props we generate go
   into a pack of ours. State this before anything ships.
 
+### Bitten during the implementation, not before it
+
+Every one of these produced a file that validated, a job that exited zero, or a
+green tick. None of them raised an error. That is the shape of every bug this
+feature has had so far, and it is worth expecting more of the same.
+
+- **A geometric test that can never be true.** A door's centre is *exactly*
+  half a cell from the wall line, and the test asked for less than half a cell.
+  Zero doors on thirteen scenes, no error, and a check that did not count
+  doors. If a number comes out zero every time, that is a result to explain,
+  not a default to accept.
+- **A check whose fallback made it always pass.** The matcher's last resort
+  returned an arbitrary asset, so nothing was ever unmatched, so the scene
+  check reported nothing missing - forever. **A quiet substitution defeats the
+  check built to catch it.** Return nothing and say so.
+- **Two names for one file.** The tool wrote `map.report.json`; the app looked
+  for `map.dungeondraft_map.report.json` and, finding nothing, showed zeros.
+  The keys disagreed too - `walls_placed` against `placed_walls`. A sidecar
+  read by two programs is a contract; section 8.3 now writes it down.
+- **A retry with no cooldown.** The tab asked for library statistics whenever a
+  flag said they were not loaded, and a failed read never set the flag - one
+  python process per frame. A failure has to count as an attempt.
+- **A cancel button that only set a flag.** Nothing read it, and the reader
+  blocked. For a job measured in days that is not a cosmetic problem. Read the
+  pipe with `PeekNamedPipe` and terminate the child.
+- **Asking the model the same question twice.** Enrichment is keyed on content
+  hash, but the work query returned one row per *asset*, and the same picture
+  lives in several packs. Group by the hash.
+- **`Path.with_suffix` replaces, `+` appends.** Both look right in a diff.
+- **Godot counts weekdays from Sunday, Python from Monday.**
+- **The build shipped the library.** A `copy_directory` of `data/` put 250 000
+  thumbnails and an index of *this* machine's packs into every release, and
+  `data/` was not in `.gitignore`. The catalogue is built on the user's machine
+  from the packs they own; only the folder ships.
+
 ---
 
 ## 11. What to reuse, and what to leave alone
@@ -1325,11 +1770,18 @@ existing whole-scene render. They work.
 
 ### Branch
 
-`main` never received the tiled machinery — only the Ideogram documentation and
-the caption key-order fix, both of which we want. **Start the new branch from
-`main`**; it is clean by construction and nothing has to be deleted from any
-commit. `feature/tiled-generation` stays pushed, untouched, as the record of
-what was tried.
+The work is on **`feature/dungeondraftintegration`**, branched from `main` as
+this section originally instructed, and it is **entirely uncommitted** - eight
+new tools, the format document, the Dungeondraft tab and the edits to
+`CMakeLists.txt`, `config.json`, `README.md`, `AGENTS.md` and
+`packaging/READ_ME_FIRST.txt` all sit in the working tree.
+
+Commit it before doing anything else. Not because the history matters yet, but
+because the next person to run `git checkout` or `build.ps1 -Clean` on this
+machine will find out the hard way that it does not exist anywhere else.
+
+`feature/tiled-generation` stays pushed, untouched, as the record of what was
+tried and why it was stopped.
 
 ---
 

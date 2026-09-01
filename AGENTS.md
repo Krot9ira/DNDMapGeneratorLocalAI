@@ -22,6 +22,7 @@ import agent_api
 |---|---|---|---|
 | a **plan**, layout, blueprint, schema, floor plan | `agent_api.blueprint(spec)` | seconds, no GPU | `map.json` + readable `preview.png` |
 | a **finished map**, a render, an image to play on | `agent_api.generate(spec)` | minutes, needs ComfyUI | painted `battlemap*.png` |
+| a **Dungeondraft map file**, editable in Dungeondraft | `agent_api.assemble_dungeondraft(spec)` | seconds, no GPU | `.dungeondraft_map` + `.report.json` |
 | several options to choose between | `blueprint` per option | seconds each | one folder each |
 | a render of a plan that exists already | `agent_api.generate_from_map(path_or_dict)` | minutes | painted image |
 
