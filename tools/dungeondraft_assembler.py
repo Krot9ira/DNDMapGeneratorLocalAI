@@ -48,6 +48,54 @@ DOOR_SNAP_PX = 384          # 1.5 cells: a door zone and the wall it belongs to
                             # are drawn on different grids and land up to half a
                             # cell apart, so an exact test never matches.
 
+DEFAULT_TILES_LOOKUP = {
+    "0": "res://textures/tilesets/smart/tileset_wood_vertical.png",
+    "1": "res://textures/tilesets/smart_double/tileset_stone.png",
+    "2": "res://textures/tilesets/simple/tileset_cave.png",
+    "3": "res://textures/tilesets/simple/tileset_brick_running.png",
+    "4": "res://textures/tilesets/simple/tileset_cobble.png",
+    "5": "res://textures/tilesets/simple/tileset_concrete.png",
+    "6": "res://textures/tilesets/simple/tileset_brick_worn.png",
+    "7": "res://textures/tilesets/simple/tileset_carpet.png",
+    "8": "res://textures/tilesets/simple/tileset_concrete_slab.png",
+    "9": "res://textures/tilesets/simple/tileset_concrete_large.png",
+    "10": "res://textures/tilesets/simple/tileset_brick_basketweave.png",
+    "11": "res://textures/tilesets/simple/tileset_cut_stone.png",
+    "12": "res://textures/tilesets/simple/tileset_diamond.png",
+    "13": "res://textures/tilesets/simple/tileset_plank_45.png",
+    "14": "res://textures/tilesets/simple/tileset_herringbone.png",
+    "15": "res://textures/tilesets/simple/tileset_ornate.png",
+    "16": "res://textures/tilesets/simple/tileset_diamond_2.png",
+    "17": "res://textures/tilesets/simple/tileset_roman_worn.png",
+    "18": "res://textures/tilesets/simple/tileset_sewers.png",
+    "19": "res://textures/tilesets/simple/tileset_straw.png",
+    "20": "res://textures/tilesets/simple/tileset_wood_damaged.png",
+    "21": "res://textures/tilesets/simple/tileset_worn_cobble.png",
+    "22": "res://textures/tilesets/simple/tileset_wood_interlaced.png",
+    "23": "res://textures/tilesets/simple/tileset_roman_tiles.png",
+}
+
+DEFAULT_COLOR_PALETTES = {
+    "object_custom_colors": [
+        "ff6b3834", "ffac584c", "ff885848", "ffc0866c", "ff8d6d58", "fff3a768", "ff685848", "ff9c8868",
+        "ffae9254", "ffd8c888", "ff888868", "ffaab478", "ff92aa58", "ff87a868", "ff679865", "ff789868",
+        "ff546d56", "ff68887c", "ff667878", "ff809dab", "ff61788d", "ff535869", "ff786878", "ff886878",
+        "ff905868", "ff994858", "ffd8d8d8", "ff8a8a8a", "ff585858", "ff282828"
+    ],
+    "scatter_custom_colors": [
+        "ff6b3834", "ffac584c", "ff885848", "ffc0866c", "ff8d6d58", "fff3a768", "ff685848", "ff9c8868",
+        "ffae9254", "ffd8c888", "ff888868", "ffaab478", "ff92aa58", "ff87a868", "ff679865", "ff789868",
+        "ff546d56", "ff68887c", "ff667878", "ff809dab", "ff61788d", "ff535869", "ff786878", "ff886878",
+        "ff905868", "ff994858", "ffd8d8d8", "ff8a8a8a", "ff585858", "ff282828"
+    ],
+    "light_colors": ["ffeccd8b", "ffeaefca", "ff80beff", "ffffad58", "ff4dd569"],
+    "grid_colors": ["7fffffff", "7fcccccc", "7f333333", "7f000000"],
+    "deep_water_colors": ["ff3aa19a", "ff8bceb0", "ffffcc55", "ff3c8ab8"],
+    "shallow_water_colors": ["ff3ac3b2", "ff8bceb0", "ffcc5555", "ff54c1da"],
+    "cave_ground_colors": ["ff7f7e71"],
+    "cave_wall_colors": ["ff7f7e71"],
+}
+
 
 def nearest_point_on_polyline(
     points: List[Tuple[float, float]], loop: bool, x: float, y: float
@@ -136,14 +184,15 @@ def generate_cave_bitmaps(
     1 bit per sample, packed 8 to a byte, least significant bit first,
     over a grid of (4w + 3) x (4h + 3) samples.
     """
-    if not is_cave:
-        return "PoolByteArray(  )", "PoolByteArray(  )"
-
     cw = 4 * cols + 3
     ch = 4 * rows + 3
     total_bits = cw * ch
     total_bytes = (total_bits + 7) // 8
     cave_buf = bytearray(total_bytes)
+    entrance_buf = bytearray(total_bytes)
+
+    if not is_cave:
+        return format_pool_byte_array(bytes(cave_buf)), format_pool_byte_array(bytes(entrance_buf))
 
     # Floor regions in cell units
     floor_rects = []
@@ -170,7 +219,7 @@ def generate_cave_bitmaps(
             if is_floor:
                 cave_buf[byte_idx] |= (1 << bit_offset)
 
-    return format_pool_byte_array(bytes(cave_buf)), "PoolByteArray(  )"
+    return format_pool_byte_array(bytes(cave_buf)), format_pool_byte_array(bytes(entrance_buf))
 
 
 class DungeondraftAssembler:
@@ -221,7 +270,7 @@ class DungeondraftAssembler:
         if tileset_pack and tileset_pack != "default":
             packs_referenced.add(tileset_pack)
 
-        tiles_lookup = {}
+        tiles_lookup = dict(DEFAULT_TILES_LOOKUP)
         if floor_tileset_res and not is_cave:
             tiles_lookup["0"] = floor_tileset_res
             # Fill area cells with tile index 0
@@ -232,25 +281,26 @@ class DungeondraftAssembler:
                     for x in range(ax, min(cols, ax + aw)):
                         tiles_cells[y * cols + x] = 0
 
+        tiles_colors = ["ffffffff"] * (cols * rows)
+
         # 2. Terrain Splatmap (4 samples/cell/axis)
         splat_w = cols * 4
         splat_h = rows * 4
         splat_sample_count = splat_w * splat_h
-        # splat1: 4 channels (textures 1-4 weights, default texture 1 = 255)
         splat1_bytes = bytearray([255, 0, 0, 0] * splat_sample_count)
-        # splat2: textures 5-8 weights
-        splat2_bytes = bytearray([0, 0, 0, 0] * splat_sample_count)
 
         terrain_slots = self.matcher.match_terrain_textures(style_id=style_id)
         terrain_dict = {
             "enabled": True,
             "expand_slots": False,
-            "smooth_blending": True,
+            "smooth_blending": False,
+            "texture_1": terrain_slots[0][0] if len(terrain_slots) > 0 else "res://textures/terrain/terrain_dirt.png",
+            "texture_2": terrain_slots[1][0] if len(terrain_slots) > 1 else "res://textures/terrain/terrain_gravel.png",
+            "texture_3": terrain_slots[2][0] if len(terrain_slots) > 2 else "res://textures/terrain/terrain_sand.png",
+            "texture_4": terrain_slots[3][0] if len(terrain_slots) > 3 else "res://textures/terrain/terrain_snow.png",
             "splat": format_pool_byte_array(bytes(splat1_bytes)),
-            "splat2": format_pool_byte_array(bytes(splat2_bytes)),
         }
-        for idx, (t_res, t_pack) in enumerate(terrain_slots, 1):
-            terrain_dict[f"texture_{idx}"] = t_res
+        for t_res, t_pack in terrain_slots[:4]:
             if t_pack and t_pack != "default":
                 packs_referenced.add(t_pack)
 
@@ -525,9 +575,23 @@ class DungeondraftAssembler:
                 "uses_default_assets": True,
                 "asset_manifest": asset_manifest,
                 "editor_state": {
-                    "camera_offset": "Vector2( 0, 0 )",
-                    "camera_zoom": 1.0,
-                    "grid_opacity": 0.5,
+                    "current_level": 0,
+                    "camera_position": f"Vector2( {cols * 128}, {rows * 128} )",
+                    "camera_zoom": 1,
+                    "guide_position": "null",
+                    "trace_image": None,
+                    "color_palettes": DEFAULT_COLOR_PALETTES,
+                    "object_tags_memory": {"set": 0, "tags": []},
+                    "scatter_tags_memory": {"set": 0, "tags": []},
+                    "object_library_memory": {
+                        "mode": "all",
+                        "scroll": 0,
+                        "selected": [],
+                        "search_strictness": 0.5,
+                    },
+                    "scatter_library_memory": None,
+                    "path_library_memory": None,
+                    "sharpen_fonts": True,
                 },
             },
             "world": {
@@ -537,18 +601,18 @@ class DungeondraftAssembler:
                 "next_node_id": hex(self.node_counter + 1)[2:],
                 "next_prefab_id": "0",
                 "msi": {
-                    "offset_map_size": 1,
-                    "max_offset_distance": 0.0,
-                    "cell_size": 256.0,
-                    "seed": seed,
+                    "offset_map_size": 512,
+                    "max_offset_distance": 0.2,
+                    "cell_size": 64,
+                    "seed": f"{seed & 0x7FFFFFFF:x}",
                 },
                 "grid": {
-                    "color": "ff000000",
-                    "texture": "res://textures/grid/square.png",
+                    "color": "7f000000",
+                    "texture": "res://textures/grid/dotted_line.png",
                 },
                 "wall_shadow": True,
                 "object_shadow": True,
-                "building_wear": True,
+                "building_wear": None,
                 "trace_image_visible": False,
                 "embedded": {},
                 "levels": {
@@ -557,37 +621,51 @@ class DungeondraftAssembler:
                         "layers": {
                             "-400": "Below Ground",
                             "-100": "Below Water",
-                            "100": "Layer 1 (Objects)",
-                            "200": "Layer 2 (Paths)",
-                            "300": "Layer 3 (Patterns)",
+                            "100": "User Layer 1",
+                            "200": "User Layer 2",
+                            "300": "User Layer 3",
+                            "400": "User Layer 4",
                             "700": "Above Walls",
                             "900": "Above Roofs",
                         },
                         "environment": {
                             "baked_lighting": True,
-                            "ambient_light": "ffffffff",
+                            "ambient_light": "ffe8c5c5",
                         },
                         "tiles": {
                             "cells": format_pool_int_array(tiles_cells),
-                            "colors": {},
+                            "colors": tiles_colors,
                             "lookup": tiles_lookup,
                         },
                         "terrain": terrain_dict,
                         "cave": {
                             "bitmap": cave_bitmap_str,
                             "entrance_bitmap": cave_entrance_str,
-                            "ground_color": "ff3a352c",
-                            "wall_color": "ff1b1712",
+                            "ground_color": "ff7f7e71",
+                            "wall_color": "ff7f7e71",
                             "texture": "res://textures/caves/colorable/floor.png",
                         },
                         "water": {
                             "disable_border": False,
+                            "tree": {
+                                "ref": -496340410,
+                                "polygon": "PoolVector2Array(  )",
+                                "join": 0,
+                                "end": 0,
+                                "is_open": False,
+                                "deep_color": "00000000",
+                                "shallow_color": "00000000",
+                                "blend_distance": 0,
+                                "children": [],
+                            },
                         },
                         "shapes": {
                             "polygons": shapes_polygons,
                             "walls": shapes_walls,
                         },
-                        "materials": {},
+                        "materials": {
+                            "-400": [],
+                        },
                         "patterns": [],
                         "paths": [],
                         "objects": objects_list,
@@ -595,14 +673,18 @@ class DungeondraftAssembler:
                         "portals": [],
                         "lights": lights_list,
                         "texts": [],
+                        "texts_vis": True,
                         "roofs": {
                             "shade": True,
-                            "shade_contrast": 1.0,
-                            "sun_direction": 0.0,
+                            "shade_contrast": 0.5,
+                            "sun_direction": 45,
                             "roofs": [],
                         },
                     }
                 },
+            },
+            "mod": {
+                ".node_table": {},
             },
         }
 
