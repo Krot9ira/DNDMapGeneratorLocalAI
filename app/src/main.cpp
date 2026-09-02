@@ -2095,7 +2095,7 @@ static void TabEditor() {
             ImGui::Text("Description");
             InputTextMultilineString("##cdesc", &g_app.customDesc, ImVec2(-1, 70));
             ImGui::SetItemTooltip("What it looks like from above: materials, colour, damage.");
-            ImGui::Text("Let the AI embellish");
+            ImGui::Text("Embellishment level");
             ImGui::Combo("##celab", &g_app.customElaboration,
                          "No - exactly as written\0A little\0Freely\0");
             ImGui::SetItemTooltip("How much licence the renderer gets with your description.");
@@ -2115,7 +2115,7 @@ static void TabEditor() {
         ImGui::Text("Description");
         InputTextMultilineString("##adesc", &g_app.annDesc, ImVec2(-1, 70));
         ImGui::SetItemTooltip("What it looks like from above.");
-        ImGui::Text("Let the AI embellish");
+        ImGui::Text("Embellishment level");
         ImGui::Combo("##aelab", &g_app.annElaboration,
                      "No - exactly as written\0A little\0Freely\0");
         ImGui::SetItemTooltip("How much licence the renderer gets with your words.");
@@ -2147,7 +2147,7 @@ static void TabEditor() {
             InputTextString("##elabel", &g_app.effLabel);
             ImGui::Text("Description");
             InputTextMultilineString("##edesc", &g_app.effDesc, ImVec2(-1, 66));
-            ImGui::Text("Let the AI embellish");
+            ImGui::Text("Embellishment level");
             ImGui::Combo("##eelab", &g_app.effElaboration,
                          "No - exactly as written\0A little\0Freely\0");
             if (g_app.effLabel.empty())

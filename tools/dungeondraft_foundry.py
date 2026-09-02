@@ -29,10 +29,11 @@ from dungeondraft_db import (
     THUMBS_DIR_DEFAULT,
 )
 from dungeondraft_pck import PckWriter
-from dungeondraft_indexer import read_dungeondraft_config
+from dungeondraft_indexer import read_dungeondraft_config, enable_pack_in_dungeondraft_config
 
-PACK_ID = "AGProps01"
-PACK_NAME = "Antigravity AI Generated Props"
+PACK_ID = "DBGProps01"
+PACK_NAME = "DndBattlemapGenerator Custom Props"
+PACK_AUTHOR = "DndBattlemapGenerator"
 GENERATED_DIR_DEFAULT = PROJECT_ROOT / "data" / "generated_props"
 
 
@@ -252,7 +253,7 @@ class PropFoundry:
         pack_dict = {
             "id": PACK_ID,
             "name": PACK_NAME,
-            "author": "Antigravity Local AI",
+            "author": PACK_AUTHOR,
             "version": "1.0",
             "file_path": str(self.output_dir.parent / f"{PACK_ID}.dungeondraft_pack"),
             "file_size": 0,
@@ -350,7 +351,7 @@ class PropFoundry:
             "palette": metrics["palette"],
             "thumb_path": thumb_rel,
             "pack_tags": json.dumps(["Generated", kind]),
-            "pack_sets": json.dumps(["AI Generated"]),
+            "pack_sets": json.dumps(["DndBattlemapGenerator"]),
             "content_hash": metrics["content_hash"],
             "state": "ok",
             "last_seen_at": int(time.time()),
@@ -395,7 +396,7 @@ class PropFoundry:
             "name": PACK_NAME,
             "id": PACK_ID,
             "version": "1.0",
-            "author": "Antigravity Local AI",
+            "author": PACK_AUTHOR,
             "allow_3rd_party_mapping_software_to_read": True,
             "custom_color_overrides": {"enabled": False},
         }
@@ -405,7 +406,7 @@ class PropFoundry:
         preview_img = Image.new("RGBA", (256, 320), (35, 30, 45, 255))
         pdraw = ImageDraw.Draw(preview_img)
         pdraw.rectangle([10, 10, 246, 310], outline=(200, 170, 60, 255), width=2)
-        pdraw.text((30, 140), "AI Generated Props", fill=(240, 240, 240, 255))
+        pdraw.text((30, 140), "Custom Props", fill=(240, 240, 240, 255))
         pbuf = io.BytesIO()
         preview_img.save(pbuf, "PNG")
         writer.add_file(f"res://packs/{PACK_ID}/preview.png", pbuf.getvalue())
@@ -423,7 +424,7 @@ class PropFoundry:
 
         tags_data = {
             "tags": tag_map,
-            "sets": {"AI Generated": ["Generated"]},
+            "sets": {"DndBattlemapGenerator": ["Generated"]},
         }
         writer.add_file(f"res://packs/{PACK_ID}/data/default.dungeondraft_tags", json.dumps(tags_data, indent=2).encode("utf-8"))
 
@@ -434,7 +435,7 @@ class PropFoundry:
         pack_dict = {
             "id": PACK_ID,
             "name": PACK_NAME,
-            "author": "Antigravity Local AI",
+            "author": PACK_AUTHOR,
             "version": "1.0",
             "file_path": os.path.abspath(str(pack_out)),
             "file_size": stat.st_size,
@@ -446,6 +447,9 @@ class PropFoundry:
             "scan_version": 1,
         }
         self.db.upsert_pack(pack_dict)
+
+        # Enable pack in Dungeondraft's config.ini so Dungeondraft loads it without 'missing pack' caution
+        enable_pack_in_dungeondraft_config(PACK_ID)
 
         print(f"Packed {len(all_pngs)} textures into Dungeondraft pack: {pack_out}")
         return str(pack_out)

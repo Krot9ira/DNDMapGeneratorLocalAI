@@ -196,6 +196,36 @@ def read_dungeondraft_config(config_path: Optional[Path] = None) -> dict:
     }
 
 
+def enable_pack_in_dungeondraft_config(pack_id: str) -> bool:
+    """Ensure pack_id is listed in active_asset_packs in Dungeondraft's config.ini.
+
+    When Dungeondraft launches with the pack in active_asset_packs, it loads the
+    pack automatically and never displays 'missing pack' warnings for generated maps.
+    """
+    path = find_dungeondraft_config()
+    if not path or not path.exists():
+        return False
+    try:
+        text = path.read_text(encoding="utf-8", errors="replace")
+        aap_match = re.search(r'active_asset_packs\s*=\s*(\[[^\]]*\])', text, re.DOTALL)
+        if not aap_match:
+            return False
+
+        raw_content = aap_match.group(1)
+        current_packs = re.findall(r'"([^"]+)"', raw_content)
+        if pack_id in current_packs:
+            return True
+
+        current_packs.append(pack_id)
+        formatted = "[ " + ", ".join(f'"{p}"' for p in current_packs) + " ]"
+        new_text = text[:aap_match.start()] + f"active_asset_packs={formatted}" + text[aap_match.end():]
+        path.write_text(new_text, encoding="utf-8")
+        return True
+    except Exception as exc:
+        print(f"[indexer] Note: Could not update active_asset_packs in config.ini: {exc}")
+        return False
+
+
 def find_dungeondraft_pck() -> Optional[Path]:
     """Locate Dungeondraft.pck."""
     candidates = [
