@@ -10,7 +10,7 @@ import sys
 from collections import Counter
 from pathlib import Path
 
-ROOT = Path(r"W:\ai\Projects\DNDMapGeneratorLocalAI")
+ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "tools"))
 
 import architect as A  # noqa: E402
