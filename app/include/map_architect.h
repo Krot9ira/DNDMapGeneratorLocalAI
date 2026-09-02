@@ -7,6 +7,7 @@
 #include "map_types.h"
 
 #include <cmath>
+#include <cstdint>
 #include <deque>
 #include <map>
 #include <random>
@@ -1195,7 +1196,9 @@ inline void OpenUpOutdoorRooms(TileGrid& g,
 // the renderer, handed both, had to choose. Keyed on the label, because a
 // description mentions the cliff a tent is pitched against without being one.
 // Mirrors architect._annotation_ground.
-inline bool AnnotationGround(const std::string& label, Tile& tile, bool& sparse) {
+enum class GroundMode { Fill, Ranks, Scatter };
+
+inline bool AnnotationGround(const std::string& label, Tile& tile, GroundMode& mode) {
     struct Group { Tile tile; std::vector<std::string> words; };
     static const std::vector<Group> groups = {
         {Tile::Wall, {"cliff", "rock face", "curtain wall", "sea wall", "rampart",
@@ -1213,12 +1216,20 @@ inline bool AnnotationGround(const std::string& label, Tile& tile, bool& sparse)
         {Tile::Vegetation, {"thicket", "undergrowth", "bushes", "hedge", "treeline",
                             "brambles", "reeds", "scrub", "briars"}},
     };
-    static const std::vector<std::string> sparseWords = {
-        "colonnade", "columns", "column", "pillars", "pillar", "obelisk", "boulder",
-        "stalagmite", "menhir", "stump"};
+    // Many of a thing dotted through a region. Rock grows where it likes, so it
+    // is scattered; a colonnade was built, so it stands in ranks. Plurals are
+    // checked first, so "Mossy Boulders" scatters and "Great Boulder" is one
+    // rock.
+    static const std::vector<std::string> scatteredWords = {
+        "boulders", "stalagmites", "stalactites", "menhirs", "stumps", "rocks",
+        "cairns", "termite mounds", "rubble piles", "spoil heaps"};
+    static const std::vector<std::string> rankedWords = {
+        "colonnade", "columns", "pillars", "obelisks", "statues",
+        "column", "pillar", "obelisk"};
     static const std::vector<std::string> solidWords = {
         "altar", "dais", "plinth", "pedestal", "throne", "sarcophagus", "tomb", "statue",
-        "anvil", "forge", "brazier stand", "monolith", "idol", "shrine stone"};
+        "anvil", "forge", "brazier stand", "monolith", "idol", "shrine stone",
+        "boulder", "stalagmite", "menhir", "stump", "cairn"};
 
     std::string low = " " + Lower(label) + " ";
     auto has = [&low](const std::vector<std::string>& words) {
@@ -1227,30 +1238,83 @@ inline bool AnnotationGround(const std::string& label, Tile& tile, bool& sparse)
         return false;
     };
     for (const Group& gset : groups)
-        if (has(gset.words)) { tile = gset.tile; sparse = false; return true; }
-    if (has(sparseWords)) { tile = Tile::Wall; sparse = true; return true; }
-    if (has(solidWords)) { tile = Tile::Wall; sparse = false; return true; }
+        if (has(gset.words)) { tile = gset.tile; mode = GroundMode::Fill; return true; }
+    if (has(scatteredWords)) { tile = Tile::Wall; mode = GroundMode::Scatter; return true; }
+    if (has(rankedWords)) { tile = Tile::Wall; mode = GroundMode::Ranks; return true; }
+    if (has(solidWords)) { tile = Tile::Wall; mode = GroundMode::Fill; return true; }
     return false;
+}
+
+// A stable pseudo-random value for a cell, so a plan rebuilds identically.
+// Mirrors architect._cell_noise.
+inline uint32_t CellNoise(int x, int y, int salt) {
+    uint32_t h = ((uint32_t)x * 73856093u) ^ ((uint32_t)y * 19349663u)
+               ^ ((uint32_t)(salt + 1) * 83492791u);
+    h = (h ^ (h >> 13)) * 1274126177u;
+    return h ^ (h >> 16);
+}
+
+// Which squares inside a named rectangle the thing it names stands on.
+// Mirrors architect._annotation_cells.
+inline std::vector<std::pair<int, int>> AnnotationCells(int nx, int ny, int nw, int nh,
+                                                        GroundMode mode, int salt) {
+    std::vector<std::pair<int, int>> cells;
+    if (mode == GroundMode::Fill) {
+        for (int y = ny; y < ny + nh; ++y)
+            for (int x = nx; x < nx + nw; ++x) cells.push_back({x, y});
+        return cells;
+    }
+
+    if (mode == GroundMode::Ranks) {
+        // Anchored to the region, not to the parity of the map, or a colonnade
+        // shifts by a square depending on where it was placed. A band only a
+        // few squares deep is one row of columns, not a hedge of them.
+        auto axis = [](int start, int length) {
+            std::vector<int> out;
+            if (length <= 3) { out.push_back(start + length / 2); return out; }
+            const int step = length < 8 ? 2 : 3;
+            for (int v = start + 1; v < start + length - 1; v += step) out.push_back(v);
+            if (out.empty()) out.push_back(start + length / 2);
+            return out;
+        };
+        for (int y : axis(ny, nh))
+            for (int x : axis(nx, nw)) cells.push_back({x, y});
+        return cells;
+    }
+
+    // Rock does not grow on a lattice. Never two next to each other, so each
+    // one still reads as a single boulder rather than a wall of them.
+    std::set<std::pair<int, int>> taken;
+    for (int y = ny; y < ny + nh; ++y) {
+        for (int x = nx; x < nx + nw; ++x) {
+            if (CellNoise(x, y, salt) % 100 >= 26) continue;
+            if (taken.count({x + 1, y}) || taken.count({x - 1, y}) ||
+                taken.count({x, y + 1}) || taken.count({x, y - 1})) continue;
+            taken.insert({x, y});
+            cells.push_back({x, y});
+        }
+    }
+    return cells;
 }
 
 // Lay the ground a region's own name asks for, where nothing else has. Only
 // plain floor is written over, so an explicit terrain zone, a room wall and
 // anything the generator meant always win.
 inline void ApplyAnnotationGround(TileGrid& g, const std::vector<Annotation>& notes) {
-    for (const Annotation& note : notes) {
+    for (size_t index = 0; index < notes.size(); ++index) {
+        const Annotation& note = notes[index];
         Tile tile = Tile::Floor;
-        bool sparse = false;
-        if (!AnnotationGround(note.label, tile, sparse)) continue;
+        GroundMode mode = GroundMode::Fill;
+        if (!AnnotationGround(note.label, tile, mode)) continue;
         int nw = std::max(1, note.w), nh = std::max(1, note.h);
         // A solid thing that was given half the map is not a solid thing; it is
-        // a region that happens to have one in it.
-        if (tile == Tile::Wall && !sparse && nw * nh > 64) sparse = true;
-        for (int yy = note.y; yy < note.y + nh; ++yy)
-            for (int xx = note.x; xx < note.x + nw; ++xx) {
-                if (g.Get(xx, yy) != Tile::Floor) continue;
-                if (sparse && ((xx % 2) || (yy % 2))) continue;
-                g.Set(xx, yy, tile);
-            }
+        // a region that happens to have several in it.
+        if (mode == GroundMode::Fill && tile == Tile::Wall && nw * nh > 64)
+            mode = GroundMode::Scatter;
+        for (const auto& cell : AnnotationCells(note.x, note.y, nw, nh, mode, (int)index)) {
+            if (g.Get(cell.first, cell.second) != Tile::Floor) continue;
+            g.Set(cell.first, cell.second, tile);
+        }
     }
 }
 
@@ -1408,7 +1472,18 @@ inline void EnsureAWayIn(TileGrid& g, const std::string& enclosure) {
         if (sealed.empty()) return;
         const auto& cells = sealed.front();
         std::set<std::pair<int, int>> inside(cells.begin(), cells.end());
+        // Of the walls a door could go in, the one nearest the middle of its
+        // face. Taking the first candidate found put the door hard against a
+        // corner, which is where nobody builds one.
+        int minX = cells.front().first, maxX = minX;
+        int minY = cells.front().second, maxY = minY;
+        for (auto& c : cells) {
+            minX = std::min(minX, c.first);   maxX = std::max(maxX, c.first);
+            minY = std::min(minY, c.second);  maxY = std::max(maxY, c.second);
+        }
+        const double midX = (minX + maxX) / 2.0, midY = (minY + maxY) / 2.0;
         int bestScore = 99, bwx = -1, bwy = -1, box = -1, boy = -1, bgx = 0, bgy = 0;
+        double bestOff = 0.0;
         for (auto& c : cells) {
             const int d[4][2] = {{1, 0}, {-1, 0}, {0, 1}, {0, -1}};
             for (auto& o : d) {
@@ -1421,8 +1496,12 @@ inline void EnsureAWayIn(TileGrid& g, const std::string& enclosure) {
                 else if (IsWalkable(g.Get(ox, oy))) score = 0;
                 else if (g.Get(ox, oy) == Tile::Void) score = 1;
                 else continue;
-                if (score < bestScore) {
+                // Distance along the wall from its middle: a vertical wall is
+                // judged by how far up or down the opening sits, and vice versa.
+                double off = o[0] ? std::fabs(wy - midY) : std::fabs(wx - midX);
+                if (score < bestScore || (score == bestScore && off < bestOff)) {
                     bestScore = score;
+                    bestOff = off;
                     bwx = wx; bwy = wy; box = ox; boy = oy;
                     bgx = o[0]; bgy = o[1];
                 }

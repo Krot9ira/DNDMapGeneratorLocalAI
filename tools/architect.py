@@ -1342,25 +1342,83 @@ _ANNOTATION_GROUND = (
       "reeds", "scrub", "briars"), VEGETATION),
 )
 # Things that stand in a field with room to walk between them.
-_ANNOTATION_SPARSE = ("colonnade", "columns", "column", "pillars", "pillar",
-                      "obelisk", "boulder", "stalagmite", "menhir", "stump")
+# Many of a thing dotted through a region. Rock grows where it likes, so it is
+# scattered; a colonnade was built, so it stands in ranks. Both used to fill
+# every other square of the rectangle, which gave a swamp a lattice of boulders
+# laid out like a chessboard.
+_ANNOTATION_SCATTERED = ("boulders", "stalagmites", "stalactites", "menhirs",
+                         "stumps", "rocks", "cairns", "termite mounds",
+                         "rubble piles", "spoil heaps")
+_ANNOTATION_RANKED = ("colonnade", "columns", "pillars", "obelisks", "statues",
+                      "column", "pillar", "obelisk")
 # One solid object, small enough to fill the rectangle it was given.
 _ANNOTATION_SOLID = ("altar", "dais", "plinth", "pedestal", "throne",
                      "sarcophagus", "tomb", "statue", "anvil", "forge",
-                     "brazier stand", "monolith", "idol", "shrine stone")
+                     "brazier stand", "monolith", "idol", "shrine stone",
+                     "boulder", "stalagmite", "menhir", "stump", "cairn")
 
 
 def _annotation_ground(label):
-    """(tile, sparse) for a named region, or (None, False)."""
+    """(tile, mode) for a named region, or (None, "fill").
+
+    mode is "fill" for one solid thing, "ranks" for something built in rows,
+    "scatter" for something that grew where it liked. Plurals are checked
+    before singulars, so "Mossy Boulders" scatters and "Great Boulder" is one
+    rock.
+    """
     low = " " + str(label or "").lower() + " "
     for words, tile in _ANNOTATION_GROUND:
         if any(w in low for w in words):
-            return tile, False
-    if any(w in low for w in _ANNOTATION_SPARSE):
-        return WALL, True
+            return tile, "fill"
+    if any(w in low for w in _ANNOTATION_SCATTERED):
+        return WALL, "scatter"
+    if any(w in low for w in _ANNOTATION_RANKED):
+        return WALL, "ranks"
     if any(w in low for w in _ANNOTATION_SOLID):
-        return WALL, False
-    return None, False
+        return WALL, "fill"
+    return None, "fill"
+
+
+def _cell_noise(x, y, salt):
+    """A stable pseudo-random value for a cell, so a plan rebuilds identically."""
+    # Kept inside 32 bits at every step: the app runs the same hash in uint32,
+    # and Python's unbounded ints would otherwise scatter rocks somewhere else.
+    h = ((x * 73856093) ^ (y * 19349663) ^ ((salt + 1) * 83492791)) & 0xFFFFFFFF
+    h = ((h ^ (h >> 13)) * 1274126177) & 0xFFFFFFFF
+    return h ^ (h >> 16)
+
+
+def _annotation_cells(nx, ny, nw, nh, mode, salt):
+    """Which squares inside a named rectangle the thing it names stands on."""
+    if mode == "fill":
+        return [(x, y) for y in range(ny, ny + nh) for x in range(nx, nx + nw)]
+
+    if mode == "ranks":
+        # Anchored to the region, not to the parity of the map, or a colonnade
+        # shifts by a square depending on where it was placed. A band only a
+        # few squares deep is one row of columns, not a hedge of them.
+        def axis(start, length):
+            if length <= 3:
+                return [start + length // 2]
+            step = 2 if length < 8 else 3
+            return list(range(start + 1, start + length - 1, step)) or [start + length // 2]
+
+        return [(x, y) for y in axis(ny, nh) for x in axis(nx, nw)]
+
+    # Rock does not grow on a lattice. Never two next to each other, so each one
+    # still reads as a single boulder rather than a wall of them.
+    chosen = []
+    taken = set()
+    for y in range(ny, ny + nh):
+        for x in range(nx, nx + nw):
+            if _cell_noise(x, y, salt) % 100 >= 26:
+                continue
+            if any((x + dx, y + dy) in taken
+                   for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1))):
+                continue
+            taken.add((x, y))
+            chosen.append((x, y))
+    return chosen
 
 
 def _apply_annotation_ground(grid, annotations):
@@ -1369,25 +1427,21 @@ def _apply_annotation_ground(grid, annotations):
     Only plain floor is written over, so an explicit terrain_zone, a room wall
     and anything the generator meant always win.
     """
-    for note in annotations or []:
+    for index, note in enumerate(annotations or []):
         try:
             nx, ny = int(note["x"]), int(note["y"])
             nw, nh = max(1, int(note.get("w", 1))), max(1, int(note.get("h", 1)))
         except (KeyError, TypeError, ValueError):
             continue
-        tile, sparse = _annotation_ground(note.get("label"))
+        tile, mode = _annotation_ground(note.get("label"))
         if tile is None:
             continue
         # A solid thing that was given half the map is not a solid thing; it is
-        # a region that happens to have one in it.
-        if tile == WALL and not sparse and nw * nh > 64:
-            sparse = True
-        for yy in range(ny, ny + nh):
-            for xx in range(nx, nx + nw):
-                if grid.get(xx, yy) != FLOOR:
-                    continue
-                if sparse and (xx % 2 or yy % 2):
-                    continue
+        # a region that happens to have several in it.
+        if mode == "fill" and tile == WALL and nw * nh > 64:
+            mode = "scatter"
+        for xx, yy in _annotation_cells(nx, ny, nw, nh, mode, index):
+            if grid.get(xx, yy) == FLOOR:
                 grid.set(xx, yy, tile)
 
 
@@ -1567,7 +1621,11 @@ def _ensure_a_way_in(grid, rng, enclosure="masonry"):
         cells = sealed[0]
         inside = set(cells)
         # A wall cell with this room on one side and something else on the other
-        # is where a door belongs.
+        # is where a door belongs - and of those, the one nearest the middle of
+        # the wall it sits in. Taking the first candidate found put the door
+        # hard against a corner, which is where nobody builds one.
+        mid_x = (min(c[0] for c in cells) + max(c[0] for c in cells)) / 2.0
+        mid_y = (min(c[1] for c in cells) + max(c[1] for c in cells)) / 2.0
         best = None
         for (x, y) in cells:
             for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1)):
@@ -1585,11 +1643,14 @@ def _ensure_a_way_in(grid, rng, enclosure="masonry"):
                     score = 1
                 else:
                     continue
-                if best is None or score < best[0]:
-                    best = (score, wx, wy, ox, oy, dx, dy)
+                # Distance along the wall from its middle: a vertical wall is
+                # judged by how far up or down the opening sits, and vice versa.
+                off = abs(wy - mid_y) if dx else abs(wx - mid_x)
+                if best is None or (score, off) < (best[0], best[1]):
+                    best = (score, off, wx, wy, ox, oy, dx, dy)
         if best is None:
             return
-        _, wx, wy, ox, oy, gx, gy = best
+        _, _off, wx, wy, ox, oy, gx, gy = best
         # Does this wall face the outside of the map, or another part of it?
         # A hut standing in a clearing is built and gets a door; the cliff round
         # the clearing is not and gets a gap. Walking outward from the wall
