@@ -227,6 +227,25 @@ struct AppState {
         redoStack.pop_back();
         dirty = true;
     }
+
+    bool BeginJob(const std::string& status) {
+        bool expected = false;
+        if (!job.running.compare_exchange_strong(expected, true)) return false;
+        job.cancel = false;
+        job.failed = false;
+        job.finishedMessage.clear();
+        job.SetStatus(status);
+        job.Log(status);
+        return true;
+    }
+
+    void FinishJob(bool ok, const std::string& msg) {
+        job.failed = !ok;
+        job.finishedMessage = msg;
+        job.SetStatus(ok ? "Ready." : "Failed.");
+        job.Log(msg);
+        job.running = false;
+    }
 };
 
 }  // namespace dnd
