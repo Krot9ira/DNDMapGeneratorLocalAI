@@ -1,0 +1,112 @@
+name: CI
+
+# What can be checked without a GPU, a language model or somebody's asset
+# packs: the geometry, the caption wording, the Dungeondraft file format, and
+# that the app still builds and still agrees with the Python port.
+on:
+  push:
+    branches: [main, 'feature/**']
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  tools:
+    name: Tools (Python ${{ matrix.python }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # The floor the README promises, and something current.
+        python: ['3.10', '3.13']
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+          cache: pip
+
+      - name: Install what the tools need
+        run: python -m pip install --upgrade pip -r requirements.txt
+
+      # These four need nothing but the repository. They are run on Linux
+      # deliberately: the tools are the AI agent API, and an agent will not
+      # always be on Windows.
+      - name: Every scene plans cleanly
+        run: python tools/check_scenes.py
+
+      - name: Every layout holds its invariants across sizes and seeds
+        run: python tools/check_layouts.py
+
+      - name: No style says anything the renderer reads as a side view
+        run: python tools/check_captions.py
+
+      # Runs against an empty asset index, because a runner owns no Dungeondraft
+      # packs. That still exercises the whole file format - walls, portals,
+      # water, tiles, terrain, cave bitmaps, node ids, array lengths - which is
+      # the half that has actually broken. Asset matching is reported, not
+      # checked, and comes out empty here.
+      - name: Every scene assembles into a valid .dungeondraft_map
+        run: python tools/check_dungeondraft.py
+
+  app:
+    name: App (Windows, MSVC)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+          cache: pip
+
+      - name: Install what the tools need
+        run: python -m pip install --upgrade pip -r requirements.txt
+
+      - name: Configure
+        run: cmake -B build -S . -A x64
+
+      # The build assembles dist/ as a post-build step, so this produces the
+      # release folder as well as the executable.
+      - name: Build
+        run: cmake --build build --config Release
+
+      # The app and the tools are two ports of one caption builder, and a
+      # difference between them means a map made in the app renders differently
+      # from the same map made by an agent. Needs the executable, so it can only
+      # run here.
+      - name: The app and the tools build the same caption
+        run: python tools/check_caption_parity.py
+
+      - name: The release folder is complete
+        shell: pwsh
+        run: |
+          $dist = "dist/DndBattlemapGenerator"
+          $missing = @()
+          foreach ($p in @("$dist/DndBattlemapGenerator.exe", "$dist/config.json",
+                           "$dist/docs/Manual.pdf", "$dist/AGENTS.md",
+                           "$dist/LICENSE", "$dist/THIRD_PARTY.md")) {
+            if (-not (Test-Path $p)) { $missing += $p }
+          }
+          $styles = (Get-ChildItem "$dist/styles" -Filter *.json).Count
+          $tools  = (Get-ChildItem "$dist/tools"  -Filter *.py).Count
+          Write-Host "styles: $styles   tools: $tools"
+          if ($styles -lt 10) { $missing += "styles (only $styles)" }
+          if ($tools  -lt 8)  { $missing += "tools (only $tools)" }
+          if ($missing) { $missing | ForEach-Object { Write-Host "missing: $_" }; exit 1 }
+
+      - name: Keep the build
+        uses: actions/upload-artifact@v4
+        with:
+          name: DndBattlemapGenerator-${{ github.sha }}
+          path: dist/DndBattlemapGenerator
+          if-no-files-found: error
+          retention-days: 30

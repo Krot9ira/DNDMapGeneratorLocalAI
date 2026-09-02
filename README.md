@@ -1,5 +1,8 @@
 # D&D AI Battle Map Generator
 
+[![CI](https://github.com/Krot9ira/DNDMapGeneratorLocalAI/actions/workflows/ci.yml/badge.svg)](https://github.com/Krot9ira/DNDMapGeneratorLocalAI/actions/workflows/ci.yml)
+[![Licence: MIT](https://img.shields.io/badge/licence-MIT-blue.svg)](LICENSE)
+
 Describe a place in one sentence and get a finished top-down battle map you can drop straight
 into Roll20, Foundry or a printer.
 
@@ -39,7 +42,8 @@ Everything runs on your own machine. No accounts, no API keys, no upload of anyt
 14. [Troubleshooting](#troubleshooting)
 15. [Output files](#output-files)
 16. [Repository layout](#repository-layout)
-17. [Licence](#licence)
+17. [Contributing](#contributing)
+18. [Licence](#licence)
 
 ---
 
@@ -744,6 +748,20 @@ dist/         self-contained package, assembled on every build
 data/         Dungeondraft asset index and thumbnails, built on your machine
 output/       generated maps
 ```
+
+---
+
+## Contributing
+
+Bug reports, scenes that came out wrong, styles and code are all welcome.
+[`CONTRIBUTING.md`](CONTRIBUTING.md) has how to build it, the five checks CI
+runs, and the two things this project will bite you for — the geometry engine
+exists twice, once in Python and once in C++, and both copies have to move
+together.
+
+The most useful bug report is a map that came out wrong with its `map.json`
+attached: that is the plan, and it is what makes the problem reproducible on
+somebody else's machine.
 
 ---
 

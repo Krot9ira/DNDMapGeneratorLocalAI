@@ -1,0 +1,13 @@
+# What the Python tools need to run.
+#
+#   pip install -r requirements.txt
+#
+# The app itself needs none of this - it is a single executable. This is for
+# tools/, which is the command line, the AI agent API and the checks.
+Pillow>=10.0
+
+# Optional, and every tool that uses them falls back without them:
+#   numpy   palette extraction when indexing Dungeondraft assets
+#   rembg   cutting the background out of a generated prop
+# Neither is needed to build the app, render a map, or run the checks.
+#   pip install numpy rembg

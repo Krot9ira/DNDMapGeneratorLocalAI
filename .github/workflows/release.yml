@@ -1,0 +1,74 @@
+name: Release
+
+# Tag a commit and the zip somebody downloads is built from it, by a machine
+# that owns nothing - no asset packs, no models, no local settings. If it does
+# not build here it does not build for anyone.
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Existing tag to build and publish'
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Build and publish
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag || github.ref }}
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+          cache: pip
+
+      - name: Install what the tools need
+        run: python -m pip install --upgrade pip -r requirements.txt
+
+      - name: Configure
+        run: cmake -B build -S . -A x64
+
+      - name: Build
+        run: cmake --build build --config Release
+
+      # A release nobody checked is a release nobody should download.
+      - name: Checks
+        run: |
+          python tools/check_scenes.py
+          python tools/check_layouts.py
+          python tools/check_captions.py
+          python tools/check_dungeondraft.py
+          python tools/check_caption_parity.py
+
+      - name: Pack
+        id: pack
+        shell: pwsh
+        run: |
+          $tag = "${{ inputs.tag }}"
+          if (-not $tag) { $tag = "${{ github.ref_name }}" }
+          $zip = "DndBattlemapGenerator-$tag.zip"
+          Compress-Archive -Path "dist/DndBattlemapGenerator" -DestinationPath $zip -CompressionLevel Optimal
+          "tag=$tag" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+          "zip=$zip" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+          Write-Host ("{0}: {1:N1} MB" -f $zip, ((Get-Item $zip).Length / 1MB))
+
+      # gh ships on the runner, so the release needs no third-party action.
+      # The standing text lives in .github/release-notes.md so that editing it
+      # is not editing a workflow.
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: pwsh
+        run: >
+          gh release create "${{ steps.pack.outputs.tag }}"
+          "${{ steps.pack.outputs.zip }}"
+          --title "${{ steps.pack.outputs.tag }}"
+          --notes-file .github/release-notes.md
+          --verify-tag

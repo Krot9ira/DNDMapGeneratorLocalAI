@@ -1,0 +1,72 @@
+name: Bug report
+description: Something crashed, failed, or came out wrong
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        If a **map** came out wrong, attach its `map.json` — that is the plan,
+        and it is what makes the problem reproducible on somebody else's
+        machine. `caption.json` and `*.report.json` from the same folder help
+        too.
+
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: And what you expected instead.
+      placeholder: |
+        The three warehouse walls came out as parallelograms, with a diagonal
+        across each room. I expected four straight walls.
+    validations:
+      required: true
+
+  - type: textarea
+    id: repro
+    attributes:
+      label: How to reproduce it
+      description: The description you typed, the scene file, or the commands you ran.
+      placeholder: |
+        python tools/pipeline.py dungeondraft output/my_map/map.json
+        then opened the result in Dungeondraft
+    validations:
+      required: true
+
+  - type: dropdown
+    id: where
+    attributes:
+      label: Where
+      multiple: true
+      options:
+        - The app
+        - The command line (tools/pipeline.py)
+        - The AI agent API (tools/agent_api.py)
+        - The Dungeondraft export
+        - The build
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: The release you unpacked, or `git rev-parse --short HEAD` if you built it.
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Output
+      description: >
+        The error, the log panel, or what the checks printed. Pasted as text
+        rather than a screenshot, so it can be searched.
+      render: text
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before opening this
+      options:
+        - label: I ran the checks in CONTRIBUTING.md and said above if any of them failed
+        - label: I attached `map.json` if a map came out wrong

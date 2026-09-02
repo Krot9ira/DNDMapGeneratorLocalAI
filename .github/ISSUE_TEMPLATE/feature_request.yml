@@ -1,0 +1,35 @@
+name: Idea
+description: A layout, a style, or something the generator should be able to do
+labels: [enhancement]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What you want to be able to make
+      description: >
+        Describe the map, not the implementation. "A three-storey inn seen from
+        above, with the roof off" says more than "add a multi-floor mode".
+    validations:
+      required: true
+
+  - type: textarea
+    id: today
+    attributes:
+      label: What happens today
+      description: What you tried, and how close it got.
+    validations:
+      required: true
+
+  - type: dropdown
+    id: kind
+    attributes:
+      label: What kind of thing is it
+      options:
+        - A new layout generator (dungeon, harbour, arena, ...)
+        - A new style (the look of a place)
+        - Something the editor should let me do
+        - Something the Dungeondraft export should carry across
+        - Something the AI agent API should expose
+        - Other
+    validations:
+      required: true
