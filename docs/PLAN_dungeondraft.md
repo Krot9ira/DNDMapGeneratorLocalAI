@@ -1,10 +1,10 @@
 # Assembling our map plans in Dungeondraft — implementation plan
 
 Status: **in progress.** Written 2026-08-30 as a proposal; revised 2026-09-01,
-after steps 1 to 4 were built, the first maps came out of the assembler, and a
-review of that work found twelve defects worth writing down. Nothing is
-committed yet - the whole feature sits in the working tree on
-`feature/dungeondraftintegration`.
+after steps 1 to 4 were built and the first maps came out of the assembler;
+revised again 2026-09-02, after the first generated map was **opened in
+Dungeondraft** (9.0) and the geometry was rebuilt from what that showed. The
+feature is committed on `feature/dungeondraftintegration`.
 
 **Start at section 9.** It says what is finished, what is half finished, what
 has not been started, and what is a decision somebody has to take with
@@ -233,6 +233,15 @@ An `asset_manifest` entry:
 author, and it travels inside the map file itself.** Some packs set it to
 false. Honour it - see section 10.
 
+**Corrected 2026-09-02, against a 1.2.0.1 file written by the user's own
+Dungeondraft.** Three of the shapes below were guessed from the outdoor maps
+and were wrong in ways that validated perfectly and rendered as nothing:
+`terrain` carries four texture slots and one `splat`, not eight and two;
+`tiles.colors` is an array of ARGB strings **one per cell**, not an object; and
+`water` carries a `tree` of polygons beside `disable_border`. All three are now
+written out with examples in `docs/dungeondraft_map_format.md`, which is the
+canonical description - prefer it over this section where they differ.
+
 A level holds these keys:
 
 ```
@@ -241,10 +250,10 @@ layers        { "-400": "Below Ground", "-100": "Below Water",
                 "100".."400": user layers, "700": "Above Walls",
                 "900": "Above Roofs" }
 terrain       { enabled, expand_slots, smooth_blending,
-                texture_1 .. texture_8, splat, splat2 }
+                texture_1 .. texture_4, splat }
 tiles         { cells, colors, lookup }
 cave          { bitmap, entrance_bitmap, ground_color, wall_color, texture }
-water         { disable_border }      shapes { polygons: [], walls: [] }
+water         { disable_border, tree }   shapes { polygons: [], walls: [] }
 materials {}  patterns []  paths []   objects []  walls []  portals []
 lights []     texts []     roofs { shade, shade_contrast, sun_direction, roofs }
 ```
@@ -1311,31 +1320,47 @@ exists to serve - do not let anything turn it into zero by inventing a match.
 | 0 | recon | **done** - the format is read and written down; only the cave write-back is untested |
 | 1 | the indexer | **done** - 47 397 assets from 5 enabled packs and the built-ins |
 | 1b | model settings | **half done** - the vision check exists, the download UI does not |
-| 2 | cataloguing | **built, never run** - 0 assets have a description; fix the vocabulary (5.3) *before* running it |
+| 2 | cataloguing | **built, effectively never run** - 2 of 47 398 assets have a description; fix the vocabulary (5.3) *before* running it |
 | 2b | validate and re-catalogue | **validate done**, re-catalogue and suspect-detection not |
-| 3 | objects only, end to end | **done in code, unproven in Dungeondraft** - nobody has opened one |
-| 4 | terrain, tiles, walls, portals, lights | **done except caves**, with one open design question |
-| 5 | the prop foundry | **not started** |
+| 3 | objects only, end to end | **done and seen** - a map was opened in Dungeondraft on 2026-09-02; see 9.0 |
+| 4 | terrain, tiles, walls, portals, lights | **done, caves included**; 9.7 is decided |
+| 5 | the prop foundry | **built** - `tools/dungeondraft_foundry.py`, Ideogram render plus rembg cutout |
 | 6 | checks | **done** - 13 scenes, plus a quality gate for cataloguing |
-| 9.8 | use all 32 cores where it helps | **not started** - measured at x10 for the indexer, x1.04 for the cataloguer |
+| 9.8 | use all 32 cores where it helps | **done where it was worth it** - the indexer is threaded (`scan --threads`); the cataloguer was measured at x1.04 and left alone |
 
 Read 9.7 before touching walls, 9.8 before optimising anything, and 9.0 before
 believing any of the rest.
 
-### 9.0 The one thing nobody has done yet
+### 9.0 Done, on 2026-09-02, and it was worth doing first
 
-**No human has opened a generated map in Dungeondraft.** Everything below was
-checked by reading the JSON we wrote and by validating it against section 2 -
-which catches a malformed file, a duplicate node id and a wrong array length,
-and catches nothing at all about whether the map *looks* right.
+**A generated map was opened in Dungeondraft.** This section used to say nobody
+had, and that everything under it had been checked by reading the JSON and
+validating it against section 2 - which catches a malformed file, a duplicate
+node id and a wrong array length, and catches nothing at all about whether the
+map *looks* right.
 
-Step 3 was written into this plan as the moment the idea is proved or killed,
-and that moment has not happened. **Do it first.** `python tools/pipeline.py
-dungeondraft output/agent_crypt/map.json`, open the result, and look at four
-things: are the props in the right squares and roughly the right size, do the
-doors sit in the walls, are the walls where the rooms are, and is the floor
-under the rooms. Everything after that is work; if that fails, stop and
-reconsider rather than building more on top.
+It did not look right, and none of it showed up in validation:
+
+- **Walls were disconnected black hairlines.** Two causes. The wall texture was
+  being picked from the `*_end` cap sprites, which Dungeondraft draws at the
+  tip of a run; and each wall rectangle was converted on its own, so a
+  horizontal run and the vertical run it turns into sat on centrelines half a
+  cell apart, leaving a hole at every corner and a stub past every end.
+- **Water was a grid of flat blue slabs.** One polygon per rectangle, each
+  drawing its own border, with `blend_distance` set to 32 - which is in cells,
+  not pixels, so the shore blend covered the whole body.
+- **No floor anywhere.** `tiles.colors` was written as `{}`; it is an array of
+  one colour per cell, and without it the tile layer does not draw at all.
+
+The fix was to stop translating rectangles and build the geometry from the
+rasterised plan: wall tiles chained into polylines through their centres,
+doorway tiles woven into the run so the portal cuts a continuous wall, and one
+traced polygon per body of water. See the commit "Rebuild Dungeondraft walls,
+water and floors from the tile grid".
+
+**The lesson is the one this section was written to force.** Validation checks
+that a file is well formed. Only Dungeondraft checks that it is right. Open the
+map after any change to the assembler.
 
 ### Step 0 - recon
 
@@ -1489,23 +1514,33 @@ a wall is often its own end. A portal parked on an endpoint hangs half off the
 wall, so the wall is extended through the opening and the door cuts it - which
 is also how a person draws it in Dungeondraft.
 
-*Not done:* **caves.** The `cave` key is written empty and valid, and section
-2.4b has the encoding - one bit per sample, packed eight to a byte, least
-significant bit first, over a `(4w + 3) x (4h + 3)` grid - confirmed by
-decoding a real map. Writing one has never been tried.
+**Caves are written.** The bitmap is one bit per sample, packed eight to a
+byte, least significant bit first, over a `(4w + 3) x (4h + 3)` grid - the
+three extra samples per axis straddle the map edge, 1.5 of them on each side.
+It is filled from the rasterised floor of the plan, so a cave scene lays no
+floor tiles and lets the cave layer carry the ground.
 
-This matters more than a missing key sounds, because **in a cave scene the
-walls are that bitmap, not the `walls` list**. The assembler does not know
-that: `cavern_lake`, the `underdark_cavern` scene, currently comes out with 25
-ordinary walls where it should have a painted cave. It is the one part of step
-4 where the output is not merely unproven but known to be wrong, and the same
-question - what does a natural, unbuilt space look like in this format -
-applies to the other outdoor styles that have no rooms.
+A cave scene still emits ordinary walls as well as the bitmap, and whether it
+should is the remaining open question in this step. `cavern_lake` comes out
+with its lake as two clean polygons and its stalagmites as one-cell wall boxes,
+which reads correctly; the outer boundary wall may not want to be there at all.
+Open one and decide.
 
-### 9.7 The open design question: two walls where there should be one
+### 9.7 Decided: wall zones win, and neither source is a rectangle any more
 
-**Somebody has to decide this with Dungeondraft open, and it should be the
-first thing after 9.0.**
+**Settled 2026-09-02 with Dungeondraft open.** Option 1 below - wall zones win,
+room outlines are not drawn as walls - is what shipped, and `shapes.polygons`
+is left empty rather than being given floor outlines with no wall id. Every
+wall is `type: 1`.
+
+What the question missed is that *both* sources were the wrong shape. A plan's
+rectangles are a compressed decomposition of a tile grid, so translating either
+of them a rectangle at a time is what put two lines half a cell apart in the
+first place. Walls are now traced from the wall **tiles**: a one-cell-thick run
+becomes a centreline through the cell centres, so a corner is one point on one
+polyline and cannot be half a cell out; a solid mass of rock becomes its
+outline instead. The rest of the section is kept as the reasoning that was
+available before the file was opened.
 
 Walls are built from two sources that disagree by half a cell:
 
@@ -1643,9 +1678,16 @@ exactly four per cent.
 
 ### Step 5 - the prop foundry
 
-**Not started.** Unchanged from the original plan, and now with a first real
-list of what it is for: `check_dungeondraft.py` reports 5 plan elements across
-the 13 scenes that the library cannot answer - all of them banners.
+**Built** as `tools/dungeondraft_foundry.py`: Ideogram renders the prop through
+ComfyUI, `rembg` cuts the background out, the result is scaled so its intended
+grid footprint x 256 gives its pixel size, and it is written into our own pack
+with a `pack.json`, a `default.dungeondraft_tags` and a `preview.png` through
+our own Godot PCK writer. A procedural fallback draws the prop directly when
+ComfyUI is not up.
+
+What it is for, measured: `check_dungeondraft.py` reported 5 plan elements
+across the 13 scenes that the library could not answer - all of them banners.
+It reports 0 today, because the library grew, not because the foundry ran.
 
 That number is small and it is honest. It was zero until the matcher stopped
 inventing an answer: when the first two queries found nothing, a third returned
@@ -1654,12 +1696,14 @@ back as whatever happened to sort first. It looked like a match, it reported
 as a match, and it would have been a wrong picture on somebody's map. Removing
 it cost 5 objects out of 420 and made the check mean something.
 
-Everything else in the original step 5 still stands: Ideogram generates,
-BiRefNet `lucida` cuts the background out, the result is scaled so its intended
-grid footprint x 256 gives its pixel size, then written into our own pack with
-a `default.dungeondraft_tags`, a `preview.png` and a `pack.json`, and packed -
-with `Dungeondraft-GoPackager` or our own Godot PCK writer. Reading the format
-is proved; writing it is not.
+One thing changed from the original step 5: the cutout is `rembg` with alpha
+matting rather than BiRefNet `lucida`, because it is a pip install with no
+model plumbing and the props are single objects on a plain ground, which is the
+easy case for any matting model. Writing the pack format is no longer
+theoretical: `dungeondraft_pck.py` has a `PckWriter`, and it has produced
+`DBGProps01.dungeondraft_pack` - 2 props, registered in the index and enabled
+in the Dungeondraft config. Whether Dungeondraft itself lists them is the next
+thing to open the program for.
 
 Reuse from the frozen branch: the `build_ideogram` and `make_cutout` graph
 builders from `tools/tile_backends.py`, `prop_prompt` from `tools/tilegen.py`,
@@ -1771,14 +1815,10 @@ existing whole-scene render. They work.
 ### Branch
 
 The work is on **`feature/dungeondraftintegration`**, branched from `main` as
-this section originally instructed, and it is **entirely uncommitted** - eight
-new tools, the format document, the Dungeondraft tab and the edits to
-`CMakeLists.txt`, `config.json`, `README.md`, `AGENTS.md` and
-`packaging/READ_ME_FIRST.txt` all sit in the working tree.
-
-Commit it before doing anything else. Not because the history matters yet, but
-because the next person to run `git checkout` or `build.ps1 -Clean` on this
-machine will find out the hard way that it does not exist anywhere else.
+this section originally instructed. It was entirely uncommitted for a while,
+which this section used to warn about; it is committed now - the tools, the
+format document, the Dungeondraft tab, and the geometry rebuild that followed
+opening the first map.
 
 `feature/tiled-generation` stays pushed, untouched, as the record of what was
 tried and why it was stopped.

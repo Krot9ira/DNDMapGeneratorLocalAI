@@ -156,12 +156,20 @@ Walls are polylines in absolute pixel coordinates.
 - `type: 1`: Free-drawn wall.
 - `joint: 1`, `normalize_uv: true`, `shadow: true`.
 - `points` for a `loop: true` wall does **not** repeat the first point.
+- A wall line runs along the **grid lines**, not through the middle of a square. A wall drawn
+  down the centre of a row of squares halves every square beside it.
 - The wall texture is the plain sprite. Every wall set also ships a
   `<name>_end.png` cap that Dungeondraft draws at the tip of a run on its own;
   using a cap as the wall texture renders the wall as a thin dark line.
 - **Portals** are attached inside the wall's `portals` array:
+  - `wall_id`: the **`node_id` of the wall this portal is cut into**, as a hex string. It is
+    not an index and it is not always `"0"` — a portal carrying another wall's id neither
+    opens the wall it sits on nor leaves it alone, and the wall renders as a diagonal.
   - `point_index`: Segment index along the wall polyline.
-  - `wall_distance`: Parametric fractional distance ($0.0 \dots 1.0$) along that segment.
+  - `wall_distance`: position measured along the **whole polyline**, not within one segment:
+    the whole number is the segment and the fraction is the position along it, so
+    `point_index: 3` pairs with `wall_distance: 3.5`. It exceeds 1.0 on every segment but the
+    first.
   - `radius`: 128 (half cell = 1 cell door width).
 
 ```json
@@ -185,7 +193,7 @@ Walls are polylines in absolute pixel coordinates.
         "texture": "res://textures/portals/sample_door.png",
         "radius": 128,
         "point_index": 0,
-        "wall_id": "0",
+        "wall_id": "2",
         "wall_distance": 0.772727,
         "closed": true,
         "node_id": "7"

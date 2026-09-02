@@ -461,6 +461,25 @@ agent_api.generate(map_data=m)
 `elaboration` is `exact` (render only what I wrote), `some` (fill in fitting detail) or
 `free` (elaborate richly).
 
+**An annotation's `label` also lays ground.** A rectangle called "Black Lake" becomes water,
+"Grand Stair" becomes stairs, "Sea Wall" becomes wall, "Reed Thicket" becomes undergrowth -
+because a plan whose words say lake and whose floor says flagstones has to be resolved
+somehow, and the words are what you wrote deliberately. Only plain floor is written over, so
+a terrain zone or a generator's own wall always wins.
+
+Where the label names *many* of something, how they land depends on what they are:
+
+| label | what you get |
+|---|---|
+| `Great Boulder`, `The Altar`, `Broken Statue` | one solid block filling the rectangle |
+| `Mossy Boulders`, `Stalagmites`, `Old Stumps` | scattered, never two touching, irregular |
+| `Colonnade`, `Pillar Maze`, `Runed Obelisks` | standing in even ranks inside the rectangle |
+
+So the plural matters: "Great Boulder" on a 4x4 is one rock, "Great Boulders" is four or
+five separate ones. A band three squares deep or less gets a single row of columns rather
+than a hedge of them. A solid thing given more than 64 squares is treated as a region with
+several of them in it, not as one enormous object.
+
 ### Custom props — a single object the catalogue has no word for
 
 ```python

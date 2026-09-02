@@ -352,11 +352,20 @@ fully editable **`.dungeondraft_map`** files directly from architectural map pla
 
 ### Key features
 
-- **Native Dungeondraft map generation:** builds rooms (`type: 0`), open walls (`type: 1`),
-  natural cave bitmask arrays (`cave.bitmap` LSB-first), portals (doors/windows attached to
-  walls with correct segment offsets), floor polygons, terrain splatmaps (4 samples per cell
-  per axis), lights, and placed objects.
-- **Smart wall deduplication:** prevents duplicate parallel walls around room perimeters.
+- **Native Dungeondraft map generation:** builds walls, portals (doors and windows cut into
+  the wall they interrupt), floor tiles, water bodies, terrain splatmaps (4 samples per cell
+  per axis), natural cave bitmask arrays (`cave.bitmap` LSB-first), lights, and placed
+  objects.
+- **Vector geometry traced from the tile grid:** a run of wall tiles becomes one polyline,
+  pushed onto the grid lines so no square is left cut in half, with corners that meet and
+  doorways cut into a continuous wall as real portals; a solid mass of rock becomes its
+  outline. Each body of water is a single polygon traced along the cell edges, with
+  enclosed gaps nested as holes.
+- **No bleed margin:** the empty ring added for the diffusion model is trimmed off, so the
+  map opens at exactly the size the field was planned at.
+- **Ground painted by what it is:** floor tiles under rooms, planking under decks and
+  gangways, and a terrain splat that follows the plan's undergrowth, rubble and lake beds
+  instead of one flat texture over the whole field.
 - **High-throughput multi-core indexer:** parallelizes asset extraction, thumbnail generation,
   and content hashing across up to 32 CPU threads.
 - **Stock and custom pack indexing:** indexes built-in assets from `Dungeondraft.pck` and
@@ -437,6 +446,7 @@ python tools/pipeline.py validate output/my_map/map.json
 | `dungeondraft` | 2 | assemble native `.dungeondraft_map` and report | no |
 | `generate` | 2 | paint battle map with Ideogram 4 in ComfyUI | no |
 | `auto` | 1 then 2 | plan and render sequentially | yes |
+| `caption` | 2 | print the caption a plan would be rendered from, and stop | no |
 | `validate` | — | check and repair a `map.json` | no |
 
 Useful flags: `--cols` / `--rows` for an exact grid, `--seed` for a repeatable layout,
@@ -570,7 +580,7 @@ python tools/check_captions.py
 # 3. Scene layout and geometry validation:
 python tools/check_scenes.py
 
-# 4. Byte-for-byte caption parity between C++ engine and Python tools:
+# 4. Caption parity, field by field and key order, between C++ engine and Python tools:
 python tools/check_caption_parity.py
 
 # 5. Enrichment sample benchmark and HTML contact sheet:
@@ -579,7 +589,10 @@ python tools/check_enrichment_quality.py
 
 ### 4. Layout of the code
 
-- `app/src/main.cpp` — Win32/DirectX 11 ImGui desktop interface.
+- `app/src/main.cpp` — entry point: resolve the project root, open a window, run the frame loop.
+- `app/src/core/` — Win32 window, DirectX 11 device, process launching, file dialogs.
+- `app/src/services/` — connection monitoring, the render pipeline driver.
+- `app/src/ui/` — the ImGui context, texture loading, the map canvas, and one file per tab.
 - `app/include/map_architect.h` — C++ header-only port of `tools/architect.py`.
 - `app/include/ideogram_caption.h` — C++ header-only port of `tools/ideogram_prompt.py`.
 - `tools/dungeondraft_pck.py` — Godot 3 GDPC binary parser and `.stex` / WebP texture decompressor.
@@ -716,14 +729,19 @@ with any seed, forever.
 
 ```
 app/          C++ sources (ImGui + DirectX 11) and vendored libraries
+  src/core       Win32 window, D3D11 device, process launching, file dialogs
+  src/services   connection monitoring, the render pipeline driver
+  src/ui         ImGui context, map canvas, one file per tab
+  include/       header-only ports of the architect and the caption builder
 tools/        Python: architect, caption builder, ComfyUI client, CLI, agent API
 styles/       style library, one JSON per style
 presets/      ready-made maps
-docs/         user manual and development report
+docs/         user manual, development report, Dungeondraft format reference
 packaging/    files that ship with a release
 reference/    ComfyUI workflow export kept for reference
 bin/          development build
 dist/         self-contained package, assembled on every build
+data/         Dungeondraft asset index and thumbnails, built on your machine
 output/       generated maps
 ```
 
