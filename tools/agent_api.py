@@ -53,6 +53,7 @@ from planner import MapPlanner
 from render import render_preview, render_svg, trim_to_margin
 from ideogram_prompt import style_warnings
 from workflow import PRESETS, build_ideogram4
+from dungeondraft_assembler import DungeondraftAssembler
 
 from paths import ROOT as PROJECT
 
@@ -288,3 +289,61 @@ def generate_map(scene_description, style_id=None, size="medium", out_dir=None,
         timeout=int(oc.get("timeout", 600))))
     plan = planner.plan_map(scene_description, style_id=style_id, size=size, seed=seed)
     return generate(map_data=plan["map_json"], out_dir=out_dir, seed=seed, **kwargs)
+
+
+def assemble_dungeondraft(spec_or_map, out_path=None, seed=42, db_path=None):
+    """Assemble a map spec or map_json into a native .dungeondraft_map file.
+
+    Parameters
+    ----------
+    spec_or_map : dict or str or Path
+        Scene spec dict, ready map_json dict, or path to map.json file.
+    out_path : str or Path, optional
+        Output destination for .dungeondraft_map file.
+    seed : int, optional
+        Seed for deterministic placement and asset selection.
+    db_path : Path, optional
+        Override path to assets.db.
+
+    Returns
+    -------
+    dict
+        Dictionary containing 'map_path', 'report_path', 'report', and 'map_json'.
+    """
+    if isinstance(spec_or_map, (str, Path)):
+        data = json.loads(Path(spec_or_map).read_text(encoding="utf-8"))
+        if "grid" in data and ("zones" in data or "areas" in data):
+            map_json = data
+        else:
+            built = build_map(data, seed=seed)
+            map_json = built["map_json"]
+    elif isinstance(spec_or_map, dict):
+        if "grid" in spec_or_map and ("zones" in spec_or_map or "areas" in spec_or_map):
+            map_json = spec_or_map
+        else:
+            built = build_map(spec_or_map, seed=seed)
+            map_json = built["map_json"]
+    else:
+        raise ValueError("spec_or_map must be a spec dict, map_json dict, or path to map.json")
+
+    map_name = map_json.get("meta", {}).get("name", "dungeondraft_map")
+    if not out_path:
+        out_path = PROJECT / "output" / map_name / f"{map_name}.dungeondraft_map"
+
+    assembler = DungeondraftAssembler(db_path=db_path)
+    map_file, report_file = assembler.save_map(map_json, str(out_path), seed=seed)
+
+    report_data = {}
+    if Path(report_file).exists():
+        try:
+            report_data = json.loads(Path(report_file).read_text(encoding="utf-8"))
+        except Exception:
+            pass
+
+    return {
+        "map_path": map_file,
+        "report_path": report_file,
+        "report": report_data,
+        "map_json": map_json,
+    }
+

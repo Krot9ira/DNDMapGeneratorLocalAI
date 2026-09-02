@@ -30,15 +30,16 @@ Everything runs on your own machine. No accounts, no API keys, no upload of anyt
 5. [The app, tab by tab](#the-app-tab-by-tab)
 6. [The editor in detail](#the-editor-in-detail)
 7. [Styles](#styles)
-8. [Command line](#command-line)
-9. [AI agents](#ai-agents)
-10. [Build from source](#build-from-source)
-11. [How it works, and why](#how-it-works-and-why)
-12. [Nuances worth knowing](#nuances-worth-knowing)
-13. [Troubleshooting](#troubleshooting)
-14. [Output files](#output-files)
-15. [Repository layout](#repository-layout)
-16. [Licence](#licence)
+8. [Dungeondraft map assembly & asset packs](#dungeondraft-map-assembly--asset-packs)
+9. [Command line](#command-line)
+10. [AI agents](#ai-agents)
+11. [Build from source & developer guide](#build-from-source--developer-guide)
+12. [How it works, and why](#how-it-works-and-why)
+13. [Nuances worth knowing](#nuances-worth-knowing)
+14. [Troubleshooting](#troubleshooting)
+15. [Output files](#output-files)
+16. [Repository layout](#repository-layout)
+17. [Licence](#licence)
 
 ---
 
@@ -337,6 +338,73 @@ program, `user` if you wrote it, `agent` if the AI did - and the style cards car
 
 ---
 
+## Dungeondraft map assembly & asset packs
+
+In addition to painted battle map images via Ideogram, the pipeline can assemble native,
+fully editable **`.dungeondraft_map`** files directly from architectural map plans.
+
+```
+"a flooded crypt with sarcophagi"
+        ↓  stage 1 — plan layout & geometry
+        ↓  stage 2 — match assets & build Godot 3 vector structures
+   output/flooded_crypt/flooded_crypt.dungeondraft_map
+```
+
+### Key features
+
+- **Native Dungeondraft map generation:** builds walls, portals (doors and windows cut into
+  the wall they interrupt), floor tiles, water bodies, terrain splatmaps (4 samples per cell
+  per axis), natural cave bitmask arrays (`cave.bitmap` LSB-first), lights, and placed
+  objects.
+- **Vector geometry traced from the tile grid:** a run of wall tiles becomes one polyline,
+  pushed onto the grid lines so no square is left cut in half, with corners that meet and
+  doorways cut into a continuous wall as real portals; a solid mass of rock becomes its
+  outline. Each body of water is a single polygon traced along the cell edges, with
+  enclosed gaps nested as holes.
+- **No bleed margin:** the empty ring added for the diffusion model is trimmed off, so the
+  map opens at exactly the size the field was planned at.
+- **Ground painted by what it is:** floor tiles under rooms, planking under decks and
+  gangways, and a terrain splat that follows the plan's undergrowth, rubble and lake beds
+  instead of one flat texture over the whole field.
+- **High-throughput multi-core indexer:** parallelizes asset extraction, thumbnail generation,
+  and content hashing across up to 32 CPU threads.
+- **Stock and custom pack indexing:** indexes built-in assets from `Dungeondraft.pck` and
+  custom `.dungeondraft_pack` archives into a local SQLite database (`data/assets.db`).
+- **Vision model enrichment:** automatically classifies texture shapes, footprints, styles,
+  and controlled vocabulary tags using a local vision model (`gemma4:12b` in Ollama) with
+  dedicated scopes (`stock`, `custom`, `all`).
+- **Prop Foundry (`tools/dungeondraft_foundry.py`):** synthesizes missing standalone props on
+  transparent backgrounds and packages them into a native Godot 3 `.dungeondraft_pack` archive.
+- **Format documentation:** full reverse-engineered format specification is documented in
+  [`docs/dungeondraft_map_format.md`](docs/dungeondraft_map_format.md).
+
+### Managing asset packs & vision cataloguing
+
+```bash
+# Scan and index built-in assets and custom packs across all CPU cores:
+python tools/dungeondraft_indexer.py scan --threads 32
+
+# Show current library metrics (indexed packs, texture categories):
+python tools/dungeondraft_indexer.py stats
+
+# Validate database integrity, verify hashes, and detect suspect enrichments:
+python tools/dungeondraft_indexer.py validate
+
+# Run a quick quality check on 200 sampled assets before a full pass:
+python tools/check_enrichment_quality.py --model gemma4:12b --sample 200
+
+# Run vision enrichment on stock assets only:
+python tools/dungeondraft_enrich.py --scope stock --model gemma4:12b
+
+# Run vision enrichment on custom packs only:
+python tools/dungeondraft_enrich.py --scope custom --model gemma4:12b
+
+# Generate a missing custom prop and assemble into custom pack:
+python tools/dungeondraft_foundry.py generate --prop banner --style gothic_crypt
+```
+
+---
+
 ## Command line
 
 Needs Python 3.10+ and Pillow. Run from the release folder or the repository.
@@ -347,6 +415,10 @@ python tools/pipeline.py styles
 
 ```bash
 python tools/pipeline.py plan "flooded crypt with sarcophagi" --style gothic_crypt --size medium
+```
+
+```bash
+python tools/pipeline.py dungeondraft output/my_map/map.json
 ```
 
 ```bash
@@ -365,15 +437,17 @@ python tools/pipeline.py preview output/my_map/map.json
 python tools/pipeline.py validate output/my_map/map.json
 ```
 
-| Command | Stage | Needs Ollama |
-|---|---|---|
-| `styles` | — | no |
-| `plan` | 1 | yes |
-| `build` | 1 from a spec file | no |
-| `preview` | redraw the human preview | no |
-| `generate` | 2 | no |
-| `auto` | 1 then 2 | yes |
-| `validate` | check and repair a `map.json` | no |
+| Command | Stage | Description | Needs Ollama |
+|---|---|---|---|
+| `styles` | — | list available styles and presets | no |
+| `plan` | 1 | create design spec & geometry from description | yes |
+| `build` | 1 | build geometry from spec file (no LLM) | no |
+| `preview` | 1 | redraw the human blueprint preview | no |
+| `dungeondraft` | 2 | assemble native `.dungeondraft_map` and report | no |
+| `generate` | 2 | paint battle map with Ideogram 4 in ComfyUI | no |
+| `auto` | 1 then 2 | plan and render sequentially | yes |
+| `caption` | 2 | print the caption a plan would be rendered from, and stop | no |
+| `validate` | — | check and repair a `map.json` | no |
 
 Useful flags: `--cols` / `--rows` for an exact grid, `--seed` for a repeatable layout,
 `--out` for the output directory, `--sketch <image>` to hand the planner a rough layout
@@ -455,55 +529,79 @@ The two words that decide everything are **plan** (`blueprint`, seconds, no GPU)
 **render** (`generate`, minutes, needs ComfyUI). Say which one you want and the agent has
 nothing to guess.
 
-## Build from source
+---
 
-### Prerequisites
+## Build from source & developer guide
+
+### 1. Prerequisites
 
 - Visual Studio 2022 or newer with the **Desktop development with C++** workload
-  (developed against Visual Studio 18 2026; VS 2022 works, the code is plain C++20)
-- Windows 10 SDK or newer
+  (developed against Visual Studio 18 2026; VS 2022 works, the code is standard C++20)
+- Windows 10/11 SDK
 - CMake 3.20+
-- Python 3.10+ and Pillow, if you want the command line tools
+- Python 3.10+ with `pillow` and `requests`:
+  ```bash
+  pip install pillow requests
+  ```
 
-No package manager step: Dear ImGui, nlohmann/json and stb are vendored in `app/vendor/`.
+No external C++ package manager is required: Dear ImGui, nlohmann/json and stb are vendored in `app/vendor/`.
 
-### Build
+### 2. Building
 
-One script does the lot — configure, build, assemble the release folder, check it is
-complete, and pack it:
-
+#### Option A: One-step build script (PowerShell)
 ```powershell
-.uild.ps1 -Zip
+.\build.ps1 -Zip
 ```
+`-Clean` deletes the build folder first; `-Zip` creates a distribution archive.
 
-`-Clean` throws the build folder away first; without `-Zip` it stops after assembling the
-folder. Or drive CMake yourself:
-
+#### Option B: CMake directly
 ```bash
 cmake -B build -S . -A x64
-```
-
-```bash
 cmake --build build --config Release
 ```
 
-Two things come out of every build:
+Two outputs are produced:
+- `bin/Release/DndBattlemapGenerator.exe` — the development build. It walks up to the repository root to share styles with Python tools.
+- `dist/DndBattlemapGenerator/` — the complete, self-contained shippable release folder with all binary, data, tool, and documentation assets.
 
-- `bin/Release/DndBattlemapGenerator.exe` — the development build. It deliberately has no
-  `styles/` beside it, so it walks up to the repository root and shares one copy of every
-  style with the command line tools. Edit a style, and both see the change.
-- `dist/DndBattlemapGenerator/` — the shippable package: executable, data, manual, Python
-  tooling, licences. Zip that folder and it runs on a machine that has never seen the source.
+The packaging step deletes and rebuilds `dist/`, so close the packaged app before building or the copy will fail with a file-in-use error.
 
-The packaging step deletes and rebuilds `dist/`, so close the packaged app before building or
-the copy will fail with a file-in-use error.
+### 3. Running automated test suites
 
-### Layout of the code
+The repository contains regression suites for architecture, prompting, format parity, and Dungeondraft assembly:
 
-`app/src/main.cpp` is the whole UI. The engine is header-only so the Python and C++ sides can
-stay in step: `app/include/map_architect.h` is a port of `tools/architect.py`, and
-`app/include/ideogram_caption.h` is a port of `tools/ideogram_prompt.py`. Change the geometry
-or the caption format and you change both, or they drift.
+```bash
+# 1. Dungeondraft map assembly regression test across 13 distinct scenes:
+python tools/check_dungeondraft.py
+
+# 2. Style caption linting across all 32 prompt styles:
+python tools/check_captions.py
+
+# 3. Scene layout and geometry validation:
+python tools/check_scenes.py
+
+# 4. Caption parity, field by field and key order, between C++ engine and Python tools:
+python tools/check_caption_parity.py
+
+# 5. Enrichment sample benchmark and HTML contact sheet:
+python tools/check_enrichment_quality.py
+```
+
+### 4. Layout of the code
+
+- `app/src/main.cpp` — entry point: resolve the project root, open a window, run the frame loop.
+- `app/src/core/` — Win32 window, DirectX 11 device, process launching, file dialogs.
+- `app/src/services/` — connection monitoring, the render pipeline driver.
+- `app/src/ui/` — the ImGui context, texture loading, the map canvas, and one file per tab.
+- `app/include/map_architect.h` — C++ header-only port of `tools/architect.py`.
+- `app/include/ideogram_caption.h` — C++ header-only port of `tools/ideogram_prompt.py`.
+- `tools/dungeondraft_pck.py` — Godot 3 GDPC binary parser and `.stex` / WebP texture decompressor.
+- `tools/dungeondraft_db.py` — SQLite database abstraction and image content hash / thumbnail generator.
+- `tools/dungeondraft_indexer.py` — Dungeondraft pack scanner and indexer.
+- `tools/dungeondraft_enrich.py` — Ollama vision model (`gemma4:12b`) schema-constrained enrichment.
+- `tools/dungeondraft_matcher.py` — Semantic asset matcher.
+- `tools/dungeondraft_assembler.py` — Native `.dungeondraft_map` generator and validator.
+- `docs/dungeondraft_map_format.md` — Full format documentation for `.dungeondraft_map`.
 
 ---
 
@@ -614,7 +712,9 @@ Everything for one map lands in `output/<name>/`.
 
 | File | What it is |
 |---|---|
-| `battlemap*.png` | **the finished map** |
+| `battlemap*.png` | **the finished map** (painted image) |
+| `*.dungeondraft_map` | **editable Dungeondraft map file** |
+| `*.report.json` | assembly report: placed walls, matched assets, referenced packs |
 | `preview.png` | labelled blueprint, for humans only — never rendered |
 | `map.json` | the layout; reopen and re-render it any time |
 | `caption.json` | the structured caption with bounding boxes sent to Ideogram |
@@ -629,14 +729,19 @@ with any seed, forever.
 
 ```
 app/          C++ sources (ImGui + DirectX 11) and vendored libraries
+  src/core       Win32 window, D3D11 device, process launching, file dialogs
+  src/services   connection monitoring, the render pipeline driver
+  src/ui         ImGui context, map canvas, one file per tab
+  include/       header-only ports of the architect and the caption builder
 tools/        Python: architect, caption builder, ComfyUI client, CLI, agent API
 styles/       style library, one JSON per style
 presets/      ready-made maps
-docs/         user manual and development report
+docs/         user manual, development report, Dungeondraft format reference
 packaging/    files that ship with a release
 reference/    ComfyUI workflow export kept for reference
 bin/          development build
 dist/         self-contained package, assembled on every build
+data/         Dungeondraft asset index and thumbnails, built on your machine
 output/       generated maps
 ```
 

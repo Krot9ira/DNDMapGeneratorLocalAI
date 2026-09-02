@@ -4,6 +4,8 @@ project(DndBattlemapGenerator LANGUAGES CXX C)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+add_compile_definitions(NOMINMAX WIN32_LEAN_AND_MEAN)
+
 include_directories(
     app/include
     app/src
@@ -17,6 +19,23 @@ include_directories(
 set(SOURCES
     app/src/main.cpp
     app/src/map_rasterizer.cpp
+    app/src/core/process_runner.cpp
+    app/src/core/file_dialogs.cpp
+    app/src/core/dx11_renderer.cpp
+    app/src/core/window.cpp
+    app/src/services/connection_monitor.cpp
+    app/src/services/render_service.cpp
+    app/src/ui/texture_loader.cpp
+    app/src/ui/ui_context.cpp
+    app/src/ui/map_canvas.cpp
+    app/src/ui/tab_prompt.cpp
+    app/src/ui/tab_design.cpp
+    app/src/ui/tab_paint.cpp
+    app/src/ui/tab_gallery.cpp
+    app/src/ui/tab_dungeondraft.cpp
+    app/src/ui/tab_settings.cpp
+    app/src/ui/tab_docs.cpp
+    app/src/ui/app_ui.cpp
     app/vendor/imgui/imgui.cpp
     app/vendor/imgui/imgui_draw.cpp
     app/vendor/imgui/imgui_tables.cpp
@@ -26,7 +45,104 @@ set(SOURCES
     app/resources/app.rc
 )
 
-add_executable(DndBattlemapGenerator WIN32 ${SOURCES})
+set(HEADERS
+    app/src/app_state.h
+    app/src/core/window.h
+    app/src/core/dx11_renderer.h
+    app/src/core/process_runner.h
+    app/src/core/file_dialogs.h
+    app/src/services/connection_monitor.h
+    app/src/services/render_service.h
+    app/src/ui/texture_loader.h
+    app/src/ui/ui_context.h
+    app/src/ui/map_canvas.h
+    app/src/ui/tab_prompt.h
+    app/src/ui/tab_design.h
+    app/src/ui/tab_paint.h
+    app/src/ui/tab_gallery.h
+    app/src/ui/tab_dungeondraft.h
+    app/src/ui/tab_settings.h
+    app/src/ui/tab_docs.h
+    app/src/ui/app_ui.h
+    app/include/app_config.h
+    app/include/app_theme.h
+    app/include/comfy_service.h
+    app/include/ideogram_caption.h
+    app/include/map_architect.h
+    app/include/map_types.h
+    app/include/map_rasterizer.h
+    app/include/map_serializer.h
+    app/include/ollama_service.h
+    app/include/style_manager.h
+    app/include/winhttp_client.h
+)
+
+add_executable(DndBattlemapGenerator WIN32 ${SOURCES} ${HEADERS})
+
+# Mirror on-disk folder structure in VS Solution Explorer
+set(APP_SOURCES
+    app/src/main.cpp
+    app/src/map_rasterizer.cpp
+    app/src/core/process_runner.cpp
+    app/src/core/file_dialogs.cpp
+    app/src/core/dx11_renderer.cpp
+    app/src/core/window.cpp
+    app/src/services/connection_monitor.cpp
+    app/src/services/render_service.cpp
+    app/src/ui/texture_loader.cpp
+    app/src/ui/ui_context.cpp
+    app/src/ui/map_canvas.cpp
+    app/src/ui/tab_prompt.cpp
+    app/src/ui/tab_design.cpp
+    app/src/ui/tab_paint.cpp
+    app/src/ui/tab_gallery.cpp
+    app/src/ui/tab_dungeondraft.cpp
+    app/src/ui/tab_settings.cpp
+    app/src/ui/tab_docs.cpp
+    app/src/ui/app_ui.cpp
+    app/src/app_state.h
+    app/src/core/window.h
+    app/src/core/dx11_renderer.h
+    app/src/core/process_runner.h
+    app/src/core/file_dialogs.h
+    app/src/services/connection_monitor.h
+    app/src/services/render_service.h
+    app/src/ui/texture_loader.h
+    app/src/ui/ui_context.h
+    app/src/ui/map_canvas.h
+    app/src/ui/tab_prompt.h
+    app/src/ui/tab_design.h
+    app/src/ui/tab_paint.h
+    app/src/ui/tab_gallery.h
+    app/src/ui/tab_dungeondraft.h
+    app/src/ui/tab_settings.h
+    app/src/ui/tab_docs.h
+    app/src/ui/app_ui.h
+)
+set(INCLUDE_HEADERS
+    app/include/app_config.h
+    app/include/app_theme.h
+    app/include/comfy_service.h
+    app/include/ideogram_caption.h
+    app/include/map_architect.h
+    app/include/map_types.h
+    app/include/map_rasterizer.h
+    app/include/map_serializer.h
+    app/include/ollama_service.h
+    app/include/style_manager.h
+    app/include/winhttp_client.h
+)
+set(VENDOR_SOURCES
+    app/vendor/imgui/imgui.cpp
+    app/vendor/imgui/imgui_draw.cpp
+    app/vendor/imgui/imgui_tables.cpp
+    app/vendor/imgui/imgui_widgets.cpp
+    app/vendor/imgui/backends/imgui_impl_win32.cpp
+    app/vendor/imgui/backends/imgui_impl_dx11.cpp
+)
+source_group(TREE "${CMAKE_CURRENT_SOURCE_DIR}/app/src"     PREFIX "Source"  FILES ${APP_SOURCES})
+source_group(TREE "${CMAKE_CURRENT_SOURCE_DIR}/app/include" PREFIX "Include" FILES ${INCLUDE_HEADERS})
+source_group(TREE "${CMAKE_CURRENT_SOURCE_DIR}/app/vendor"  PREFIX "Vendor"  FILES ${VENDOR_SOURCES})
 
 target_link_libraries(DndBattlemapGenerator PRIVATE
     d3d11
@@ -95,17 +211,34 @@ add_custom_command(TARGET DndBattlemapGenerator POST_BUILD
             "${CMAKE_CURRENT_SOURCE_DIR}/tools/planner.py"
             "${CMAKE_CURRENT_SOURCE_DIR}/tools/render.py"
             "${CMAKE_CURRENT_SOURCE_DIR}/tools/workflow.py"
+            "${CMAKE_CURRENT_SOURCE_DIR}/tools/dungeondraft_pck.py"
+            "${CMAKE_CURRENT_SOURCE_DIR}/tools/dungeondraft_db.py"
+            "${CMAKE_CURRENT_SOURCE_DIR}/tools/dungeondraft_indexer.py"
+            "${CMAKE_CURRENT_SOURCE_DIR}/tools/dungeondraft_enrich.py"
+            "${CMAKE_CURRENT_SOURCE_DIR}/tools/dungeondraft_matcher.py"
+            "${CMAKE_CURRENT_SOURCE_DIR}/tools/dungeondraft_assembler.py"
+            "${CMAKE_CURRENT_SOURCE_DIR}/tools/dungeondraft_foundry.py"
+            "${CMAKE_CURRENT_SOURCE_DIR}/tools/check_dungeondraft.py"
+            "${CMAKE_CURRENT_SOURCE_DIR}/tools/check_enrichment_quality.py"
             "${DIST_DIR}/tools"
     # The scene files and the descriptions they were built from travel together:
     # a scene without its description cannot be checked against anything.
     COMMAND ${CMAKE_COMMAND} -E copy_directory
             "${CMAKE_CURRENT_SOURCE_DIR}/tools/scenes" "${DIST_DIR}/tools/scenes"
 
+    # The asset library is built on the user's machine from the packs they own,
+    # by the Dungeondraft tab. Only the folder ships. Copying this machine's
+    # copy would ship 250 000 thumbnails and an index of somebody else's packs,
+    # and rewrite it on every build.
+    COMMAND ${CMAKE_COMMAND} -E make_directory "${DIST_DIR}/data"
+
     # Documentation. Only the finished manual ships; the HTML source and the
     # development report stay in the repository.
     COMMAND ${CMAKE_COMMAND} -E make_directory "${DIST_DIR}/docs"
     COMMAND ${CMAKE_COMMAND} -E copy
-            "${CMAKE_CURRENT_SOURCE_DIR}/docs/Manual.pdf" "${DIST_DIR}/docs/"
+            "${CMAKE_CURRENT_SOURCE_DIR}/docs/Manual.pdf"
+            "${CMAKE_CURRENT_SOURCE_DIR}/docs/dungeondraft_map_format.md"
+            "${DIST_DIR}/docs/"
     COMMAND ${CMAKE_COMMAND} -E copy
             "${CMAKE_CURRENT_SOURCE_DIR}/AGENTS.md" "${DIST_DIR}/"
     COMMAND ${CMAKE_COMMAND} -E copy

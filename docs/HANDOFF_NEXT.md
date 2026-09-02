@@ -2,6 +2,12 @@
 
 > Read `AGENTS.md` first — "How the renderer reads what you give it" is the rulebook every fix below builds on.
 
+> **Historical, 2026-08-26.** This is the record of one session's prompt-adherence work and
+> is kept for its reasoning, not as a description of the tree. The commit list below is out
+> of date, and the branch has since gained the whole Dungeondraft path. For where the project
+> stands now read `docs/REPORT.md`; for the Dungeondraft feature read
+> `docs/PLAN_dungeondraft.md` section 9.
+
 ## Current state — 2026-08-26, ready to hand to next agent
 
 **Goal (user repeats every session):** battlemaps from a text description must match the description structurally — no invented walls/rooms, no missing entrances — and be **strictly top-down orthographic, zero tilt**. Tilt / 3/4-view at the top edge is the **critical** defect, because a wall drawn as a face covers grid squares a token must stand on. See memory `top-down-view-is-critical`.
@@ -36,6 +42,7 @@ python tools/check_scenes.py          # builds/validates all 13 test scenes
 python tools/check_captions.py        # lints every style for side-on words (negation-aware)
 python tools/check_caption_parity.py  # app vs tools caption diff — MUST be clean
 python tools/check_layouts.py         # generator sanity across layouts/sizes/seeds
+python tools/check_dungeondraft.py    # assembles all 13 scenes as .dungeondraft_map
 ```
 
 ### The 13 test scenes (`tools/scenes/*.json`)

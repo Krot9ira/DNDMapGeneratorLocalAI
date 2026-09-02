@@ -11,6 +11,10 @@ into geometry; stage 2 turns that geometry into a structured JSON caption with b
 boxes and paints it. The desktop app, the command line and the AI agent API all drive the
 same engine.
 
+The same geometry has a second destination: an **editable Dungeondraft map**, assembled
+from the user's own asset packs instead of painted. One plan, two outputs - a finished
+picture for the table, and a file the GM can move a barrel in.
+
 Full user manual: [`Manual.pdf`](Manual.pdf).
 
 ---
@@ -68,6 +72,10 @@ and low in contrast.
 | Three props on a 62×51 map | density was computed per room only | global top-up from the walkable area |
 | Only one render quality selectable | real NUL bytes had been written into a source string literal, ending the combo's item list | the array form of `ImGui::Combo`, which cannot lose its separators |
 | A full-map effect painted in one corner | one bounding box the size of the frame is not a useful instruction | large effects are split into tiles that each have to be filled |
+| Dungeondraft walls came out as disconnected hairlines | the wall texture was an `*_end` cap sprite, and each wall rectangle was converted on its own, so runs met half a cell apart | walls are traced from the wall tiles as polylines through their centres; cap sprites are never candidates |
+| Dungeondraft water came out as a grid of flat slabs | one polygon per rectangle, each drawing its own border, with the shore blend set in pixels where the format counts cells | one traced polygon per body, holes nested, `blend_distance` 1.5 |
+| A Dungeondraft map had no floor at all | `tiles.colors` was written as `{}`; it is one colour per cell | the array is written in full, and the floor comes from the plan's tiles rather than its room rectangles |
+| Boulders laid out like a chessboard | a named region full of small things filled every other square on both axes | rock scatters on a hash of the cell, colonnades keep their ranks |
 
 ---
 
@@ -83,7 +91,7 @@ and low in contrast.
   ComfyUI is asked to free its models.
 - **Edits are not lost silently.** Rebuilding a plan you have edited by hand asks first and
   offers to save.
-- **26 styles**, covering villages, town streets, castles, temples, graveyards, mines,
+- **32 styles**, covering villages, town streets, castles, temples, graveyards, mines,
   sewers, roads, marshes, deserts, snow, camps, farms and ships at sea.
 - **The interface wears the project's own palette** — parchment, brown ink and old gold,
   taken from `styles/_base.json`.
@@ -92,6 +100,9 @@ and low in contrast.
 
 ## Still open
 
+0. **Dungeondraft caves.** A cave scene writes its `cave.bitmap` and also emits ordinary
+   walls. The bitmap is what draws rock in Dungeondraft, so the walls may be redundant
+   there. Open one and decide.
 1. **The app closed itself once**, after a successful render. The file was saved and the
    image written. No entry in the Windows event log, and it has not happened since. Worth
    watching.
@@ -145,6 +156,11 @@ reasoning, is in `AGENTS.md` under **How the renderer reads what you give it**.
 | `tools/planner.py` | talks to Ollama, builds the design spec |
 | `tools/workflow.py` | the ComfyUI graph for Ideogram 4 |
 | `tools/agent_api.py` | the API AI agents call |
+| `tools/dungeondraft_indexer.py` | scans the user's packs into `data/assets.db` |
+| `tools/dungeondraft_matcher.py` | picks an asset for a wall, a floor, a terrain slot or a prop |
+| `tools/dungeondraft_assembler.py` | writes the `.dungeondraft_map`: walls, portals, water, tiles, terrain, caves |
+| `tools/dungeondraft_foundry.py` | generates a prop the library has no answer for, and packs it |
+| `docs/dungeondraft_map_format.md` | the format, verified against real map files |
 | `app/include/map_architect.h` | C++ port of the architect, kept in step with the Python |
 | `app/include/ideogram_caption.h` | C++ port of the caption builder |
 | `styles/_base.json` | the shared caption contract — the one sentence keeping text, creatures and grid lines out |

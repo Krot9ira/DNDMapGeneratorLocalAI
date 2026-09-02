@@ -31,10 +31,22 @@ Installed and updated by the user; this project only talks to them over HTTP.
 | Ideogram 4.0 weights | paints the map | the model's own licence, as obtained by the user |
 | [Ollama](https://github.com/ollama/ollama) | plans the scene (optional) | MIT |
 | [Pillow](https://github.com/python-pillow/Pillow) | draws the plan preview in the Python tools | MIT-CPL (HPND) |
+| [NumPy](https://github.com/numpy/numpy) | palette extraction when indexing Dungeondraft assets (optional) | BSD-3-Clause |
+| [rembg](https://github.com/danielgatis/rembg) | cuts the background out of a generated prop (optional) | MIT |
 | Python 3.10+ | runs the command line tools | PSF |
 
 No model weights, no ComfyUI code and no Ollama code are copied into this repository or into
 the release folder. The app is a client: it sends a prompt and reads back an image.
+
+NumPy and rembg are imported inside a `try` and the tools fall back without them: the
+indexer skips palette extraction, and the prop foundry leaves the rendered background in
+place. Neither is needed to build the app or to render a map.
+
+Dungeondraft asset packs are **not** redistributed. The index in `data/` describes the packs
+already installed on the machine that built it, and a generated map records which packs it
+needs by name and id. Where a pack author has set
+`allow_3rd_party_mapping_software_to_read` to false, that flag is carried through into the
+map file as the author set it.
 
 ## Fonts
 

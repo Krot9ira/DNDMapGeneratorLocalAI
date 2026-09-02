@@ -140,6 +140,36 @@ struct AppState {
     bool ollamaOk = false, comfyOk = false;
     std::vector<std::string> ollamaModels;
 
+    // -- dungeondraft tab ----------------------------------------------
+    std::string ddOutputPath;
+    int ddSeed = 42;
+    bool ddRandomSeed = true;
+    bool ddAutoOpen = false;
+    bool ddAutoFoundry = true;
+    std::string ddLastExportFile;
+    std::string ddLastReportJson;
+    int ddPlacedWalls = 0;
+    int ddPlacedObjects = 0;
+    int ddPlacedPortals = 0;
+    int ddReferencedPacksCount = 0;
+    int ddUnmatchedProps = 0;
+    int ddPropsDescribed = 0;
+    int ddPropsNamed = 0;
+    bool ddExportSuccess = false;
+
+    // Asset library cache
+    int ddDbPacks = 0;
+    int ddDbActivePacks = 0;
+    int ddDbAssets = 0;
+    int ddDbStockAssets = 0;
+    int ddDbCustomAssets = 0;
+    int ddDbEnriched = 0;
+    int ddDbStockEnriched = 0;
+    int ddDbCustomEnriched = 0;
+    bool ddDbStatsLoaded = false;
+    bool ddDbStatsOk = false;
+    std::atomic<bool> ddDbStatsRefreshing{false};
+
     // -- helpers -------------------------------------------------------
     void SyncGridFromMap() {
         grid = arch::ZonesToGrid(map);
@@ -196,6 +226,25 @@ struct AppState {
         effects = redoStack.back().effects;
         redoStack.pop_back();
         dirty = true;
+    }
+
+    bool BeginJob(const std::string& status) {
+        bool expected = false;
+        if (!job.running.compare_exchange_strong(expected, true)) return false;
+        job.cancel = false;
+        job.failed = false;
+        job.finishedMessage.clear();
+        job.SetStatus(status);
+        job.Log(status);
+        return true;
+    }
+
+    void FinishJob(bool ok, const std::string& msg) {
+        job.failed = !ok;
+        job.finishedMessage = msg;
+        job.SetStatus(ok ? "Ready." : "Failed.");
+        job.Log(msg);
+        job.running = false;
     }
 };
 

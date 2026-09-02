@@ -56,6 +56,12 @@ public:
                         cfg.comfy.seed = n["seed"].get<int64_t>();
                 }
             }
+            if (j.contains("dungeondraft")) {
+                const auto& dd = j["dungeondraft"];
+                cfg.dungeondraft.vision_model = dd.value("vision_model", cfg.dungeondraft.vision_model);
+                cfg.dungeondraft.custom_assets_dir = dd.value("custom_assets_dir", cfg.dungeondraft.custom_assets_dir);
+                cfg.dungeondraft.app_path = dd.value("app_path", cfg.dungeondraft.app_path);
+            }
             cfg.default_style = j.value("default_style", cfg.default_style);
             cfg.default_size = j.value("default_size", cfg.default_size);
             cfg.border_cells = j.value("border_cells", cfg.border_cells);
@@ -93,6 +99,10 @@ public:
             n["cfg_late_start"] = cfg.comfy.cfg_late_start;
             n["target_megapixels"] = cfg.comfy.megapixels;
             n["seed"] = cfg.comfy.seed;
+
+            j["dungeondraft"]["vision_model"] = cfg.dungeondraft.vision_model;
+            j["dungeondraft"]["custom_assets_dir"] = cfg.dungeondraft.custom_assets_dir;
+            j["dungeondraft"]["app_path"] = cfg.dungeondraft.app_path;
 
             j["default_style"] = cfg.default_style;
             j["default_size"] = cfg.default_size;

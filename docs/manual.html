@@ -60,12 +60,13 @@ load into Roll20 or Foundry and play on tonight.
 <li><a href="#c4">The Create tab — describing the place</a></li>
 <li><a href="#c5">The Editor tab — changing it by hand</a></li>
 <li><a href="#c6">The Render tab — painting settings</a></li>
-<li><a href="#c7">The Styles tab — the look library</a></li>
-<li><a href="#c8">The Settings tab — services and models</a></li>
-<li><a href="#c9">What lands in the output folder</a></li>
-<li><a href="#c10">Working from the command line</a></li>
-<li><a href="#c11">Automation for AI agents</a></li>
-<li><a href="#c12">If something goes wrong</a></li>
+<li><a href="#c7">The Dungeondraft tab — an editable map instead of a picture</a></li>
+<li><a href="#c8">The Styles tab — the look library</a></li>
+<li><a href="#c9">The Settings tab — services and models</a></li>
+<li><a href="#c10">What lands in the output folder</a></li>
+<li><a href="#c11">Working from the command line</a></li>
+<li><a href="#c12">Automation for AI agents</a></li>
+<li><a href="#c13">If something goes wrong</a></li>
 </ol>
 </div>
 
@@ -166,7 +167,7 @@ already talking to, or anything else that can run Python - can write the descrip
 and hand it straight to the program. It is faster than a local model, it leaves the whole
 graphics card free for painting, and it gives finer control over the scene. Everything an
 agent needs ships with the program: <code>AGENTS.md</code> next to the executable documents
-every field, and <code>tools/agent_api.py</code> is the entry point. See chapter 11.
+every field, and <code>tools/agent_api.py</code> is the entry point. See chapter 12.
 </div>
 
 <div class="box">
@@ -228,7 +229,7 @@ noticeably slower than the rest, because 27 GB of model files have to be read of
 <p><span class="step">2</span> Start <code>DndBattlemapGenerator.exe</code>.</p>
 <p><span class="step">3</span> Open the <b>Settings</b> tab and press <b>Test both
 connections</b>. The ComfyUI line must turn green and say <i>ready</i>. If it does not,
-jump to chapter 12 — nothing else will work until it does.</p>
+jump to chapter 13 — nothing else will work until it does.</p>
 <p><span class="step">4</span> Open the <b>Create</b> tab and type a scene, for example:</p>
 <pre>a flooded crypt with cracked sarcophagi and standing water</pre>
 <p><span class="step">5</span> Pick a look from the style cards. For this example,
@@ -465,9 +466,82 @@ returns to the caption built from the plan.</p>
 break the rules that keep text and creatures out of your maps, so read what you are
 replacing.</p>
 
-<h2 id="c7">7. The Styles tab — the look library</h2>
+<h2 id="c7">7. The Dungeondraft tab — an editable map instead of a picture</h2>
 
-<p>Every style is a single file in the <code>styles</code> folder. There are twenty-six of
+<p>The Render tab paints your layout. This one hands the same layout to
+<b>Dungeondraft</b> instead, as a real <code>.dungeondraft_map</code> file built out of the
+asset packs you already own. Nothing is painted and no GPU is used; it takes a second or
+two. Open the result in Dungeondraft and every wall, door, barrel and puddle is a separate
+object you can drag, delete or recolour.</p>
+
+<p>Use it when you want to keep editing the map. Use the Render tab when you want a finished
+picture. They read the same plan, so you can do both from one description.</p>
+
+<h3>Before the first export: build the asset library</h3>
+
+<p>The bottom half of the tab is about the library, and it has to exist before an export can
+choose anything. <b>Scan &amp; Index Asset Packs</b> reads Dungeondraft's own
+<code>Dungeondraft.pck</code> and every custom <code>.dungeondraft_pack</code> in the folder
+named in Settings, and writes an index into <code>data/assets.db</code>. It uses every core
+you have and takes a few minutes for a large collection. Do it once, and again whenever you
+install new packs.</p>
+
+<p>The counters above the buttons say what is in the index: packs, how many are enabled,
+textures, and how many have been described by the vision model.</p>
+
+<h3>Vision tagging, and why it is optional</h3>
+
+<p>Indexing knows a texture's name, size and colours. It does not know that
+<code>obj_1042.png</code> is a butter churn. The tagging buttons hand each thumbnail to a
+local Ollama vision model and record what it is, which is what lets a plan asking for a
+"churn" find one.</p>
+
+<p>It is slow — seconds per asset, across tens of thousands — so it is split up: <b>Check
+Quality on 200 Assets First</b> to see whether the model is any good on your library before
+committing to the full pass, then stock only, custom only, or everything. Exporting works
+without it; the matcher falls back to reading file names, and the report tells you how many
+props were chosen that way.</p>
+
+<h3>Exporting</h3>
+
+<p>The top of the tab shows the layout that is loaded — style, grid, rooms, props — and three
+settings:</p>
+
+<ul>
+<li><b>Output file.</b> Where the <code>.dungeondraft_map</code> goes.</li>
+<li><b>Random variation seed.</b> Which asset gets picked where the library offers several.
+The same seed gives the same map every time.</li>
+<li><b>Auto-render missing props via Foundry.</b> When the library has nothing for something
+the plan asked for, generate it with Ideogram, cut the background out, and add it to a
+custom pack of your own. Needs ComfyUI, and it is the slow option on this tab.</li>
+<li><b>Launch in Dungeondraft when done.</b> Opens the file in Dungeondraft, if the path to
+it is set in Settings.</li>
+</ul>
+
+<p>After an export the tab reports what it placed: walls, objects, doors, how many packs the
+map needs, and how many props were matched from the catalogue against how many from the file
+name alone. That last pair is the honest quality number — a map matched entirely by file
+name will have things in roughly the right places that are not quite the right things.</p>
+
+<h3>What the export does with your layout</h3>
+
+<p>Walls are traced from the wall squares of the plan and drawn along the grid lines, so a
+run of wall is one continuous line, corners actually meet, and no square is left cut in half
+with nowhere for a token to stand. Doorways become real portals cut into that wall rather
+than gaps beside it. Each body of water is one polygon following its shoreline. Floors get a
+tileset, decks and gangways get planking, and the ground under undergrowth, rubble and lake
+beds is painted with its own terrain rather than one texture everywhere.</p>
+
+<p>The empty margin around the field is not exported. It is there so the painter makes its
+mistakes off the edge of your map; Dungeondraft has no such problem, so the file opens at
+exactly the size you planned.</p>
+
+<p>A map records which packs it needs. If you send the file to somebody who does not own
+them, Dungeondraft will open the map and tell them what is missing.</p>
+
+<h2 id="c8">8. The Styles tab — the look library</h2>
+
+<p>Every style is a single file in the <code>styles</code> folder. There are thirty-two of
 them, and this tab edits them in place: materials, palette, lighting, aesthetics, default
 layout and the standard set of props.</p>
 
@@ -501,7 +575,7 @@ and they come back.
 <p>To make your own style, copy any style file, change the <code>id</code> inside, and it
 appears in the program after a restart.</p>
 
-<h2 id="c8">8. The Settings tab — services and models</h2>
+<h2 id="c9">9. The Settings tab — services and models</h2>
 
 <table>
 <tr><th>Setting</th><th>Notes</th></tr>
@@ -514,19 +588,34 @@ appears in the program after a restart.</p>
     <td>The name as <code>ollama list</code> shows it</td></tr>
 <tr><td>Temperature</td>
     <td>How inventive the planner is. Higher means more variety and less predictability</td></tr>
+<tr><td>Vision model</td>
+    <td>The Ollama model that describes Dungeondraft asset thumbnails during tagging. It has
+        to be a model with vision — the app checks and says so if it is not</td></tr>
+<tr><td>Custom assets folder</td>
+    <td>Where your <code>.dungeondraft_pack</code> files live, so the indexer can find
+        them</td></tr>
+<tr><td>Dungeondraft executable</td>
+    <td>Optional. Set it and the Dungeondraft tab can open a finished map for you</td></tr>
 </table>
 
 <p><b>Test both connections</b> checks both services and reports what it found. Everything is
 saved to <code>config.json</code> beside the program and shared with the command line
 tools.</p>
 
-<h2 id="c9">9. What lands in the output folder</h2>
+<p>There is one more tab, <b>Docs</b>, which holds a short reminder of what each tab is for
+and the handful of rules worth keeping in mind. This manual is the long version of it.</p>
+
+<h2 id="c10">10. What lands in the output folder</h2>
 
 <p>Everything belonging to one map goes into <code>output/&lt;name&gt;/</code>:</p>
 <table>
 <tr><th>File</th><th>What it is</th></tr>
 <tr><td><code>battlemap*.png</code></td><td><b>The finished map.</b> This is the one you load
     into your VTT</td></tr>
+<tr><td><code>*.dungeondraft_map</code></td><td><b>The editable map</b>, if you exported one.
+    Open it in Dungeondraft</td></tr>
+<tr><td><code>*.report.json</code></td><td>What that export placed: walls, doors, objects, and
+    which asset packs the map needs</td></tr>
 <tr><td><code>preview.png</code></td><td>The labelled plan, for your eyes only — never
     painted</td></tr>
 <tr><td><code>map.json</code></td><td>The plan itself. Can be reopened and re-rendered at any
@@ -541,7 +630,7 @@ a different size, in a different style, with a different seed, for as long as yo
 PNG is a result; the plan is the source.
 </div>
 
-<h2 id="c10">10. Working from the command line</h2>
+<h2 id="c11">11. Working from the command line</h2>
 
 <p>Needs Python 3.10 or newer and the Pillow package:</p>
 <pre>pip install pillow</pre>
@@ -560,6 +649,11 @@ python tools/pipeline.py generate output/flooded_crypt/map.json</pre>
 <pre>python tools/pipeline.py preview output/flooded_crypt/map.json
 python tools/pipeline.py validate output/flooded_crypt/map.json</pre>
 
+<p>Assemble the same plan as an editable Dungeondraft map instead of painting it (chapter 7),
+or print the instructions the painter would be given without painting anything:</p>
+<pre>python tools/pipeline.py dungeondraft output/flooded_crypt/map.json
+python tools/pipeline.py caption output/flooded_crypt/map.json</pre>
+
 <table>
 <tr><th>Flag</th><th>Meaning</th></tr>
 <tr><td><code>--cols</code>, <code>--rows</code></td><td>Exact grid size in squares</td></tr>
@@ -570,7 +664,7 @@ python tools/pipeline.py validate output/flooded_crypt/map.json</pre>
     model that can see images</td></tr>
 </table>
 
-<h2 id="c11">11. Automation for AI agents</h2>
+<h2 id="c12">12. Automation for AI agents</h2>
 
 <p>A capable AI agent does not need Ollama at all: it writes the design description itself,
 which is faster and leaves the graphics card free for painting.</p>
@@ -601,7 +695,7 @@ where rooms sit, how corridors run, where walls and doors go — is decided by t
 split is why the layouts are always valid.
 </div>
 
-<h2 id="c12">12. If something goes wrong</h2>
+<h2 id="c13">13. If something goes wrong</h2>
 
 <table>
 <tr><th>Symptom</th><th>What to do</th></tr>
