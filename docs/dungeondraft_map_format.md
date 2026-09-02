@@ -41,9 +41,20 @@ This document specifies the exact structure of `.dungeondraft_map` files (Godot 
       }
     ],
     "editor_state": {
-      "camera_offset": "Vector2( 0, 0 )",
-      "camera_zoom": 1.0,
-      "grid_opacity": 0.5
+      "current_level": 0,
+      "camera_position": "Vector2( 3200, 1600 )",
+      "camera_zoom": 1,
+      "guide_position": "null",
+      "trace_image": null,
+      "color_palettes": { "...": [] },
+      "object_tags_memory": { "set": 0, "tags": [] },
+      "scatter_tags_memory": { "set": 0, "tags": [] },
+      "object_library_memory": {
+        "mode": "all", "scroll": 0, "selected": [], "search_strictness": 0.5
+      },
+      "scatter_library_memory": null,
+      "path_library_memory": null,
+      "sharpen_fonts": true
     }
   },
   "world": {
@@ -97,10 +108,18 @@ Dungeondraft standard layer IDs:
 - `-1`: Empty cell (shows underlying terrain / background).
 - `>= 0`: Index into `tiles.lookup`.
 
+`tiles.colors` is a **JSON array of ARGB strings, one per cell**, the same
+length as `cells` - not a map keyed by tileset index, and not an object.
+Untinted tiles are `"ffffffff"`. An empty array or `{}` leaves the tile layer
+with no colour to multiply by and the floor does not draw.
+
+`tiles.lookup` holds Dungeondraft's 24 stock tilesets at indices `"0"`-`"23"`;
+a map may overwrite an entry or add higher indices of its own.
+
 ```json
 "tiles": {
   "cells": "PoolIntArray( 0, 0, 0, -1, -1, ... )",
-  "colors": {},
+  "colors": ["ffffffff", "ffffffff", "ffffffff", "..."],
   "lookup": {
     "0": "res://textures/tilesets/tileset_wood_planks.png"
   }
@@ -136,6 +155,10 @@ Walls are polylines in absolute pixel coordinates.
 - `type: 0`: Wall bounding a building floor shape (mirrors `shapes.polygons`).
 - `type: 1`: Free-drawn wall.
 - `joint: 1`, `normalize_uv: true`, `shadow: true`.
+- `points` for a `loop: true` wall does **not** repeat the first point.
+- The wall texture is the plain sprite. Every wall set also ships a
+  `<name>_end.png` cap that Dungeondraft draws at the tip of a run on its own;
+  using a cap as the wall texture renders the wall as a thin dark line.
 - **Portals** are attached inside the wall's `portals` array:
   - `point_index`: Segment index along the wall polyline.
   - `wall_distance`: Parametric fractional distance ($0.0 \dots 1.0$) along that segment.
@@ -187,12 +210,14 @@ Placed assets with physical scale (unpadded, 256 authored px = 1 grid square).
     "mirror": false,
     "texture": "res://textures/objects/supplies/crates/fruit_box_05.png",
     "layer": 100,
-    "shadow": false,
-    "custom_color": "ff87a868",
+    "shadow": true,
+    "block_light": false,
     "node_id": "a"
   }
 ]
 ```
+`block_light` is always present. `custom_color` appears only on an object the
+user has tinted.
 
 ### 3.7 Lights
 Light sources with range in grid cells and ARGB hex color.
@@ -209,6 +234,43 @@ Light sources with range in grid cells and ARGB hex color.
     "node_id": "19"
   }
 ]
+```
+
+### 3.7b Water
+`water.tree` is a nested tree of polygons. The **root carries no water of its
+own**: its `polygon` is empty, both colours are `"00000000"` and its
+`blend_distance` is `0`. Each body of water is a child of the root; a child of
+a body is a hole in it.
+
+`blend_distance` is measured in **grid cells**, not pixels - Dungeondraft's own
+value is `1.5`. A value in the hundreds makes the shore blend cover the whole
+body, and the water renders as a flat slab with hard edges.
+
+A polygon's points run along the shoreline in order and do not repeat the first
+point. One body of water is one polygon: overlapping rectangles laid over each
+other each draw their own border, which is what puts a seam down every join.
+
+```json
+"water": {
+  "disable_border": false,
+  "tree": {
+    "ref": -496340410,
+    "polygon": "PoolVector2Array(  )",
+    "join": 0, "end": 0, "is_open": false,
+    "deep_color": "00000000", "shallow_color": "00000000",
+    "blend_distance": 0,
+    "children": [
+      {
+        "ref": -1345555070,
+        "polygon": "PoolVector2Array( 1792, 1536, 768, 1536, 768, 768, 1792, 768 )",
+        "join": 0, "end": 0, "is_open": false,
+        "deep_color": "ff3aa19a", "shallow_color": "ff8bceb0",
+        "blend_distance": 1.5,
+        "children": []
+      }
+    ]
+  }
+}
 ```
 
 ### 3.8 Caves

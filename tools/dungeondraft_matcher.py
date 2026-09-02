@@ -10,19 +10,19 @@ import json
 import random
 import re
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Set, Tuple
 
 from dungeondraft_db import AssetDatabase, DB_PATH_DEFAULT
 
 # Default fallbacks if database is minimal
-DEFAULT_STOCK_WALL = "res://textures/walls/sample_wall.png"
-DEFAULT_STOCK_DOOR = "res://textures/portals/sample_door.png"
+DEFAULT_STOCK_WALL = "res://textures/walls/stone.png"
+DEFAULT_STOCK_DOOR = "res://textures/portals/door_00.png"
 DEFAULT_STOCK_LIGHT = "res://textures/lights/fragments.png"
 DEFAULT_STOCK_TERRAIN = [
-    "res://textures/terrain/cobblestone.png",
-    "res://textures/terrain/grass.png",
-    "res://textures/terrain/dirt.png",
-    "res://textures/terrain/sand.png",
+    "res://textures/terrain/terrain_limestone.png",
+    "res://textures/terrain/terrain_grass.png",
+    "res://textures/terrain/terrain_dirt.png",
+    "res://textures/terrain/terrain_sand.png",
     "", "", "", ""
 ]
 
@@ -67,8 +67,16 @@ class DungeondraftMatcher:
             return DEFAULT_STOCK_WALL, "default"
 
         enclosure = (enclosure or "masonry").lower()
+        # "<wall>_end" is the cap sprite Dungeondraft draws at the tip of a run,
+        # not a wall texture. Picking one paints the whole wall as a thin dark
+        # line with no masonry in it, so it is never a candidate.
+        usable = [w for w in self.walls
+                  if not w["file_name"].lower().rsplit(".", 1)[0].endswith("_end")]
+        if not usable:
+            return DEFAULT_STOCK_WALL, "default"
+
         candidates = []
-        for w in self.walls:
+        for w in usable:
             fn = w["file_name"].lower()
             sp = (w["subpath"] or "").lower()
             if enclosure == "timber" or "wood" in style_id:
@@ -82,7 +90,7 @@ class DungeondraftMatcher:
                     candidates.append(w)
 
         if not candidates:
-            candidates = self.walls
+            candidates = usable
 
         # Deterministic pick based on style_id
         idx = int(hashlib.md5(style_id.encode("utf-8")).hexdigest(), 16) % len(candidates)
@@ -140,28 +148,64 @@ class DungeondraftMatcher:
         pick = candidates[0]
         return pick["res_path"], pick["pack_id"]
 
+    # What the ground of a place is made of, keyed on words in its style id.
+    # The first list that matches wins, so "forest_swamp" reads as swamp.
+    GROUND_BY_STYLE = [
+        (("swamp", "marsh", "bog", "fen", "mire"), ("swamp", "mud", "moss")),
+        (("forest", "glade", "grove", "wood", "jungle", "meadow"), ("grass", "moss")),
+        (("snow", "ice", "frozen", "winter", "tundra"), ("snow", "ice")),
+        (("desert", "dune", "oasis", "wasteland"), ("sand", "sandstone")),
+        (("cave", "cavern", "underdark", "mine", "gorge"), ("rocky", "gravel", "stone")),
+        (("ruin", "graveyard", "camp", "field", "pass", "mountain"), ("dirt", "earth", "gravel")),
+    ]
+
+    def _terrain_like(self, words: Tuple[str, ...],
+                      taken: Optional[Set[str]] = None) -> Optional[Tuple[str, str]]:
+        """First indexed terrain whose file name mentions one of words.
+
+        Slots already spoken for are skipped: two slots holding the same
+        texture is a wasted slot, and nothing the assembler paints into it
+        would be visible as a different kind of ground.
+        """
+        for word in words:
+            for t in self.terrain:
+                if word in t["file_name"].lower() and t["res_path"] not in (taken or ()):
+                    return t["res_path"], t["pack_id"]
+        return None
+
     def match_terrain_textures(self, style_id: str = "") -> List[Tuple[str, str]]:
-        """Return up to 8 terrain texture slots as [(res_path, pack_id), ...]."""
-        slots = []
+        """Return 8 terrain texture slots as [(res_path, pack_id), ...].
+
+        The order is fixed and the assembler paints against it: 1 is the ground
+        the place is mostly made of, 2 is its greenery, 3 its bare earth, 4 the
+        silt under standing water.
+        """
         if not self.terrain:
-            for p in DEFAULT_STOCK_TERRAIN:
-                slots.append((p, "default" if p else ""))
-            return slots
+            return [(p, "default" if p else "") for p in DEFAULT_STOCK_TERRAIN]
 
-        style_low = style_id.lower()
-        # Find matching textures for primary slots
-        cobble = [t for t in self.terrain if "cobble" in t["file_name"].lower() or "stone" in t["file_name"].lower()]
-        grass = [t for t in self.terrain if "grass" in t["file_name"].lower()]
-        dirt = [t for t in self.terrain if "dirt" in t["file_name"].lower() or "earth" in t["file_name"].lower()]
-        sand = [t for t in self.terrain if "sand" in t["file_name"].lower() or "mud" in t["file_name"].lower()]
+        style_low = (style_id or "").lower()
+        ground_words = ("cobble", "stone", "flagstone", "pavement")
+        for keys, words in self.GROUND_BY_STYLE:
+            if any(k in style_low for k in keys):
+                ground_words = words
+                break
 
-        t1 = (cobble[0]["res_path"], cobble[0]["pack_id"]) if cobble else (self.terrain[0]["res_path"], self.terrain[0]["pack_id"])
-        t2 = (grass[0]["res_path"], grass[0]["pack_id"]) if grass else ("", "")
-        t3 = (dirt[0]["res_path"], dirt[0]["pack_id"]) if dirt else ("", "")
-        t4 = (sand[0]["res_path"], sand[0]["pack_id"]) if sand else ("", "")
+        wet = any(k in style_low for k in ("swamp", "marsh", "bog", "cave", "cavern", "sewer"))
+        blank = ("", "")
+        slots = []
+        taken: Set[str] = set()
+        for words in (ground_words,
+                      ("moss", "grass") if wet else ("grass", "moss"),
+                      ("dirt", "earth", "gravel"),
+                      ("mud", "sand", "gravel") if wet else ("sand", "gravel", "mud")):
+            pick = self._terrain_like(words, taken)
+            if pick is None and not slots:
+                pick = (self.terrain[0]["res_path"], self.terrain[0]["pack_id"])
+            slots.append(pick or blank)
+            if pick:
+                taken.add(pick[0])
 
-        slots = [t1, t2, t3, t4, ("", ""), ("", ""), ("", ""), ("", "")]
-        return slots
+        return slots + [blank] * 4
 
     def match_prop(
         self,

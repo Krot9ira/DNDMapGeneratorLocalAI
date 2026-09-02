@@ -13,6 +13,10 @@ import random
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Set, Tuple
 
+from architect import (
+    BRIDGE, DOOR, FLOOR, PIT, RUBBLE, STAIRS, VEGETATION, WALL, WATER, WINDOW,
+    zones_to_grid,
+)
 from dungeondraft_matcher import DungeondraftMatcher, DEFAULT_STOCK_LIGHT
 from dungeondraft_db import DB_PATH_DEFAULT
 
@@ -44,9 +48,30 @@ def format_pool_byte_array(values: bytes) -> str:
 
 PROP_OVERSIZE_TOLERANCE = 1.5   # how much bigger than its slot a prop may be
                                 # before it is scaled down to fit
-DOOR_SNAP_PX = 384          # 1.5 cells: a door zone and the wall it belongs to
-                            # are drawn on different grids and land up to half a
-                            # cell apart, so an exact test never matches.
+DOOR_SNAP_PX = 384          # 1.5 cells: how far a doorway may sit from the
+                            # wall line it belongs to and still be cut into it.
+CELL_PX = 256.0             # one grid square, in authored pixels
+
+# Dungeondraft's own water defaults. blend_distance is measured in grid cells,
+# not pixels: a value in the hundreds makes the shore blend swallow the whole
+# body, and the water then renders as one flat slab with hard edges.
+WATER_DEEP_COLOR = "ff3aa19a"
+WATER_SHALLOW_COLOR = "ff8bceb0"
+WATER_BLEND_DISTANCE = 1.5
+
+# Tiles a cave bitmap counts as open floor.
+CAVE_FLOOR_KINDS = {FLOOR, BRIDGE, DOOR, WINDOW, STAIRS, RUBBLE, VEGETATION}
+
+# Which terrain slot each kind of ground paints itself with. The splat's four
+# channels are the weights of terrain textures 1-4, and match_terrain_textures
+# fills those slots as (paving, greenery, bare earth, silt) - so a marsh stops
+# coming out as the same flat stone field as a courtyard.
+TERRAIN_CHANNEL_BY_KIND = {
+    VEGETATION: 1,
+    RUBBLE: 2,
+    PIT: 2,
+    WATER: 3,
+}
 
 DEFAULT_TILES_LOOKUP = {
     "0": "res://textures/tilesets/smart/tileset_wood_vertical.png",
@@ -128,61 +153,274 @@ def nearest_point_on_polyline(
     return best
 
 
-def is_segment_redundant_with_rooms(
-    pts: List[Tuple[float, float]],
-    room_polys: List[List[Tuple[float, float]]],
-    tol: float = 256.0,
-) -> bool:
-    """Check if a wall line segment runs collinear and parallel within tol of an existing room edge."""
-    if len(pts) < 2 or not room_polys:
-        return False
-    p1, p2 = pts[0], pts[1]
-    dx1, dy1 = p2[0] - p1[0], p2[1] - p1[1]
-    len1 = math.hypot(dx1, dy1)
-    if len1 < 1.0:
-        return False
-    is_h1 = abs(dy1) <= 1.0
-    is_v1 = abs(dx1) <= 1.0
+def cells_of_kind(grid, kinds: Set[str]) -> Set[Tuple[int, int]]:
+    """Every cell of the rasterized plan whose tile kind is one of kinds."""
+    return {(x, y)
+            for y in range(grid.rows)
+            for x in range(grid.cols)
+            if grid.get(x, y) in kinds}
 
-    for poly in room_polys:
-        n = len(poly)
-        for i in range(n):
-            e1 = poly[i]
-            e2 = poly[(i + 1) % n]
-            dx2, dy2 = e2[0] - e1[0], e2[1] - e1[1]
-            len2 = math.hypot(dx2, dy2)
-            if len2 < 1.0:
-                continue
-            is_h2 = abs(dy2) <= 1.0
-            is_v2 = abs(dx2) <= 1.0
-            if is_h1 and is_h2:
-                if abs(p1[1] - e1[1]) <= tol:
-                    min_x1, max_x1 = min(p1[0], p2[0]), max(p1[0], p2[0])
-                    min_x2, max_x2 = min(e1[0], e2[0]), max(e1[0], e2[0])
-                    overlap = min(max_x1, max_x2) - max(min_x1, min_x2)
-                    if overlap >= min(len1, len2) * 0.7:
-                        return True
-            elif is_v1 and is_v2:
-                if abs(p1[0] - e1[0]) <= tol:
-                    min_y1, max_y1 = min(p1[1], p2[1]), max(p1[1], p2[1])
-                    min_y2, max_y2 = min(e1[1], e2[1]), max(e1[1], e2[1])
-                    overlap = min(max_y1, max_y2) - max(min_y1, min_y2)
-                    if overlap >= min(len1, len2) * 0.7:
-                        return True
-    return False
+
+ORTHOGONAL = ((1, 0), (-1, 0), (0, 1), (0, -1))
+DIAGONAL = ((1, 1), (1, -1), (-1, 1), (-1, -1))
+
+
+def connected_cell_groups(cells: Set[Tuple[int, int]],
+                          diagonal: bool = False) -> List[Set[Tuple[int, int]]]:
+    """Split a cell set into connected components.
+
+    Walls need the diagonal pass: a hull or a slanted run steps corner to
+    corner, and splitting it there is what leaves a ship drawn as three
+    unrelated pieces of planking.
+    """
+    steps = ORTHOGONAL + DIAGONAL if diagonal else ORTHOGONAL
+    remaining = set(cells)
+    groups = []
+    while remaining:
+        start = remaining.pop()
+        group = {start}
+        stack = [start]
+        while stack:
+            x, y = stack.pop()
+            for dx, dy in steps:
+                n = (x + dx, y + dy)
+                if n in remaining:
+                    remaining.discard(n)
+                    group.add(n)
+                    stack.append(n)
+        groups.append(group)
+    return groups
+
+
+def cell_centre(x: int, y: int) -> Tuple[float, float]:
+    """Pixel centre of a grid cell - where a wall line through it runs."""
+    return ((x + 0.5) * CELL_PX, (y + 0.5) * CELL_PX)
+
+
+def simplify_polyline(points: List[Tuple[float, float]], loop: bool) -> List[Tuple[float, float]]:
+    """Drop points that sit on a straight run between their two neighbours."""
+    n = len(points)
+    if n < 3:
+        return list(points)
+    kept = []
+    for i in (range(n) if loop else range(1, n - 1)):
+        ax, ay = points[(i - 1) % n]
+        bx, by = points[i]
+        cx, cy = points[(i + 1) % n]
+        if abs((bx - ax) * (cy - by) - (by - ay) * (cx - bx)) > 1e-6:
+            kept.append(points[i])
+    if loop:
+        return kept if len(kept) >= 3 else list(points)
+    return [points[0]] + kept + [points[-1]]
+
+
+def cell_box(cell: Tuple[int, int]) -> List[Tuple[float, float]]:
+    """The four corners of one cell, so a lone wall tile still reads as a pillar."""
+    x, y = cell
+    return [(x * CELL_PX, y * CELL_PX), ((x + 1) * CELL_PX, y * CELL_PX),
+            ((x + 1) * CELL_PX, (y + 1) * CELL_PX), (x * CELL_PX, (y + 1) * CELL_PX)]
+
+
+def is_thin_region(cells: Set[Tuple[int, int]]) -> bool:
+    """True when a wall region is a one-cell-thick run rather than a solid mass.
+
+    A run of wall tiles is a line and wants a centreline; a block of them is a
+    rock face and wants its outline. Skeletonising a block instead produces one
+    stub per tile, which is how a cavern ends up with hundreds of walls in it.
+    """
+    return not any((x + 1, y) in cells and (x, y + 1) in cells and (x + 1, y + 1) in cells
+                   for (x, y) in cells)
+
+
+def trace_wall_polylines(cells: Set[Tuple[int, int]]) -> List[Tuple[List[Tuple[float, float]], bool]]:
+    """Chain one-cell-thick wall tiles into polylines through their centres.
+
+    A plan describes walls as tiles; Dungeondraft wants polylines. Walking the
+    cell graph is what makes corners actually meet: converting each wall
+    rectangle on its own puts the horizontal run on one centreline and the
+    vertical run on another, which leaves a half-cell hole at every corner and
+    a half-cell stub past every end - a map of disconnected floating walls.
+    """
+    adj: Dict[Tuple[int, int], Set[Tuple[int, int]]] = {c: set() for c in cells}
+    for (x, y) in cells:
+        for n in ((x + 1, y), (x, y + 1)):
+            if n in cells:
+                adj[(x, y)].add(n)
+                adj[n].add((x, y))
+    # A ship hull or a slanted wall steps diagonally. Bridge that step, but only
+    # where there is no orthogonal way round it, so solid blocks stay clean.
+    for (x, y) in cells:
+        for dx, dy in ((1, 1), (1, -1)):
+            n = (x + dx, y + dy)
+            if n in cells and (x + dx, y) not in cells and (x, y + dy) not in cells:
+                adj[(x, y)].add(n)
+                adj[n].add((x, y))
+
+    used: Set[frozenset] = set()
+
+    def walk(start, first):
+        """Follow one run of wall from start, carrying straight through
+        junctions. Stopping at every T instead would chop a long wall into a
+        two-point stub per branch, which is a lot of walls saying very little."""
+        path = [start, first]
+        used.add(frozenset((start, first)))
+        cur = first
+        heading = (first[0] - start[0], first[1] - start[1])
+        while True:
+            onward = sorted(n for n in adj[cur] if frozenset((cur, n)) not in used)
+            if not onward:
+                break
+            if len(adj[cur]) == 2:
+                step = onward[0]
+            else:
+                ahead = [n for n in onward
+                         if (n[0] - cur[0], n[1] - cur[1]) == heading]
+                if not ahead:
+                    break
+                step = ahead[0]
+            used.add(frozenset((cur, step)))
+            path.append(step)
+            heading = (step[0] - cur[0], step[1] - cur[1])
+            cur = step
+            if cur == start:
+                break
+        return path
+
+    def emit(path):
+        closed = len(path) > 2 and path[-1] == path[0]
+        if closed:
+            path = path[:-1]
+        return [cell_centre(*c) for c in path], closed
+
+    raw = []
+    # Ends and junctions first, so whatever edges are left over are pure loops.
+    for node in sorted(cells):
+        if len(adj[node]) == 2:
+            continue
+        if not adj[node]:
+            raw.append((cell_box(node), True))
+            continue
+        for n in sorted(adj[node]):
+            if frozenset((node, n)) not in used:
+                raw.append(emit(walk(node, n)))
+    for node in sorted(cells):
+        for n in sorted(adj[node]):
+            if frozenset((node, n)) not in used:
+                raw.append(emit(walk(node, n)))
+
+    out = []
+    for pts, loop in raw:
+        pts = simplify_polyline(pts, loop)
+        if len(pts) >= 2:
+            out.append((pts, loop))
+    return out
+
+
+def trace_region_rings(cells: Set[Tuple[int, int]]) -> List[Tuple[List[Tuple[float, float]], bool]]:
+    """Outline a region of cells as closed rings running along the cell edges.
+
+    Returns (points_in_pixels, is_hole) pairs. Outer rings wind one way, rings
+    around an enclosed gap wind the other.
+    """
+    out_edges: Dict[Tuple[int, int], List[Tuple[int, int]]] = {}
+
+    def add(a, b):
+        out_edges.setdefault(a, []).append(b)
+
+    for (x, y) in cells:
+        if (x, y - 1) not in cells:
+            add((x, y), (x + 1, y))
+        if (x + 1, y) not in cells:
+            add((x + 1, y), (x + 1, y + 1))
+        if (x, y + 1) not in cells:
+            add((x + 1, y + 1), (x, y + 1))
+        if (x - 1, y) not in cells:
+            add((x, y + 1), (x, y))
+
+    rings = []
+    while out_edges:
+        start = next(iter(out_edges))
+        ring = [start]
+        cur = start
+        heading = None
+        while True:
+            options = out_edges.get(cur)
+            if not options:
+                break
+            step = None
+            if heading is not None:
+                for cand in options:
+                    if (cand[0] - cur[0], cand[1] - cur[1]) == heading:
+                        step = cand
+                        break
+            if step is None:
+                step = options[0]
+            options.remove(step)
+            if not options:
+                del out_edges[cur]
+            heading = (step[0] - cur[0], step[1] - cur[1])
+            cur = step
+            if cur == start:
+                break
+            ring.append(cur)
+        if len(ring) < 4:
+            continue
+        pts = [(px * CELL_PX, py * CELL_PX) for px, py in ring]
+        area = 0.0
+        for i in range(len(pts)):
+            x1, y1 = pts[i]
+            x2, y2 = pts[(i + 1) % len(pts)]
+            area += x1 * y2 - x2 * y1
+        rings.append((simplify_polyline(pts, True), area < 0))
+    return rings
+
+
+def point_in_ring(point: Tuple[float, float], ring: List[Tuple[float, float]]) -> bool:
+    """Even-odd containment test, used to hang holes off the right shoreline."""
+    x, y = point
+    inside = False
+    n = len(ring)
+    for i in range(n):
+        x1, y1 = ring[i]
+        x2, y2 = ring[(i + 1) % n]
+        if (y1 > y) != (y2 > y):
+            crossing = x1 + (y - y1) * (x2 - x1) / (y2 - y1)
+            if x < crossing:
+                inside = not inside
+    return inside
+
+
+def ring_centroid(ring: List[Tuple[float, float]]) -> Tuple[float, float]:
+    """Average of a ring's corners - inside it for every shape we trace."""
+    return (sum(p[0] for p in ring) / len(ring), sum(p[1] for p in ring) / len(ring))
+
+
+def water_node(points: List[Tuple[float, float]], children: List[dict]) -> dict:
+    """One body of water in the level's water tree."""
+    return {
+        "ref": random.randint(10000000, 999999999),
+        "polygon": format_pool_vector2_array(points),
+        "join": 0,
+        "end": 0,
+        "is_open": False,
+        "deep_color": WATER_DEEP_COLOR,
+        "shallow_color": WATER_SHALLOW_COLOR,
+        "blend_distance": WATER_BLEND_DISTANCE,
+        "children": children,
+    }
 
 
 def generate_cave_bitmaps(
     cols: int,
     rows: int,
-    areas: List[dict],
-    zones: List[dict],
+    floor_cells: Set[Tuple[int, int]],
     is_cave: bool,
 ) -> Tuple[str, str]:
     """Generate Dungeondraft cave and entrance bitmasks.
 
     1 bit per sample, packed 8 to a byte, least significant bit first,
-    over a grid of (4w + 3) x (4h + 3) samples.
+    over a grid of (4w + 3) x (4h + 3) samples. The three extra samples per
+    axis straddle the map edge, 1.5 of them on each side.
     """
     cw = 4 * cols + 3
     ch = 4 * rows + 3
@@ -191,33 +429,17 @@ def generate_cave_bitmaps(
     cave_buf = bytearray(total_bytes)
     entrance_buf = bytearray(total_bytes)
 
-    if not is_cave:
+    if not is_cave or not floor_cells:
         return format_pool_byte_array(bytes(cave_buf)), format_pool_byte_array(bytes(entrance_buf))
 
-    # Floor regions in cell units
-    floor_rects = []
-    for a in areas:
-        floor_rects.append((float(a.get("x", 0)), float(a.get("y", 0)), float(a.get("w", 0)), float(a.get("h", 0))))
-    for z in zones:
-        if z.get("kind") in ("floor", "passage", "corridor", "water", "room", "cavern"):
-            floor_rects.append((float(z.get("x", 0)), float(z.get("y", 0)), float(z.get("w", 0)), float(z.get("h", 0))))
-
     for sy in range(ch):
-        gy = sy / 4.0
+        gy = int(math.floor((sy - 1.5) / 4.0))
+        row_base = sy * cw
         for sx in range(cw):
-            gx = sx / 4.0
-            bit_index = sy * cw + sx
-            byte_idx = bit_index // 8
-            bit_offset = bit_index % 8
-
-            is_floor = False
-            for rx, ry, rw, rh in floor_rects:
-                if rx <= gx <= rx + rw and ry <= gy <= ry + rh:
-                    is_floor = True
-                    break
-
-            if is_floor:
-                cave_buf[byte_idx] |= (1 << bit_offset)
+            if (int(math.floor((sx - 1.5) / 4.0)), gy) not in floor_cells:
+                continue
+            bit_index = row_base + sx
+            cave_buf[bit_index // 8] |= (1 << (bit_index % 8))
 
     return format_pool_byte_array(bytes(cave_buf)), format_pool_byte_array(bytes(entrance_buf))
 
@@ -263,6 +485,14 @@ class DungeondraftAssembler:
             or meta.get("layout") in ("cavern", "cave")
         )
 
+        # Everything geometric below is built from the rasterized plan rather
+        # than from the rect zones directly. Those rectangles are a compressed
+        # decomposition of a tile grid: rebuilding walls or shorelines out of
+        # them is what leaves gaps at corners and seams down the middle of a
+        # lake.
+        zones_grid = zones_to_grid({"grid": {"cols": cols, "rows": rows},
+                                    "zones": zones})
+
         # 1. Floor Tiles
         # cells length = cols * rows in row-major order (-1 is empty/background)
         tiles_cells = [-1] * (cols * rows)
@@ -271,16 +501,52 @@ class DungeondraftAssembler:
             packs_referenced.add(tileset_pack)
 
         tiles_lookup = dict(DEFAULT_TILES_LOOKUP)
+        deck_index = None
         if floor_tileset_res and not is_cave:
             tiles_lookup["0"] = floor_tileset_res
-            # Fill area cells with tile index 0
-            for area in areas:
-                ax, ay = int(area.get("x", 0)), int(area.get("y", 0))
-                aw, ah = int(area.get("w", 0)), int(area.get("h", 0))
-                for y in range(ay, min(rows, ay + ah)):
-                    for x in range(ax, min(cols, ax + aw)):
-                        tiles_cells[y * cols + x] = 0
 
+            # Decking is timber even when the map is stone, so a gangway or a
+            # ship's deck gets its own slot rather than the quay's flagstones.
+            deck_res, deck_pack = self.matcher.match_floor_tileset(style_id="wood plank")
+            if deck_res and deck_res != floor_tileset_res:
+                deck_index = len(DEFAULT_TILES_LOOKUP)
+                tiles_lookup[str(deck_index)] = deck_res
+                if deck_pack and deck_pack != "default":
+                    packs_referenced.add(deck_pack)
+
+            paved = {FLOOR, DOOR, WINDOW, STAIRS}
+            deck_idx = deck_index if deck_index is not None else 0
+            for y in range(rows):
+                for x in range(cols):
+                    kind = zones_grid.get(x, y)
+                    idx = None
+                    if kind in paved:
+                        idx = 0
+                    elif kind == BRIDGE:
+                        idx = deck_idx
+                    elif kind == WALL:
+                        # Floor runs underneath a wall. Leaving the wall band
+                        # bare is what makes a finished room read as a sketch.
+                        neighbours = [zones_grid.get(x + dx, y + dy)
+                                      for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1))]
+                        if any(k in paved for k in neighbours):
+                            idx = 0
+                        elif BRIDGE in neighbours:
+                            idx = deck_idx
+                    if idx is not None:
+                        tiles_cells[y * cols + x] = idx
+
+            if all(c < 0 for c in tiles_cells):
+                # A plan with areas but no tile zones - fall back to the rooms.
+                for area in areas:
+                    ax, ay = int(area.get("x", 0)), int(area.get("y", 0))
+                    aw, ah = int(area.get("w", 0)), int(area.get("h", 0))
+                    for y in range(max(0, ay), min(rows, ay + ah)):
+                        for x in range(max(0, ax), min(cols, ax + aw)):
+                            tiles_cells[y * cols + x] = 0
+
+        # One colour per cell, not per tileset: Dungeondraft indexes this array
+        # by cell, and an empty one leaves every tile untinted to black.
         tiles_colors = ["ffffffff"] * (cols * rows)
 
         # 2. Terrain Splatmap (4 samples/cell/axis)
@@ -290,10 +556,27 @@ class DungeondraftAssembler:
         splat1_bytes = bytearray([255, 0, 0, 0] * splat_sample_count)
 
         terrain_slots = self.matcher.match_terrain_textures(style_id=style_id)
+
+        # Paint the ground by what the plan says is there, but only into slots
+        # the library actually filled - a weight on an empty texture slot is a
+        # hole in the map.
+        painted = {kind: ch for kind, ch in TERRAIN_CHANNEL_BY_KIND.items()
+                   if len(terrain_slots) > ch and terrain_slots[ch][0]}
+        if painted:
+            for sy in range(splat_h):
+                row = sy * splat_w
+                for sx in range(splat_w):
+                    channel = painted.get(zones_grid.get(sx // 4, sy // 4))
+                    if channel is None:
+                        continue
+                    base = (row + sx) * 4
+                    splat1_bytes[base] = 0
+                    splat1_bytes[base + channel] = 255
+
         terrain_dict = {
             "enabled": True,
             "expand_slots": False,
-            "smooth_blending": False,
+            "smooth_blending": True,
             "texture_1": terrain_slots[0][0] if len(terrain_slots) > 0 else "res://textures/terrain/terrain_dirt.png",
             "texture_2": terrain_slots[1][0] if len(terrain_slots) > 1 else "res://textures/terrain/terrain_gravel.png",
             "texture_3": terrain_slots[2][0] if len(terrain_slots) > 2 else "res://textures/terrain/terrain_sand.png",
@@ -318,138 +601,177 @@ class DungeondraftAssembler:
         wall_loops: List[bool] = []
         shapes_polygons = []
         shapes_walls = []
-        room_polygons_pts: List[List[Tuple[float, float]]] = []
 
-        door_zones = [z for z in zones if z.get("kind") == "door"]
+        window_texture_res, window_pack = self.matcher.match_portal_texture("window")
+        if window_pack and window_pack != "default":
+            packs_referenced.add(window_pack)
 
-        # Room outlines (only for built/structural rooms, not natural caves)
-        if not is_cave:
+        wall_cells = cells_of_kind(zones_grid, {WALL})
+        opening_cells = cells_of_kind(zones_grid, {DOOR, WINDOW})
+        # A doorway is a gap the plan punched through a wall run. Feeding those
+        # cells back into the wall network keeps the wall continuous across the
+        # opening, which is what a portal needs: Dungeondraft cuts the doorway
+        # into the wall rather than butting two walls up against a hole.
+        wired_openings = {
+            c for c in opening_cells
+            if any((c[0] + dx, c[1] + dy) in wall_cells
+                   for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1)))
+        }
+
+        if wall_cells:
+            # A run of wall tiles becomes a centreline; a solid mass becomes its
+            # outline, holes in it included.
+            wall_shapes: List[Tuple[List[Tuple[float, float]], bool]] = []
+            for region in connected_cell_groups(wall_cells | wired_openings, diagonal=True):
+                if is_thin_region(region):
+                    wall_shapes.extend(trace_wall_polylines(region))
+                else:
+                    wall_shapes.extend((ring, True) for ring, _hole in trace_region_rings(region))
+
+            for pts, loop in wall_shapes:
+                walls_list.append({
+                    "points": format_pool_vector2_array(pts),
+                    "texture": wall_texture_res,
+                    "color": "ffffffff",
+                    "loop": loop,
+                    "type": 1,
+                    "joint": 1,
+                    "normalize_uv": True,
+                    "shadow": True,
+                    "node_id": self._next_node_id(),
+                    "portals": [],
+                })
+                wall_points.append(pts)
+                wall_loops.append(loop)
+        elif not is_cave:
+            # Fallback for plans that carry rooms but no wall tiles at all.
             for area in areas:
+                label = area.get("label", "").lower()
+                if any(w in label for w in ("quay", "ship", "boat", "water", "river", "lake", "bridge", "open", "yard")):
+                    continue
                 ax, ay = int(area.get("x", 0)), int(area.get("y", 0))
                 aw, ah = int(area.get("w", 0)), int(area.get("h", 0))
                 if aw <= 0 or ah <= 0:
                     continue
 
-                # Convert to 256px coordinates
-                px_x1 = ax * 256
-                px_y1 = ay * 256
-                px_x2 = (ax + aw) * 256
-                px_y2 = (ay + ah) * 256
-
-                poly_pts = [(px_x1, px_y1), (px_x2, px_y1), (px_x2, px_y2), (px_x1, px_y2)]
-                poly_str = format_pool_vector2_array(poly_pts)
-                shapes_polygons.append(poly_str)
-
-                wall_nid = self._next_node_id()
-                shapes_walls.append(int(wall_nid, 16))
+                poly_pts = [(ax * CELL_PX, ay * CELL_PX),
+                            ((ax + aw) * CELL_PX, ay * CELL_PX),
+                            ((ax + aw) * CELL_PX, (ay + ah) * CELL_PX),
+                            (ax * CELL_PX, (ay + ah) * CELL_PX)]
 
                 walls_list.append({
-                    "points": poly_str,
+                    "points": format_pool_vector2_array(poly_pts),
                     "texture": wall_texture_res,
                     "color": "ffffffff",
                     "loop": True,
-                    "type": 0,
+                    "type": 1,
                     "joint": 1,
                     "normalize_uv": True,
                     "shadow": True,
-                    "node_id": wall_nid,
+                    "node_id": self._next_node_id(),
                     "portals": [],
                 })
-                wall_pts = [(float(x), float(y)) for x, y in poly_pts]
-                wall_points.append(wall_pts)
-                room_polygons_pts.append(wall_pts)
+                wall_points.append(poly_pts)
                 wall_loops.append(True)
 
-        # Free wall runs. Wall zones are filtered against room perimeters to avoid double walls.
-        wall_zones = [z for z in zones if z.get("kind") == "wall"]
-        for wz in wall_zones:
-            wx, wy = float(wz.get("x", 0)), float(wz.get("y", 0))
-            ww, wh = float(wz.get("w", 1)), float(wz.get("h", 1))
-            if ww <= 0 or wh <= 0:
-                continue
-            if ww >= wh:
-                cy = (wy + wh / 2.0) * 256.0
-                pts = [(wx * 256.0, cy), ((wx + ww) * 256.0, cy)]
-            else:
-                cx = (wx + ww / 2.0) * 256.0
-                pts = [(cx, wy * 256.0), (cx, (wy + wh) * 256.0)]
-
-            # Deduplicate wall runs that already hug a room perimeter wall
-            if not is_cave and is_segment_redundant_with_rooms(pts, room_polygons_pts):
-                continue
-
-            wall_nid = self._next_node_id()
-            walls_list.append({
-                "points": format_pool_vector2_array(pts),
-                "texture": wall_texture_res,
-                "color": "ffffffff",
-                "loop": False,
-                "type": 1,
-                "joint": 1,
-                "normalize_uv": True,
-                "shadow": True,
-                "node_id": wall_nid,
-                "portals": [],
-            })
-            wall_points.append(pts)
-            wall_loops.append(False)
-
         # Cave bitmasks
-        cave_bitmap_str, cave_entrance_str = generate_cave_bitmaps(cols, rows, areas, zones, is_cave)
+        cave_floor_cells = cells_of_kind(zones_grid, CAVE_FLOOR_KINDS)
+        if not cave_floor_cells:
+            for area in areas:
+                ax, ay = int(area.get("x", 0)), int(area.get("y", 0))
+                aw, ah = int(area.get("w", 0)), int(area.get("h", 0))
+                for y in range(max(0, ay), min(rows, ay + ah)):
+                    for x in range(max(0, ax), min(cols, ax + aw)):
+                        cave_floor_cells.add((x, y))
+        cave_bitmap_str, cave_entrance_str = generate_cave_bitmaps(
+            cols, rows, cave_floor_cells, is_cave)
 
-        # Doors. Each door zone goes on the one wall segment nearest to it: a
-        # door that lands on two coincident walls would be drawn twice, and a
-        # door hung on the far side of the room is worse than no door at all.
+        # Doorways and windows become portals cut into the wall they interrupt.
+        # A run of adjacent opening cells is one portal, as wide as the run.
+        portal_cells = wired_openings if wall_cells else opening_cells
+        openings = []
+        for kind, texture in ((DOOR, door_texture_res), (WINDOW, window_texture_res)):
+            of_kind = {c for c in portal_cells if zones_grid.get(c[0], c[1]) == kind}
+            for group in connected_cell_groups(of_kind):
+                xs = [c[0] for c in group]
+                ys = [c[1] for c in group]
+                span = max(max(xs) - min(xs) + 1, max(ys) - min(ys) + 1)
+                openings.append({
+                    "cx": (sum(xs) / len(xs) + 0.5) * CELL_PX,
+                    "cy": (sum(ys) / len(ys) + 0.5) * CELL_PX,
+                    "radius": int(round(span * CELL_PX / 2.0)),
+                    "texture": texture,
+                    "id": f"{kind}@{min(xs)},{min(ys)}",
+                })
+
         unattached_doors = []
-        for dz in door_zones:
-            dx, dy = float(dz.get("x", 0)), float(dz.get("y", 0))
-            dw, dh = float(dz.get("w", 1)), float(dz.get("h", 1))
-            cx = (dx + dw / 2.0) * 256.0
-            cy = (dy + dh / 2.0) * 256.0
-
+        for opening in sorted(openings, key=lambda o: (o["cy"], o["cx"])):
             best = None
             best_wall = -1
             for wi, pts in enumerate(wall_points):
-                hit = nearest_point_on_polyline(pts, wall_loops[wi], cx, cy)
+                hit = nearest_point_on_polyline(pts, wall_loops[wi], opening["cx"], opening["cy"])
                 if hit and (best is None or hit[0] < best[0]):
                     best, best_wall = hit, wi
 
             if best is None or best[0] > DOOR_SNAP_PX:
-                unattached_doors.append({"id": dz.get("id", ""), "x": dx, "y": dy})
+                unattached_doors.append({"id": opening["id"],
+                                         "x": opening["cx"] / CELL_PX,
+                                         "y": opening["cy"] / CELL_PX})
                 continue
 
-            # The planner leaves a hole in the wall where the door goes, so the
-            # nearest point is often the wall's own end. A portal parked on an
-            # endpoint hangs half off the wall; Dungeondraft expects the wall to
-            # run through the opening and the door to cut it. So run it through.
-            if not wall_loops[best_wall] and (best[2] <= 0.001 or best[2] >= 0.999):
-                pts = wall_points[best_wall]
-                end_i = 0 if best[2] <= 0.001 else len(pts) - 1
-                ux, uy = best[6]
-                ax, ay = pts[0] if end_i == 0 else pts[-2]
-                along = (cx - ax) * ux + (cy - ay) * uy       # unclamped projection
-                half = (dw if abs(ux) >= abs(uy) else dh) * 128.0
-                reach = along - half if end_i == 0 else along + half
-                pts[end_i] = (ax + ux * reach, ay + uy * reach)
-                walls_list[best_wall]["points"] = format_pool_vector2_array(pts)
-                best = nearest_point_on_polyline(pts, False, cx, cy)
-
             _dist, seg_index, t, px, py, rotation, (ux, uy) = best
-            # radius is half the opening: a two-cell doorway is 256 px each way.
-            radius = int(round(max(dw, dh) * 128))
             walls_list[best_wall]["portals"].append({
                 "position": format_vector2(px, py),
                 "rotation": round(rotation, 6),
                 "scale": "Vector2( 1, 1 )",
                 "direction": format_vector2(ux, uy),
-                "texture": door_texture_res,
-                "radius": radius,
+                "texture": opening["texture"],
+                "radius": opening["radius"],
                 "point_index": seg_index,
                 "wall_id": "0",
                 "wall_distance": round(t, 6),
                 "closed": True,
                 "node_id": self._next_node_id(),
             })
+
+        # Water bodies. One polygon per connected body, traced along the cell
+        # edges: emitting the plan's rectangles one at a time instead puts a
+        # seam down every join and a straight cut where a shoreline should turn.
+        water_cells = cells_of_kind(zones_grid, {WATER})
+        if not water_cells:
+            for wz in (z for z in zones if z.get("kind") == WATER):
+                wx, wy = int(wz.get("x", 0)), int(wz.get("y", 0))
+                ww, wh = int(wz.get("w", 1)), int(wz.get("h", 1))
+                for y in range(max(0, wy), min(rows, wy + wh)):
+                    for x in range(max(0, wx), min(cols, wx + ww)):
+                        water_cells.add((x, y))
+
+        water_children = []
+        for body in connected_cell_groups(water_cells):
+            rings = trace_region_rings(body)
+            outers = [r for r, is_hole in rings if not is_hole]
+            holes = [r for r, is_hole in rings if is_hole]
+            for outer in outers:
+                enclosed = [h for h in holes if point_in_ring(ring_centroid(h), outer)]
+                water_children.append(
+                    water_node(outer, [water_node(h, []) for h in enclosed]))
+
+        # The root of the tree holds no water of its own - a real Dungeondraft
+        # file leaves its colours fully transparent and its blend at zero.
+        water_dict = {
+            "disable_border": False,
+            "tree": {
+                "ref": -496340410,
+                "polygon": "PoolVector2Array(  )",
+                "join": 0,
+                "end": 0,
+                "is_open": False,
+                "deep_color": "00000000",
+                "shallow_color": "00000000",
+                "blend_distance": 0,
+                "children": water_children,
+            },
+        }
 
         # 4. Placed Objects (Props)
         objects_list = []
@@ -505,8 +827,8 @@ class DungeondraftAssembler:
                     "mirror": False,
                     "texture": p_res,
                     "layer": 100,
-                    "shadow": False,
-                    "custom_color": "",
+                    "shadow": True,
+                    "block_light": False,
                     "node_id": obj_nid,
                 })
                 matched_props_report.append({
@@ -570,7 +892,7 @@ class DungeondraftAssembler:
         # 6. Assemble Full Map JSON
         dungeondraft_map = {
             "header": {
-                "creation_build": "1.1.0.0 newborn phoenix",
+                "creation_build": "1.2.0.1 opulent kirin",
                 "creation_date": creation_date,
                 "uses_default_assets": True,
                 "asset_manifest": asset_manifest,
@@ -630,7 +952,7 @@ class DungeondraftAssembler:
                         },
                         "environment": {
                             "baked_lighting": True,
-                            "ambient_light": "ffe8c5c5",
+                            "ambient_light": "ffffffff",
                         },
                         "tiles": {
                             "cells": format_pool_int_array(tiles_cells),
@@ -645,20 +967,7 @@ class DungeondraftAssembler:
                             "wall_color": "ff7f7e71",
                             "texture": "res://textures/caves/colorable/floor.png",
                         },
-                        "water": {
-                            "disable_border": False,
-                            "tree": {
-                                "ref": -496340410,
-                                "polygon": "PoolVector2Array(  )",
-                                "join": 0,
-                                "end": 0,
-                                "is_open": False,
-                                "deep_color": "00000000",
-                                "shallow_color": "00000000",
-                                "blend_distance": 0,
-                                "children": [],
-                            },
-                        },
+                        "water": water_dict,
                         "shapes": {
                             "polygons": shapes_polygons,
                             "walls": shapes_walls,
