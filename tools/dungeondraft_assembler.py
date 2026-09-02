@@ -345,10 +345,14 @@ def offset_to_cell_edges(points: List[Tuple[float, float]], loop: bool,
     """Move a wall line off the middle of its squares and onto the grid lines.
 
     A wall traced through the centres of its tiles cuts every bordering square
-    in half, and half a square is not a square a token can stand on.
-    Dungeondraft draws walls on the grid, so each run is pushed the half cell
-    that puts it on the edge of the ground it encloses: inward for a closed
-    ring, and towards whichever side is enclosed ground for an open run.
+    in half, and half a square is not a square a token can stand on. Each run is
+    pushed the half cell that puts it on the **outer** edge of its own tiles -
+    the footprint of the building, the outside of a hull - so the ground the
+    wall encloses keeps whole squares all the way to the wall.
+
+    Which way is out follows from the winding for a closed ring, so it cannot
+    disagree with itself halfway round; an open run asks the map which side is
+    enclosed ground and goes the other way.
     """
     n = len(points)
     segs = n if loop else n - 1
@@ -360,11 +364,13 @@ def offset_to_cell_edges(points: List[Tuple[float, float]], loop: bool,
     # A closed ring is offset towards its own interior; which side that is
     # follows from the winding, so it needs no lookups and never disagrees
     # with itself halfway round.
-    inward = None
+    outward = None
     if loop:
         area = sum(points[i][0] * points[(i + 1) % n][1] - points[(i + 1) % n][0] * points[i][1]
                    for i in range(n))
-        inward = -1.0 if area < 0 else 1.0
+        # (uy, -ux) points into a ring wound this way, so the sign that takes
+        # the line out of it is the other one.
+        outward = -1.0 if area < 0 else 1.0
 
     lines = []           # (point on the offset line, direction)
     for i in range(segs):
@@ -376,23 +382,27 @@ def offset_to_cell_edges(points: List[Tuple[float, float]], loop: bool,
             lines.append(((ax, ay), (1.0, 0.0)))
             continue
         ux, uy = dx / length, dy / length
-        normal = (uy * inward, -ux * inward) if inward is not None else None
+        normal = (uy * outward, -ux * outward) if outward is not None else None
 
         if normal is None:
-            # An open run has no interior, so ask the map which side is ground.
+            # An open run has no interior, so ask the map which side is ground
+            # and take the other one. The probe reaches a whole cell out, not
+            # half: half a cell lands on the boundary of the wall tile itself,
+            # which is neither side and made the vote a coin toss - that is how
+            # a hull's bow came back folded through itself.
             best = None
             for cand in ((uy, -ux), (-uy, ux)):
                 score = 0
                 for step in range(1, 6):
                     t = step / 6.0
-                    mx = ax + dx * t + cand[0] * (CELL_PX / 2.0)
-                    my = ay + dy * t + cand[1] * (CELL_PX / 2.0)
+                    mx = ax + dx * t + cand[0] * CELL_PX
+                    my = ay + dy * t + cand[1] * CELL_PX
                     if (int(mx // CELL_PX), int(my // CELL_PX)) in inside:
                         score += 1
                 # Ties fall to +x / +y so a free-standing run still lands on a
                 # grid line instead of staying stranded in mid-square.
                 canonical = 1 if (cand[0] > 0.5 or cand[1] > 0.5) else 0
-                if best is None or (score, canonical) > (best[0], best[1]):
+                if best is None or (-score, canonical) > (-best[0], best[1]):
                     best = (score, canonical, cand)
             normal = best[2]
 
@@ -424,6 +434,24 @@ def offset_to_cell_edges(points: List[Tuple[float, float]], loop: bool,
         # length instead of being cut short by the offset.
         t = (ex - qx) * vx + (ey - qy) * vy
         out.append((qx + vx * t, qy + vy * t))
+
+    # A segment shorter than the offset can come back pointing the other way,
+    # which draws the wall folded through itself. Drop those rather than ship a
+    # knot; the neighbours meet directly instead.
+    for _pass in range(3):
+        doubled = [i for i in range(segs)
+                   if (out[(i + 1) % len(out)][0] - out[i][0]) * (points[(i + 1) % n][0] - points[i][0])
+                   + (out[(i + 1) % len(out)][1] - out[i][1]) * (points[(i + 1) % n][1] - points[i][1]) < 0]
+        if not doubled or segs - len(doubled) < 2:
+            break
+        keep = [i for i in range(segs) if i not in set(doubled)]
+        lines = [lines[i] for i in keep]
+        points = [points[i] for i in keep] + ([] if loop else [points[segs]])
+        n = len(points)
+        segs = len(lines)
+        out = ([meet(i - 1, i) for i in range(segs)] if loop
+               else [lines[0][0]] + [meet(i - 1, i) for i in range(1, segs)] + [out[-1]])
+
     return [(round(x, 3), round(y, 3)) for x, y in out]
 
 
