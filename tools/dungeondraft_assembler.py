@@ -62,6 +62,10 @@ WATER_BLEND_DISTANCE = 1.5
 # Tiles a cave bitmap counts as open floor.
 CAVE_FLOOR_KINDS = {FLOOR, BRIDGE, DOOR, WINDOW, STAIRS, RUBBLE, VEGETATION}
 
+# Ground a wall is built to enclose. Water is not on the list on purpose: a
+# hull's wall belongs against its deck, not against the harbour outside it.
+ENCLOSED_KINDS = {FLOOR, BRIDGE, DOOR, WINDOW, STAIRS, RUBBLE, VEGETATION}
+
 # Which terrain slot each kind of ground paints itself with. The splat's four
 # channels are the weights of terrain textures 1-4, and match_terrain_textures
 # fills those slots as (paving, greenery, bare earth, silt) - so a marsh stops
@@ -151,6 +155,21 @@ def nearest_point_on_polyline(
             seg_len = math.sqrt(seg_len_sq)
             best = (dist, i, t, px, py, math.atan2(dy, dx), (dx / seg_len, dy / seg_len))
     return best
+
+
+def shift_items(items: List[dict], delta: int) -> List[dict]:
+    """Copy plan items with their coordinates moved, leaving the plan untouched."""
+    moved = []
+    for item in items or []:
+        if not isinstance(item, dict):
+            continue
+        copy = dict(item)
+        if "x" in copy:
+            copy["x"] = int(copy["x"]) + delta
+        if "y" in copy:
+            copy["y"] = int(copy["y"]) + delta
+        moved.append(copy)
+    return moved
 
 
 def cells_of_kind(grid, kinds: Set[str]) -> Set[Tuple[int, int]]:
@@ -316,6 +335,98 @@ def trace_wall_polylines(cells: Set[Tuple[int, int]]) -> List[Tuple[List[Tuple[f
     return out
 
 
+def is_on_grid(points: List[Tuple[float, float]]) -> bool:
+    """True when every corner already sits on a grid line."""
+    return all(abs(v - round(v / CELL_PX) * CELL_PX) < 1e-6 for p in points for v in p)
+
+
+def offset_to_cell_edges(points: List[Tuple[float, float]], loop: bool,
+                        inside: Set[Tuple[int, int]]) -> List[Tuple[float, float]]:
+    """Move a wall line off the middle of its squares and onto the grid lines.
+
+    A wall traced through the centres of its tiles cuts every bordering square
+    in half, and half a square is not a square a token can stand on.
+    Dungeondraft draws walls on the grid, so each run is pushed the half cell
+    that puts it on the edge of the ground it encloses: inward for a closed
+    ring, and towards whichever side is enclosed ground for an open run.
+    """
+    n = len(points)
+    segs = n if loop else n - 1
+    # A lone wall tile is already drawn as a box on the grid lines; offsetting
+    # it inward by half a cell from all four sides would collapse it to a point.
+    if segs < 1 or is_on_grid(points):
+        return list(points)
+
+    # A closed ring is offset towards its own interior; which side that is
+    # follows from the winding, so it needs no lookups and never disagrees
+    # with itself halfway round.
+    inward = None
+    if loop:
+        area = sum(points[i][0] * points[(i + 1) % n][1] - points[(i + 1) % n][0] * points[i][1]
+                   for i in range(n))
+        inward = -1.0 if area < 0 else 1.0
+
+    lines = []           # (point on the offset line, direction)
+    for i in range(segs):
+        ax, ay = points[i]
+        bx, by = points[(i + 1) % n]
+        dx, dy = bx - ax, by - ay
+        length = math.hypot(dx, dy)
+        if length < 1e-6:
+            lines.append(((ax, ay), (1.0, 0.0)))
+            continue
+        ux, uy = dx / length, dy / length
+        normal = (uy * inward, -ux * inward) if inward is not None else None
+
+        if normal is None:
+            # An open run has no interior, so ask the map which side is ground.
+            best = None
+            for cand in ((uy, -ux), (-uy, ux)):
+                score = 0
+                for step in range(1, 6):
+                    t = step / 6.0
+                    mx = ax + dx * t + cand[0] * (CELL_PX / 2.0)
+                    my = ay + dy * t + cand[1] * (CELL_PX / 2.0)
+                    if (int(mx // CELL_PX), int(my // CELL_PX)) in inside:
+                        score += 1
+                # Ties fall to +x / +y so a free-standing run still lands on a
+                # grid line instead of staying stranded in mid-square.
+                canonical = 1 if (cand[0] > 0.5 or cand[1] > 0.5) else 0
+                if best is None or (score, canonical) > (best[0], best[1]):
+                    best = (score, canonical, cand)
+            normal = best[2]
+
+        half = CELL_PX / 2.0
+        lines.append(((ax + normal[0] * half, ay + normal[1] * half), (ux, uy)))
+
+    def meet(i, j):
+        """Where two offset lines cross, or the shared end if they are parallel."""
+        (px, py), (ux, uy) = lines[i]
+        (qx, qy), (vx, vy) = lines[j]
+        denom = ux * vy - uy * vx
+        if abs(denom) < 1e-9:
+            return (qx, qy)
+        t = ((qx - px) * vy - (qy - py) * vx) / denom
+        return (px + ux * t, py + uy * t)
+
+    out = []
+    if loop:
+        for i in range(segs):
+            out.append(meet(i - 1, i))
+    else:
+        (px, py), _ = lines[0]
+        out.append((px, py))
+        for i in range(1, segs):
+            out.append(meet(i - 1, i))
+        (qx, qy), (vx, vy) = lines[segs - 1]
+        ex, ey = points[segs]
+        # Project the original end onto its offset line, so the run keeps its
+        # length instead of being cut short by the offset.
+        t = (ex - qx) * vx + (ey - qy) * vy
+        out.append((qx + vx * t, qy + vy * t))
+    return [(round(x, 3), round(y, 3)) for x, y in out]
+
+
 def trace_region_rings(cells: Set[Tuple[int, int]]) -> List[Tuple[List[Tuple[float, float]], bool]]:
     """Outline a region of cells as closed rings running along the cell edges.
 
@@ -476,6 +587,18 @@ class DungeondraftAssembler:
         annotations = map_plan.get("annotations", [])
         effects = map_plan.get("effects", [])
 
+        # The empty ring around the field exists so a diffusion model makes its
+        # mistakes in blank space. Dungeondraft has no such problem, and an
+        # editable map that opens two squares of nothing wider than it should be
+        # is just wrong, so the margin is cut off here.
+        border = max(0, int(meta.get("border", 0) or 0))
+        if border:
+            cols = max(1, cols - 2 * border)
+            rows = max(1, rows - 2 * border)
+            areas, zones, features, annotations, effects = (
+                shift_items(items, -border) for items in
+                (areas, zones, features, annotations, effects))
+
         packs_referenced: Set[str] = set()
 
         is_cave = (
@@ -509,7 +632,10 @@ class DungeondraftAssembler:
             # ship's deck gets its own slot rather than the quay's flagstones.
             deck_res, deck_pack = self.matcher.match_floor_tileset(style_id="wood plank")
             if deck_res and deck_res != floor_tileset_res:
-                deck_index = len(DEFAULT_TILES_LOOKUP)
+                # Slot 1, not a new one past the end: Dungeondraft ships 24
+                # tilesets at indices 0-23 and a cell pointing past them draws
+                # nothing, which is how a ship's deck came out as bare ground.
+                deck_index = 1
                 tiles_lookup[str(deck_index)] = deck_res
                 if deck_pack and deck_pack != "default":
                     packs_referenced.add(deck_pack)
@@ -621,11 +747,15 @@ class DungeondraftAssembler:
         if wall_cells:
             # A run of wall tiles becomes a centreline; a solid mass becomes its
             # outline, holes in it included.
+            enclosed = cells_of_kind(zones_grid, ENCLOSED_KINDS)
             wall_shapes: List[Tuple[List[Tuple[float, float]], bool]] = []
             for region in connected_cell_groups(wall_cells | wired_openings, diagonal=True):
                 if is_thin_region(region):
-                    wall_shapes.extend(trace_wall_polylines(region))
+                    wall_shapes.extend(
+                        (offset_to_cell_edges(pts, loop, enclosed), loop)
+                        for pts, loop in trace_wall_polylines(region))
                 else:
+                    # A solid mass is already outlined along the cell edges.
                     wall_shapes.extend((ring, True) for ring, _hole in trace_region_rings(region))
 
             for pts, loop in wall_shapes:
@@ -728,8 +858,16 @@ class DungeondraftAssembler:
                 "texture": opening["texture"],
                 "radius": opening["radius"],
                 "point_index": seg_index,
-                "wall_id": "0",
-                "wall_distance": round(t, 6),
+                # The wall this portal is cut into, by its node_id. Writing "0"
+                # for every portal binds them all to whichever wall is node 0,
+                # and a portal bound to the wrong wall neither opens the wall it
+                # sits on nor leaves it alone - the wall renders as a diagonal
+                # through the room.
+                "wall_id": walls_list[best_wall]["node_id"],
+                # Measured along the whole polyline, not within one segment:
+                # the whole number is the segment and the fraction is the
+                # position along it. A real map has a portal at 3.5.
+                "wall_distance": round(seg_index + t, 6),
                 "closed": True,
                 "node_id": self._next_node_id(),
             })
