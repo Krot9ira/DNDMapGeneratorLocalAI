@@ -65,6 +65,10 @@ struct MetaConfig {
     std::string title = "Battle Map";
     std::string style = "gothic_crypt";
     std::string layout = "dungeon";
+    // masonry | rock | timber | open - what closes this site in. Worked out
+    // while building and then recorded, so everything reading the plan back
+    // agrees with the geometry instead of assuming a walled building.
+    std::string enclosure;
     std::string scene_summary;
     std::string render_details;
     std::string lighting;          // the scene's own, overriding the style's
@@ -375,6 +379,10 @@ struct AppConfig {
     std::string output_dir = "output";
     // Width of the blank bleed margin added around every new map, in cells.
     int border_cells = 2;
+    // Show the parts of the program that are still being built. Off by
+    // default: what is behind it works often enough to be worth trying and not
+    // often enough to be worth finding by accident.
+    bool alpha_features = false;
 };
 
 }  // namespace dnd

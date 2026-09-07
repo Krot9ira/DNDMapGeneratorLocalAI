@@ -20,6 +20,7 @@ public:
                      {"title", map.meta.title},
                      {"style", map.meta.style},
                      {"layout", map.meta.layout},
+                     {"enclosure", map.meta.enclosure},
                      {"scene_summary", map.meta.scene_summary},
                      {"render_details", map.meta.render_details},
                      {"lighting", map.meta.lighting},
@@ -95,6 +96,7 @@ public:
                 out.meta.title = m.value("title", "Battle Map");
                 out.meta.style = m.value("style", "");
                 out.meta.layout = m.value("layout", "dungeon");
+                out.meta.enclosure = m.value("enclosure", std::string());
                 out.meta.scene_summary = m.value("scene_summary", "");
                 out.meta.render_details = m.value("render_details", "");
                 out.meta.lighting = m.value("lighting", "");

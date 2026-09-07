@@ -104,6 +104,34 @@ class ComfyClient:
             raise ComfyError(f"ComfyUI did not return a prompt_id: {resp}")
         return prompt_id
 
+    def cancel(self, prompt_ids):
+        """Drop these prompts from the queue, and stop one if it is running.
+
+        Only ours: clearing the whole queue would also throw away a map render
+        somebody started in the same ComfyUI. Best-effort - a prompt that has
+        already finished is nothing to cancel.
+        """
+        prompt_ids = [p for p in (prompt_ids or []) if p]
+        if not prompt_ids:
+            return False
+        stopped = False
+        try:
+            self._request("POST", "/queue", raw=True,
+                          data={"delete": list(prompt_ids)}, timeout=15)
+            stopped = True
+        except Exception:
+            pass
+        try:
+            queue = self._request("GET", "/queue", timeout=10)
+            running = {item[1] for item in queue.get("queue_running", [])
+                       if len(item) > 1}
+            if running & set(prompt_ids):
+                self._request("POST", "/interrupt", raw=True, timeout=10)
+                stopped = True
+        except Exception:
+            pass
+        return stopped
+
     def _queue_position(self, prompt_id):
         try:
             q = self._request("GET", "/queue", timeout=10)
@@ -162,3 +190,28 @@ class ComfyClient:
                 target.write_bytes(data)
                 saved.append(str(target))
         return saved
+
+
+_renderer_freed = False
+
+
+def free_renderer(force=False):
+    """Ask ComfyUI to hand the graphics card back, once per process.
+
+    ComfyUI holds around 27 GB of weights once it has rendered, and Ollama is
+    the other heavy tenant of the same card. Every place that takes the card
+    for a language or vision model calls this first. Best-effort by design: if
+    ComfyUI is not running there is nothing to free.
+    """
+    global _renderer_freed
+    if _renderer_freed and not force:
+        return False
+    _renderer_freed = True
+    try:
+        from paths import ROOT as _ROOT
+        cfg_path = _ROOT / "config.json"
+        cfg = json.loads(cfg_path.read_text(encoding="utf-8")) if cfg_path.exists() else {}
+        url = (cfg.get("comfy") or {}).get("base_url", "http://127.0.0.1:8188")
+        return ComfyClient(url).free_memory()
+    except Exception:
+        return False

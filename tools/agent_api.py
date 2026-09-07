@@ -48,7 +48,7 @@ from pathlib import Path
 import architect as A
 from comfy import ComfyClient
 from ideogram_prompt import build_caption_json
-from ollama_client import OllamaClient
+from ollama_client import OllamaClient, free_planner_model
 from planner import MapPlanner
 from render import render_preview, render_svg, trim_to_margin
 from ideogram_prompt import style_warnings
@@ -237,14 +237,8 @@ def generate(spec=None, map_data=None, seed=None, out_dir=None, cols=None, rows=
     caption = make_caption(map_data)
     write_blueprint(map_data, out_dir, spec=result.get("spec"), caption=caption)
 
-    # The planner is the other heavy tenant of the graphics card. Best-effort:
-    # if Ollama is not running there is nothing to unload.
-    try:
-        ocfg = cfg.get("ollama", {}) or {}
-        OllamaClient(base_url=ocfg.get("base_url", "http://127.0.0.1:11434"),
-                     model=ocfg.get("model", "")).unload()
-    except Exception:
-        pass
+    # The planner is the other heavy tenant of the graphics card.
+    free_planner_model()
 
     client = ComfyClient(comfy_cfg.get("base_url", "http://127.0.0.1:8188"))
     ok, detail = client.health()

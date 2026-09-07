@@ -6,7 +6,7 @@
   "origin": "shipped",
   "palette": "bleached sandstone, sea foam white, deep teal water, wet slate, pale grass",
   "lighting": "bright overcast coastal daylight, cool blue shadows",
-  "default_layout": "open",
+  "default_layout": "ruins",
   "props": [
     "boulder",
     "rubble",

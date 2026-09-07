@@ -79,6 +79,14 @@ void TabSettings::Draw(AppState& app) {
     InputTextString("Output folder", &app.config.output_dir);
 
     ImGui::Separator();
+    ImGui::TextColored(AccentGold(), "Alpha features");
+    ImGui::Checkbox("Show features that are still in development", &app.config.alpha_features);
+    ImGui::SetItemTooltip("Reveals the Dungeondraft tab: exporting a plan as a native "
+                          ".dungeondraft_map, cataloguing your asset packs, and rendering "
+                          "props the packs do not have. It works, but it is not finished.");
+
+    if (app.config.alpha_features) {
+    ImGui::Separator();
     ImGui::TextColored(AccentGold(), "Dungeondraft & Vision Tagging");
     if (!app.ollamaModels.empty()) {
         if (ImGui::BeginCombo("Vision Model (Tagging)", app.config.dungeondraft.vision_model.c_str())) {
@@ -141,6 +149,7 @@ void TabSettings::Draw(AppState& app) {
         if (!p.empty()) app.config.dungeondraft.app_path = p;
     }
     ImGui::SetItemTooltip("Path to Dungeondraft.exe (optional, allows launching maps directly from the app)");
+    }  // alpha_features
 
     ImGui::Spacing();
     if (ImGui::Button("Save settings", ImVec2(200, 32))) {

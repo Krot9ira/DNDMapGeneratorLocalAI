@@ -142,10 +142,17 @@ struct AppState {
 
     // -- dungeondraft tab ----------------------------------------------
     std::string ddOutputPath;
+    // Whether ddOutputPath is the user's own choice. Until it is, the export
+    // follows whichever plan is open, rather than staying pointed at the first
+    // map of the session and writing every later one over it.
+    bool ddOutputPathPinned = false;
     int ddSeed = 42;
     bool ddRandomSeed = true;
     bool ddAutoOpen = false;
     bool ddAutoFoundry = true;
+    // Set when the exported map leans on the pack the prop foundry builds, so
+    // the "restart Dungeondraft" note is shown only when it actually applies.
+    bool ddUsesGeneratedPack = false;
     std::string ddLastExportFile;
     std::string ddLastReportJson;
     int ddPlacedWalls = 0;

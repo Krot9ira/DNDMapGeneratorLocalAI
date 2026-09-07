@@ -387,10 +387,8 @@ class MapPlanner:
         best-effort: if ComfyUI is not running there is nothing to free.
         """
         try:
-            from comfy import ComfyClient
-            cfg = json.loads((PROJECT / "config.json").read_text(encoding="utf-8"))
-            url = (cfg.get("comfy") or {}).get("base_url", "http://127.0.0.1:8188")
-            ComfyClient(url).free_memory()
+            from comfy import free_renderer
+            free_renderer(force=True)
         except Exception:
             pass
 

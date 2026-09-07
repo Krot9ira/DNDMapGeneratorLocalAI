@@ -15,7 +15,7 @@ from typing import Any, Dict, List, Optional, Set, Tuple
 
 from architect import (
     BRIDGE, DOOR, FLOOR, PIT, RUBBLE, STAIRS, VEGETATION, WALL, WATER, WINDOW,
-    zones_to_grid,
+    enclosure_of, zones_to_grid,
 )
 from dungeondraft_matcher import DungeondraftMatcher, DEFAULT_STOCK_LIGHT
 from dungeondraft_db import DB_PATH_DEFAULT
@@ -607,7 +607,13 @@ class DungeondraftAssembler:
         meta = map_plan.get("meta", {})
         title = meta.get("title", "Generated Battlemap")
         style_id = meta.get("style", "default")
-        enclosure = meta.get("enclosure", "masonry")
+        # What closes this site in. Plans written before the field existed do
+        # not carry it, and reading "masonry" for every one of them is what put
+        # dressed stone walls around a caravan camp: derive it the same way the
+        # architect did rather than assuming a building.
+        enclosure = str(meta.get("enclosure") or "").strip().lower()
+        if enclosure not in ("masonry", "rock", "timber", "open"):
+            enclosure = enclosure_of(style_id, meta.get("layout", ""))
 
         areas = map_plan.get("areas", [])
         zones = map_plan.get("zones", [])
@@ -778,6 +784,12 @@ class DungeondraftAssembler:
             enclosed = cells_of_kind(zones_grid, ENCLOSED_KINDS)
             wall_shapes: List[Tuple[List[Tuple[float, float]], bool]] = []
             for region in connected_cell_groups(wall_cells | wired_openings, diagonal=True):
+                # A lone wall tile in the open is a rock, not a building. It is
+                # drawn as a box on the grid lines, which indoors reads as a
+                # pillar and in a forest reads as a stone hut one square across
+                # standing in the middle of nothing.
+                if enclosure == "open" and len(region) < 2:
+                    continue
                 if is_thin_region(region):
                     wall_shapes.extend(
                         (offset_to_cell_edges(pts, loop, enclosed), loop)
@@ -801,8 +813,12 @@ class DungeondraftAssembler:
                 })
                 wall_points.append(pts)
                 wall_loops.append(loop)
-        elif not is_cave:
+        elif not is_cave and enclosure != "open":
             # Fallback for plans that carry rooms but no wall tiles at all.
+            # Only for sites that are built: an open-air one - a camp, a
+            # clearing, a quay - has no wall tiles because it has no walls, and
+            # ringing each of its areas in masonry invents three stone rooms
+            # that nothing in the plan asked for.
             for area in areas:
                 label = area.get("label", "").lower()
                 if any(w in label for w in ("quay", "ship", "boat", "water", "river", "lake", "bridge", "open", "yard")):
@@ -963,6 +979,9 @@ class DungeondraftAssembler:
                 prop_kind=kind,
                 style_id=style_id,
                 seed=seed + int(fx * 31 + fy),
+                # What closes the site in also says which drawers of the
+                # library it may borrow from: a forest has no furniture in it.
+                enclosure=enclosure,
             )
 
             if prop_match:
@@ -1022,7 +1041,16 @@ class DungeondraftAssembler:
                         "node_id": light_nid,
                     })
             else:
-                unmatched_props_report.append({"kind": kind, "x": fx, "y": fy})
+                # The footprint the plan gave it and whatever the plan said
+                # about it travel with the request: the foundry rendered every
+                # missing prop as a one-square nothing because this was all it
+                # ever got told.
+                miss = {"kind": kind, "x": fx, "y": fy, "w": fw, "h": fh}
+                if feat.get("description"):
+                    miss["description"] = str(feat["description"])
+                if feat.get("label"):
+                    miss["label"] = str(feat["label"])
+                unmatched_props_report.append(miss)
 
         # 5. Build Asset Manifest
         # Query packs table for manifest details of referenced packs

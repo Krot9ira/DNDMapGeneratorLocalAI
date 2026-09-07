@@ -168,7 +168,7 @@ def cmd_dungeondraft(args):
         print(f"[foundry] Auto-generating {len(unmatched)} missing props with Ideogram & Rembg...")
         foundry = PropFoundry()
         try:
-            foundry.satisfy_unmatched(unmatched, style=style)
+            foundry.satisfy_unmatched(unmatched, style=style, seed=args.seed or 42)
         finally:
             foundry.close()
         # Re-assemble with newly generated props now in database
@@ -186,6 +186,12 @@ def cmd_dungeondraft(args):
     if unmatched:
         print(f"[dungeondraft] {len(unmatched)} plan props found no asset: "
               + ", ".join(sorted({u['kind'] for u in unmatched})))
+    # A map that uses generated props needs the pack they live in, and
+    # Dungeondraft only picks a pack up when it starts.
+    if "DBGProps01" in (rep.get("packs_referenced") or []):
+        print("[dungeondraft] This map uses generated props from the custom pack. If "
+              "Dungeondraft is open, close it and start it again before loading the map, "
+              "or it will report the pack as missing.")
     if rep.get("doors_unattached"):
         print(f"[dungeondraft] {rep['doors_unattached']} doors had no wall within reach and were dropped")
 

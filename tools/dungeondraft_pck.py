@@ -260,7 +260,10 @@ class PckWriter:
         with open(self.output_path, "wb") as f:
             # Magic & version
             f.write(b"GDPC")
-            f.write(struct.pack("<4I", 1, 3, 4, 2))  # format=1, vmaj=3, vmin=4, vrev=2
+            # The Godot build Dungeondraft itself packs with. Its own packs all
+            # say 3.2.1, so ours says the same rather than announcing an engine
+            # newer than the program reading it.
+            f.write(struct.pack("<4I", 1, 3, 2, 1))  # format=1, godot 3.2.1
             f.write(b"\x00" * (16 * 4))               # 16 reserved uint32s
             f.write(struct.pack("<I", count))
 
