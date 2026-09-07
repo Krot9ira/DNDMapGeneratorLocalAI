@@ -66,6 +66,7 @@ public:
             cfg.default_size = j.value("default_size", cfg.default_size);
             cfg.border_cells = j.value("border_cells", cfg.border_cells);
             cfg.output_dir = j.value("output_dir", cfg.output_dir);
+            cfg.alpha_features = j.value("alpha_features", cfg.alpha_features);
             return true;
         } catch (const std::exception& e) {
             outError = std::string("config.json is not valid JSON: ") + e.what();
@@ -108,6 +109,7 @@ public:
             j["default_size"] = cfg.default_size;
             j["border_cells"] = cfg.border_cells;
             j["output_dir"] = cfg.output_dir;
+            j["alpha_features"] = cfg.alpha_features;
 
             std::ofstream f(path);
             if (!f.is_open()) {

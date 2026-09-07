@@ -1845,6 +1845,7 @@ inline MapData Build(DesignSpec spec, uint32_t seed) {
     map.meta.title = spec.title;
     map.meta.style = spec.style;
     map.meta.layout = spec.layout;
+    map.meta.enclosure = EnclosureOf(spec.style_enclosure, spec.style_category, L, "");
     map.meta.scene_summary = spec.scene_summary;
     map.meta.render_details = spec.render_details;
     // The scene's own lighting. Carried this far and then dropped, so a

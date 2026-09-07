@@ -40,6 +40,20 @@ void TabDungeondraft::RefreshDungeondraftStatsAsync(AppState& app) {
     }).detach();
 }
 
+// Where the export goes when the user has not picked a place for it: beside
+// the plan that is open, named after that plan. A plan that has never been
+// saved has no folder of its own yet, so it falls back to the output folder.
+static std::string DefaultExportPath(const AppState& app) {
+    std::string name = app.map.meta.name.empty() ? "map" : app.map.meta.name;
+    if (!app.currentFile.empty()) {
+        std::error_code ec;
+        fs::path dir = fs::path(app.currentFile).parent_path();
+        if (!dir.empty() && fs::exists(dir, ec))
+            return (dir / (name + ".dungeondraft_map")).string();
+    }
+    return OutputDir(app, name) + "/" + name + ".dungeondraft_map";
+}
+
 void TabDungeondraft::StartDungeondraftExport(AppState& app) {
     if (!app.BeginJob("Exporting to Dungeondraft (.dungeondraft_map)...")) return;
 
@@ -50,10 +64,10 @@ void TabDungeondraft::StartDungeondraftExport(AppState& app) {
         return;
     }
 
+    app.ddUsesGeneratedPack = false;
     std::string outPath = app.ddOutputPath;
     if (outPath.empty()) {
-        std::string dir = OutputDir(app, app.map.meta.name);
-        outPath = dir + "/" + app.map.meta.name + ".dungeondraft_map";
+        outPath = DefaultExportPath(app);
         app.ddOutputPath = outPath;
     }
 
@@ -96,6 +110,15 @@ void TabDungeondraft::StartDungeondraftExport(AppState& app) {
                     app.ddPropsNamed = rj.value("props_matched_by_name", 0);
                     if (rj.contains("packs_referenced") && rj["packs_referenced"].is_array()) {
                         app.ddReferencedPacksCount = (int)rj["packs_referenced"].size();
+                        // Dungeondraft reads its asset packs once, when it
+                        // starts. A map leaning on props this program
+                        // generated opens with a "missing packs" caution in
+                        // any Dungeondraft that was already running when the
+                        // pack was built.
+                        for (const auto& pk : rj["packs_referenced"]) {
+                            if (pk.is_string() && pk.get<std::string>() == "DBGProps01")
+                                app.ddUsesGeneratedPack = true;
+                        }
                     }
                 } catch (...) {}
             } else {
@@ -103,6 +126,11 @@ void TabDungeondraft::StartDungeondraftExport(AppState& app) {
             }
 
             job.Log("Dungeondraft export complete: " + outPath);
+            if (app.ddUsesGeneratedPack) {
+                job.Log("[note] This map uses generated props. Dungeondraft reads its asset "
+                        "packs only when it starts, so close it and open it again before "
+                        "loading the map - otherwise it reports the pack as missing.");
+            }
             if (autoOpen && !appPath.empty() && fs::exists(appPath)) {
                 job.Log("Opening in Dungeondraft: " + appPath);
                 FileDialogs::OpenFileInDungeondraft(appPath, outPath);
@@ -253,15 +281,28 @@ void TabDungeondraft::Draw(AppState& app) {
     ImGui::Separator();
     ImGui::TextColored(AccentGold(), "Export Settings");
 
-    if (app.ddOutputPath.empty() && !app.map.meta.name.empty()) {
-        app.ddOutputPath = OutputDir(app, app.map.meta.name) + "/" + app.map.meta.name + ".dungeondraft_map";
+    // Follow whichever plan is open until the user says otherwise: beside the
+    // file it was opened from, under the plan's own name. A generated map has
+    // no file yet, so that one goes to its output folder.
+    if (!app.ddOutputPathPinned) {
+        app.ddOutputPath = DefaultExportPath(app);
     }
 
-    InputTextString("Output .dungeondraft_map", &app.ddOutputPath);
+    if (InputTextString("Output .dungeondraft_map", &app.ddOutputPath)) {
+        app.ddOutputPathPinned = true;
+    }
     ImGui::SameLine();
     if (ImGui::Button("Browse...##ddout")) {
         std::string p = FileDialogs::PickDungeondraftSaveFile(app.ddOutputPath);
-        if (!p.empty()) app.ddOutputPath = p;
+        if (!p.empty()) {
+            app.ddOutputPath = p;
+            app.ddOutputPathPinned = true;
+        }
+    }
+    if (app.ddOutputPathPinned) {
+        ImGui::SameLine();
+        if (ImGui::SmallButton("Reset##ddout")) app.ddOutputPathPinned = false;
+        ImGui::SetItemTooltip("Go back to writing the export beside the open plan.");
     }
 
     ImGui::Checkbox("Random variation seed", &app.ddRandomSeed);
@@ -296,6 +337,11 @@ void TabDungeondraft::Draw(AppState& app) {
         ImGui::BulletText("Placed objects: %d", app.ddPlacedObjects);
         ImGui::BulletText("Portals/doors: %d", app.ddPlacedPortals);
         ImGui::BulletText("Referenced packs: %d", app.ddReferencedPacksCount);
+        if (app.ddUsesGeneratedPack) {
+            ImGui::TextWrapped("This map uses generated props. Restart Dungeondraft before "
+                               "opening it, or it will report the custom pack as missing - "
+                               "it reads asset packs only at startup.");
+        }
         ImGui::BulletText("Props chosen from the catalogue: %d, from the file name alone: %d",
                           app.ddPropsDescribed, app.ddPropsNamed);
         ImGui::SetItemTooltip("A prop chosen by file name is a guess. Tag your assets with the "

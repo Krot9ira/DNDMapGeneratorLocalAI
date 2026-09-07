@@ -63,6 +63,10 @@ class OllamaClient:
         `think=False` disables the reasoning preamble on thinking models, which
         both speeds planning up and stops <think> blocks leaking into the JSON.
         """
+        # A generation puts the model back on the card, so the next handover to
+        # ComfyUI has to free it again.
+        global _planner_freed
+        _planner_freed = False
         payload = {
             "model": self.model,
             "prompt": prompt,
@@ -171,6 +175,41 @@ class OllamaClient:
             if parsed is not None:
                 return parsed
         raise ValueError(f"no JSON object found in model output:\n{raw_text[:500]}")
+
+
+_planner_freed = False
+
+
+def free_planner_model(force=False, keep=""):
+    """Drop the planner model from the graphics card, once per process.
+
+    Ollama and ComfyUI are the two heavy tenants of the same card, and Ollama
+    holds its model for minutes after the last request. Every place that hands
+    the card over to ComfyUI calls this first; the flag is so that handing over
+    once per run does not turn into an unload request per prop.
+
+    `keep` names a model that is about to be used and so must not be evicted -
+    cataloguing loads a vision model, and if the planner is a different one
+    then both would otherwise sit in the card at once.
+
+    Best-effort by design: if Ollama is not running there is nothing to free.
+    """
+    global _planner_freed
+    if _planner_freed and not force:
+        return False
+    try:
+        from paths import ROOT as _ROOT
+        cfg_path = _ROOT / "config.json"
+        cfg = json.loads(cfg_path.read_text(encoding="utf-8")) if cfg_path.exists() else {}
+        ocfg = cfg.get("ollama", {}) or {}
+        model = ocfg.get("model", "")
+        if not model or model == keep:
+            return False
+        _planner_freed = True
+        return OllamaClient(base_url=ocfg.get("base_url", "http://127.0.0.1:11434"),
+                            model=model).unload()
+    except Exception:
+        return False
 
 
 def _try_parse(text):

@@ -878,6 +878,24 @@ def _gen_district(grid, spec, rng):
     return rooms, []
 
 
+# This is the one generator that makes a single undivided walled space, so a
+# hall borrows its shape without wanting anything else that comes with it -
+# chiefly the sand. Asking for an arena means an arena unless the style plainly
+# describes a room with a floor in it.
+_ROOM_WORDS = ("hall", "guildhall", "shop", "audience", "library", "tavern",
+               "throne", "ballroom", "gallery", "museum", "bank", "court")
+
+
+def _arena_is_a_room(spec):
+    """True when the arena shape is standing in for an interior, not a pit."""
+    style = spec.get("style") or ""
+    data = style_data(style)
+    if str(data.get("category", "")).strip().lower() == "interior":
+        return True
+    tags = " ".join(str(t).lower() for t in (data.get("tags") or []))
+    return any(w in tags for w in _ROOM_WORDS)
+
+
 def _gen_arena(grid, spec, rng):
     """One dramatic chamber: a sand floor ringed by a colonnade and a gallery.
 
@@ -914,13 +932,17 @@ def _gen_arena(grid, spec, rng):
                     if grid.get(x, y) == WALL:
                         grid.set(x, y, FLOOR)
         # Sand inside the barrier, so the fighting floor reads differently from
-        # the gallery walkway outside it.
-        for y in range(grid.rows):
-            for x in range(grid.cols):
-                dx = (x - cx) / max(1.0, radius)
-                dy = (y - cy) / max(1.0, radius * 0.82)
-                if math.sqrt(dx * dx + dy * dy) < 0.95 and grid.get(x, y) == FLOOR:
-                    grid.set(x, y, RUBBLE)
+        # the gallery walkway outside it. Only where somebody fights: this is
+        # the one generator that makes a single undivided walled space, so a
+        # guildhall borrows the shape - and used to be given a sand pit down
+        # the middle of its marble floor along with it.
+        if not _arena_is_a_room(spec):
+            for y in range(grid.rows):
+                for x in range(grid.cols):
+                    dx = (x - cx) / max(1.0, radius)
+                    dy = (y - cy) / max(1.0, radius * 0.82)
+                    if math.sqrt(dx * dx + dy * dy) < 0.95 and grid.get(x, y) == FLOOR:
+                        grid.set(x, y, RUBBLE)
 
     specs = spec["rooms"] or [{"id": "arena", "label": "Arena", "size": "l", "props": []}]
     r = max(2, int(radius * 0.7))
@@ -2111,6 +2133,11 @@ def build(spec, seed=None):
             "title": spec["title"],
             "style": spec["style"],
             "layout": spec["layout"],
+            # What closes the site in. The architect works it out to decide
+            # edge walls and doorways; recording it means everything reading
+            # the plan later - the caption, the Dungeondraft export - agrees
+            # with the geometry instead of guessing "building" from nothing.
+            "enclosure": enclosure_of(spec["style"], spec["layout"]),
             "scene_summary": spec["scene_summary"],
             "render_details": spec.get("render_details", ""),
             # The scene's own lighting. Normalised into the spec since the
@@ -2247,6 +2274,7 @@ def validate_map(map_data, repair=True):
     meta.setdefault("title", "Battle Map")
     meta.setdefault("style", "")
     meta.setdefault("layout", "dungeon")
+    meta.setdefault("enclosure", enclosure_of(meta.get("style"), meta.get("layout")))
     meta.setdefault("scene_summary", "")
     meta.setdefault("render_details", "")
     meta.setdefault("lighting", "")

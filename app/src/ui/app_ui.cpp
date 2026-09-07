@@ -213,6 +213,11 @@ void AppUI::DrawOpenDialog(AppState& app, TextureLoader& texLoader) {
         app.currentFile = path;
         app.dirty = false;
         app.handEdited = false;
+        // The Dungeondraft export belongs beside the plan it was made from and
+        // under that plan's name. It used to be worked out once and then kept,
+        // so opening a second map left Export still aimed at the first one.
+        app.ddOutputPathPinned = false;
+        app.ddOutputPath.clear();
 
         if (!loaded.meta.style.empty()) app.selectedStyle = loaded.meta.style;
         if (!loaded.meta.scene_summary.empty()) app.sceneText = loaded.meta.scene_summary;
@@ -425,7 +430,10 @@ void AppUI::Render(AppState& app, TextureLoader& texLoader) {
         if (ImGui::BeginTabItem("Create")) { TabPrompt::Draw(app, texLoader); ImGui::EndTabItem(); }
         if (ImGui::BeginTabItem("Editor")) { TabDesign::Draw(app); ImGui::EndTabItem(); }
         if (ImGui::BeginTabItem("Render")) { TabPaint::Draw(app, texLoader); ImGui::EndTabItem(); }
-        if (ImGui::BeginTabItem("Dungeondraft")) { TabDungeondraft::Draw(app); ImGui::EndTabItem(); }
+        // Still being built. Settings has the switch that reveals it.
+        if (app.config.alpha_features) {
+            if (ImGui::BeginTabItem("Dungeondraft")) { TabDungeondraft::Draw(app); ImGui::EndTabItem(); }
+        }
         if (ImGui::BeginTabItem("Styles")) { TabGallery::Draw(app); ImGui::EndTabItem(); }
         if (ImGui::BeginTabItem("Settings")) { TabSettings::Draw(app); ImGui::EndTabItem(); }
         if (ImGui::BeginTabItem("Docs")) { TabDocs::Draw(app); ImGui::EndTabItem(); }

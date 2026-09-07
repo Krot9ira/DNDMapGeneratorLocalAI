@@ -145,6 +145,23 @@ class DungeondraftEnricher:
         self.base_url = base_url
         self.db = AssetDatabase(db_path=db_path, thumbs_dir=thumbs_dir)
         self.client = OllamaClient(base_url=base_url, model=model, timeout=120)
+        # Cataloguing is the other direction of the same handover the render
+        # path makes: a vision model is about to want the card, and ComfyUI
+        # holds it until asked. Nothing on this path used to ask. The planner
+        # goes too when it is a different model from the one about to work -
+        # forty thousand assets is a long time to leave it sitting there.
+        try:
+            from comfy import free_renderer
+            if free_renderer():
+                print("[enrich] ComfyUI released its models.")
+        except Exception:
+            pass
+        try:
+            from ollama_client import free_planner_model
+            if free_planner_model(keep=model):
+                print("[enrich] Released the planner model from Ollama.")
+        except Exception:
+            pass
 
     def close(self):
         self.db.close()

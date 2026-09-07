@@ -45,6 +45,20 @@ python tools/check_caption_parity.py  # the app and the tools agree (needs the b
 A check that reports a number is more use than one that reports a colour, so
 they print what they found. Read the numbers, not just the exit code.
 
+`check_dungeondraft.py` matches every prop in every scene against `data/assets.db`,
+so what is in that database decides what the check reports. **Index the stock
+Dungeondraft assets and nothing else:**
+
+```bash
+python tools/dungeondraft_indexer.py scan --stock-only
+```
+
+That gives one pack, `default`, and about 1,800 objects - the library everyone
+who owns Dungeondraft has, so the numbers mean the same thing on every machine.
+Scanning your own bought packs in as well makes the check pass on props nobody
+else can match, and quietly hides the gaps the prop foundry exists to fill.
+Users scan their own packs; development does not.
+
 ---
 
 ## The two things this project will bite you for

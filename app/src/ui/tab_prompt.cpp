@@ -45,6 +45,19 @@ void TabPrompt::Draw(AppState& app, TextureLoader& texLoader) {
     ImGui::Combo("Layout", &app.layoutIndex, kLayoutNames, 13);
     HelpMarker("Leave on (from style) unless you want to force a particular shape, e.g. a "
                "harbour with a moored ship or an open forest with no walls.");
+    // What "(from style)" actually resolves to, so a forced layout that does
+    // not suit the style is visible rather than a surprise in the finished map.
+    if (app.layoutIndex == 0) {
+        ImGui::SameLine();
+        ImGui::TextDisabled("-> %s", style ? style->default_layout.c_str() : "dungeon");
+    } else if (style && style->default_layout != kLayoutNames[app.layoutIndex]) {
+        ImGui::SameLine();
+        ImGui::TextColored(ImVec4(0.95f, 0.75f, 0.35f, 1.0f), "(overriding %s)",
+                           style->default_layout.c_str());
+        ImGui::SetItemTooltip("This style is built as '%s'. Forcing another shape is allowed, "
+                              "but an interior forced open comes out with no walls.",
+                              style->default_layout.c_str());
+    }
 
     int terrainIdx = 0, amountIdx = 1;
     for (int i = 0; i < 5; ++i)

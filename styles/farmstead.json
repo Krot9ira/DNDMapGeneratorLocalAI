@@ -6,7 +6,7 @@
   "origin": "shipped",
   "palette": "weathered barn timber, straw gold, wet earth brown, crop green",
   "lighting": "low golden evening light, long shadows across the furrows",
-  "default_layout": "open",
+  "default_layout": "street",
   "props": [
     "cart",
     "wagon",

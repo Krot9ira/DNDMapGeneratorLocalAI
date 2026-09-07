@@ -506,6 +506,11 @@ void DrawStylePicker(AppState& app) {
         if (ImGui::InvisibleButton("##s", ImVec2(cellW - 8.0f, cellH - 8.0f))) {
             app.selectedStyle = kv.first;
             app.map.meta.style = kv.first;
+            // Back to the shape the new style is meant to have. A layout
+            // forced for the last map stayed forced for the next one, so
+            // picking a tavern after an open map built the tavern as a field:
+            // no walls, no doors, a path through grass.
+            app.layoutIndex = 0;
         }
         bool hovered = ImGui::IsItemHovered();
         const char* where = st.origin == "user"  ? "Your own style"
