@@ -91,7 +91,6 @@ def init_db(db_path: Optional[Path] = None) -> sqlite3.Connection:
             style_tags    TEXT NOT NULL,
             setting_tags  TEXT,
             dominant_hue  TEXT,
-            footprint     TEXT,
             confidence    REAL,
             model         TEXT NOT NULL,
             prompt_version INTEGER NOT NULL,
@@ -117,8 +116,20 @@ def init_db(db_path: Optional[Path] = None) -> sqlite3.Connection:
         CREATE INDEX IF NOT EXISTS idx_assets_content_hash ON assets(content_hash);
         CREATE INDEX IF NOT EXISTS idx_assets_state ON assets(state);
         CREATE INDEX IF NOT EXISTS idx_enrichment_object_kind ON enrichment(object_kind);
-        CREATE INDEX IF NOT EXISTS idx_enrichment_footprint ON enrichment(footprint);
         """)
+
+        # Enrichment used to carry a footprint column (floor / wall-mounted /
+        # ceiling / overhang). The model filled it at random - see the note at
+        # the top of dungeondraft_enrich.py - so a database written before it
+        # was dropped loses it here rather than keep a column of noise that
+        # reads like a fact. Older SQLite without DROP COLUMN keeps it, unread.
+        enr_cols = {r[1] for r in conn.execute("PRAGMA table_info(enrichment);")}
+        if "footprint" in enr_cols:
+            try:
+                conn.execute("DROP INDEX IF EXISTS idx_enrichment_footprint;")
+                conn.execute("ALTER TABLE enrichment DROP COLUMN footprint;")
+            except sqlite3.OperationalError:
+                pass
 
         cur = conn.cursor()
         cur.execute("SELECT version FROM schema_version LIMIT 1;")
@@ -353,11 +364,11 @@ class AssetDatabase:
             self.conn.execute("""
             INSERT INTO enrichment (
                 content_hash, description, object_kind, semantic_tags, style_tags,
-                setting_tags, dominant_hue, footprint, confidence, model,
+                setting_tags, dominant_hue, confidence, model,
                 prompt_version, created_at
             ) VALUES (
                 :content_hash, :description, :object_kind, :semantic_tags, :style_tags,
-                :setting_tags, :dominant_hue, :footprint, :confidence, :model,
+                :setting_tags, :dominant_hue, :confidence, :model,
                 :prompt_version, :created_at
             )
             ON CONFLICT(content_hash) DO UPDATE SET
@@ -367,7 +378,6 @@ class AssetDatabase:
                 style_tags = excluded.style_tags,
                 setting_tags = excluded.setting_tags,
                 dominant_hue = excluded.dominant_hue,
-                footprint = excluded.footprint,
                 confidence = excluded.confidence,
                 model = excluded.model,
                 prompt_version = excluded.prompt_version,

@@ -2,8 +2,18 @@
 """Vision model asset enrichment pipeline.
 
 Uses local Ollama vision models (e.g. gemma4:12b, context 4096) to generate
-structured semantic descriptions, tags, object kinds, and footprints for
-Dungeondraft assets from standardized thumbnails.
+structured semantic descriptions, tags and object kinds for Dungeondraft
+assets from standardized thumbnails.
+
+There is no footprint field (floor / wall-mounted / ceiling / overhang). It was
+asked for once, as a bare enum with no definitions, and a full pass over the
+stock library with gemma4:12b came back spread across all four values -
+'wooden barrel', 'stone statue' and 'wooden table' each filed under every one
+of them. The few assets that really are mounted on a wall or hung from above
+say so in their object_kind already ('wall torch', 'hanging chandelier'), and
+everything Dungeondraft places is a sprite seen from overhead, so there was no
+second fact for the model to find. Rows written with the field still carry
+PROMPT_VERSION 2: every field that is still read was asked the same question.
 """
 import argparse
 import json
@@ -64,10 +74,6 @@ ENRICHMENT_SCHEMA = {
                 "enum": SETTING_TAGS_VOCABULARY,
             },
         },
-        "footprint": {
-            "type": "string",
-            "enum": ["floor", "wall-mounted", "ceiling", "overhang"],
-        },
         "confidence": {"type": "number"},
     },
     "required": [
@@ -76,7 +82,6 @@ ENRICHMENT_SCHEMA = {
         "semantic_tags",
         "style_tags",
         "setting_tags",
-        "footprint",
         "confidence",
     ],
 }
@@ -360,7 +365,6 @@ class DungeondraftEnricher:
                     "style_tags": json.dumps(data.get("style_tags", [])),
                     "setting_tags": json.dumps(data.get("setting_tags", [])),
                     "dominant_hue": "",
-                    "footprint": data.get("footprint", "floor"),
                     "confidence": float(data.get("confidence", 0.5)),
                     "model": self.model,
                     "prompt_version": PROMPT_VERSION,

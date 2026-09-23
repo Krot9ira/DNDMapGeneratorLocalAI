@@ -12,7 +12,7 @@ import os
 import random
 import time
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import List, Optional
 
 from paths import ROOT as PROJECT_ROOT
 from dungeondraft_db import AssetDatabase, DB_PATH_DEFAULT
@@ -37,11 +37,7 @@ def generate_contact_sheet(results: List[dict], out_html_path: str):
         "  .desc { color: #ddd; font-style: italic; margin-bottom: 6px; }",
         "  .tags { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }",
         "  .tag { background: #333; padding: 2px 6px; border-radius: 3px; font-size: 10px; color: #bbb; }",
-        "  .footprint { font-weight: bold; padding: 2px 6px; border-radius: 3px; font-size: 10px; }",
-        "  .footprint-floor { background: #2e7d32; color: #fff; }",
-        "  .footprint-wall-mounted { background: #d32f2f; color: #fff; }",
-        "  .footprint-ceiling { background: #f57c00; color: #fff; }",
-        "  .footprint-overhang { background: #7b1fa2; color: #fff; }",
+        "  .category { font-weight: bold; padding: 2px 6px; border-radius: 3px; font-size: 10px; background: #455a64; color: #fff; }",
         "</style></head><body>",
         "<h1>Dungeondraft Asset Enrichment — Quality Check</h1>",
     ]
@@ -62,7 +58,7 @@ def generate_contact_sheet(results: List[dict], out_html_path: str):
         kind = html.escape(r.get("object_kind", "unclear"))
         desc = html.escape(r.get("description", ""))
         fn = html.escape(r.get("file_name", ""))
-        fp = r.get("footprint", "floor")
+        cat = html.escape(r.get("category", ""))
         conf = r.get("confidence", 0.0)
 
         sem_tags = r.get("semantic_tags", [])
@@ -76,7 +72,7 @@ def generate_contact_sheet(results: List[dict], out_html_path: str):
         html_lines.append(f"    <div class='kind'>{kind}</div>")
         html_lines.append(f"    <div class='desc'>\"{desc}\"</div>")
         html_lines.append(f"    <div><strong>File:</strong> {fn}</div>")
-        html_lines.append(f"    <div><strong>Footprint:</strong> <span class='footprint footprint-{fp}'>{fp}</span> | <strong>Conf:</strong> {conf:.2f}</div>")
+        html_lines.append(f"    <div><strong>Category:</strong> <span class='category'>{cat}</span> | <strong>Conf:</strong> {conf:.2f}</div>")
         if tag_spans:
             html_lines.append(f"    <div class='tags'>{tag_spans}</div>")
         html_lines.append("  </div>")
@@ -109,10 +105,6 @@ def print_quality_summary(results: List[dict], attempted: int, model: str) -> No
     no_desc = sum(1 for r in results if len(r["description"].split()) < 4)
     mean_conf = sum(r["confidence"] for r in results) / answered
 
-    footprints: Dict[str, int] = {}
-    for r in results:
-        footprints[r["footprint"]] = footprints.get(r["footprint"], 0) + 1
-
     print(f"\nQuality of '{model}' on {attempted} sampled assets:")
     print(f"  answered                 : {answered}/{attempted}")
     print(f"  echoed the file name     : {echoed} ({100.0 * echoed / answered:.1f} %)")
@@ -120,8 +112,6 @@ def print_quality_summary(results: List[dict], attempted: int, model: str) -> No
     print(f"  description under 4 words: {no_desc}")
     print(f"  confidence below 0.5     : {low_conf}")
     print(f"  mean confidence          : {mean_conf:.2f}")
-    print("  footprint                : "
-          + ", ".join(f"{k} {v}" for k, v in sorted(footprints.items(), key=lambda kv: -kv[1])))
 
     # An echo is the failure that matters: the model read the file name back
     # instead of looking at the picture, and it looks like a real answer.
@@ -205,13 +195,12 @@ def run_benchmark(sample_size: int = 200, model: str = DEFAULT_CATALOGUER_MODEL,
                 "description": data.get("description", ""),
                 "semantic_tags": data.get("semantic_tags", []),
                 "style_tags": data.get("style_tags", []),
-                "footprint": data.get("footprint", "floor"),
                 "confidence": float(data.get("confidence", 0.5)),
                 "echoed": echoed,
             }
             results.append(res_entry)
 
-            print(f"  [{i}/{len(sample_rows)}] {row['file_name']} -> {res_entry['object_kind']} (conf {res_entry['confidence']:.2f}, {res_entry['footprint']})", flush=True)
+            print(f"  [{i}/{len(sample_rows)}] {row['file_name']} -> {res_entry['object_kind']} (conf {res_entry['confidence']:.2f})", flush=True)
 
         generate_contact_sheet(results, out_html)
         print_quality_summary(results, len(sample_rows), model)

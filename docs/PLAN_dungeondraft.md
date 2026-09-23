@@ -670,8 +670,8 @@ Free-text tags drift and the drift is invisible until the matcher fails:
 `medieval`, `mediaeval`, `middle ages`, `medieval fantasy` are four tags for
 one idea and none of them match each other.
 
-So: **the model picks from fixed lists** for `style_tags`, `setting_tags` and
-`footprint`, enforced by the JSON schema's `enum`, and writes **one free-text
+So: **the model picks from fixed lists** for `style_tags` and `setting_tags`,
+enforced by the JSON schema's `enum`, and writes **one free-text
 sentence** in `description` for everything the lists cannot hold. Both are
 stored. The lists are what the matcher queries; the sentence is what a human
 reads when a match looks wrong.
@@ -684,8 +684,8 @@ a taxonomy that will not answer.
 Version the vocabulary alongside `prompt_version`. Changing it means the rows
 written under the old one are stale, and you must be able to find them.
 
-**Half built, and the missing half has a deadline.** `footprint` is an `enum`
-as required. `style_tags` and `setting_tags` are still free strings with a
+**Half built, and the missing half has a deadline.** `footprint` was an `enum`
+and has since been removed - see the note under the schema below. `style_tags` and `setting_tags` are still free strings with a
 length cap - the vocabularies were never drafted - and there is no
 `vocabulary_version` column.
 
@@ -979,7 +979,7 @@ It draws the stratified sample, runs the enrichment, writes a contact sheet,
 and - the part that makes it a gate rather than a gallery - prints the numbers:
 how many answers came back at all, how many were the file name reworded, how
 many said `unclear`, how many had a description under four words or confidence
-below 0.5, the mean confidence, and the footprint spread. Over a quarter
+below 0.5, and the mean confidence. Over a quarter
 echoing and it says so in words and tells you to change the model.
 
 Steps 3 and 4 above are still a human's job, and step 5's fixture does not
@@ -1163,7 +1163,6 @@ CREATE TABLE enrichment (
   style_tags    TEXT NOT NULL,      -- JSON array: medieval, dwarven, ruined...
   setting_tags  TEXT,               -- tavern, cave, dungeon, forest, ship
   dominant_hue  TEXT,
-  footprint     TEXT,               -- floor|wall-mounted|ceiling|overhang
   confidence    REAL,
   model         TEXT NOT NULL,
   prompt_version INTEGER NOT NULL,
@@ -1212,12 +1211,10 @@ SCHEMA = {
                       "items": {"type": "string", "maxLength": 24}},
     "setting_tags":  {"type": "array", "maxItems": 3,
                       "items": {"type": "string", "maxLength": 24}},
-    "footprint":     {"type": "string",
-                      "enum": ["floor", "wall-mounted", "ceiling", "overhang"]},
     "confidence":    {"type": "number"},
   },
   "required": ["object_kind", "description", "semantic_tags",
-               "style_tags", "footprint", "confidence"],
+               "style_tags", "confidence"],
 }
 
 client.generate(prompt, system=SYSTEM, format=SCHEMA, images=[thumb],
@@ -1263,12 +1260,20 @@ Bump `prompt_version` whenever the prompt, the schema or the thumbnail
 rendering changes, so stale rows can be found. All three are part of the
 question being asked.
 
-This is the schema as implemented, and it is **not yet what section 5.3 asks
-for**: only `footprint` is an `enum`, while `style_tags` and `setting_tags` are
-still free strings. The measurements in 5.7 and 5.8 were taken with this
-schema, so the numbers stand; the vocabulary work in 5.3 changes what the model
-is allowed to answer, and has to happen before a pass caches a quarter of a
-million free-text answers.
+**`footprint` is gone.** It was an `enum` of floor / wall-mounted / ceiling /
+overhang with no definitions, and a full stock pass with `gemma4:12b` spread
+itself over all four (overhang 708, floor 607, ceiling 329, wall-mounted 304),
+with `wooden barrel`, `stone statue` and `wooden table` under every value. The
+matcher's `footprint = 'floor'` filter was throwing away about two thirds of the
+catalogue on the strength of it. The handful of assets that really are mounted
+or hung already say so in `object_kind` ("wall torch", "hanging chandelier"),
+and every Dungeondraft object is a sprite seen from overhead, so there was no
+second fact to ask for. `init_db` drops the column from older databases.
+
+The block above shows `style_tags` and `setting_tags` as free strings, which is
+how the measurements in 5.7 and 5.8 were taken, so those numbers stand.
+`tools/dungeondraft_enrich.py` has since constrained both to the fixed lists
+section 5.3 asks for.
 
 ### 8.2 Assembler input
 

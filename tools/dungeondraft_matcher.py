@@ -390,11 +390,10 @@ class DungeondraftMatcher:
         query = """
         SELECT a.id, a.pack_id, a.res_path, a.file_name, a.subpath, a.width,
                a.height, a.grid_w, a.grid_h, a.content_hash, e.object_kind,
-               e.description, e.confidence, e.footprint
+               e.description, e.confidence
         FROM assets a
         JOIN enrichment e ON a.content_hash = e.content_hash
         WHERE a.category = 'objects' AND a.state = 'ok'
-          AND e.footprint = 'floor'
           AND (e.object_kind = ? OR e.object_kind LIKE ?)
         """
         cur.execute(query, (clean_kind, f"%{clean_kind}%"))
@@ -442,7 +441,7 @@ class DungeondraftMatcher:
             SELECT a.id, a.pack_id, a.res_path, a.file_name, a.subpath,
                    a.width, a.height, a.grid_w, a.grid_h, a.content_hash,
                    a.file_name as object_kind, '' as description,
-                   0.6 as confidence, 'floor' as footprint
+                   0.6 as confidence
             FROM assets a
             WHERE a.category = 'objects' AND a.state = 'ok'
               AND (a.file_name LIKE ? OR a.subpath LIKE ?)

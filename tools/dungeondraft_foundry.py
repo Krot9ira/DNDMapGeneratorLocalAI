@@ -698,7 +698,6 @@ class PropFoundry:
             "style_tags": json.dumps([clean_style]),
             "setting_tags": json.dumps(["any"]),
             "dominant_hue": "",
-            "footprint": "floor",
             "confidence": 0.95,
             "model": "foundry",
             "prompt_version": 2,

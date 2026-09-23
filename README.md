@@ -374,7 +374,7 @@ fully editable **`.dungeondraft_map`** files directly from architectural map pla
   and content hashing across up to 32 CPU threads.
 - **Stock and custom pack indexing:** indexes built-in assets from `Dungeondraft.pck` and
   custom `.dungeondraft_pack` archives into a local SQLite database (`data/assets.db`).
-- **Vision model enrichment:** automatically classifies texture shapes, footprints, styles,
+- **Vision model enrichment:** automatically classifies texture shapes, object kinds, styles,
   and controlled vocabulary tags using a local vision model (`gemma4:12b` in Ollama) with
   dedicated scopes (`stock`, `custom`, `all`).
 - **Prop Foundry (`tools/dungeondraft_foundry.py`):** synthesizes missing standalone props on
