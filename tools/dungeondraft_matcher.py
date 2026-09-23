@@ -301,6 +301,19 @@ class DungeondraftMatcher:
     # one says "lava" and keeps it.
     ONLY_IF_ASKED = ("lava", "sewer", "gore", "blood")
 
+    # Words that say a thing is fixed to a wall or hung from above. Every prop a
+    # plan asks for is set down on the floor of the map, and a wall torch set
+    # down in the middle of a room is a torch lying on the flagstones - yet
+    # "torch" matched "wall torch" as readily as a standing one. The words are
+    # read off the catalogue name, the file name and the drawer it is filed in
+    # (the stock library keeps its trophies and mounted heads in decor/wall).
+    # A demotion, not a filter: when the library has nothing else, the mounted
+    # one is still better than nothing. And a request that names any of these
+    # words itself - "wall torch", "chandelier" - is asking for exactly that.
+    MOUNTED = frozenset(("wall", "hanging", "hung", "mounted", "mount", "sconce",
+                         "chandelier", "ceiling", "bracket"))
+    MOUNTED_PENALTY = 3.0
+
     _TOKEN_SPLIT = re.compile(r"[^a-z0-9]+")
 
     @staticmethod
@@ -328,6 +341,16 @@ class DungeondraftMatcher:
             if len(word) > 2 and not word.isdigit():
                 out.append(cls._singular(word))
         return out
+
+    def _is_mounted(self, row: Dict[str, Any], request: Set[str]) -> bool:
+        """Whether this asset is made to hang on a wall or from above, when
+        the request did not ask for anything of the kind."""
+        if request & self.MOUNTED:
+            return False
+        words = set(self._tokens(row.get("object_kind") or ""))
+        words.update(self._tokens(str(row.get("file_name") or "").rsplit(".", 1)[0]))
+        words.update(self._tokens(row.get("subpath") or ""))
+        return bool(words & self.MOUNTED)
 
     def _score_candidate(self, row: Dict[str, Any], weights: Dict[str, float],
                          content: Set[str], enclosure: str) -> float:
@@ -366,6 +389,8 @@ class DungeondraftMatcher:
         score += 2.0 * weights.get(file_tokens[0], 0.0)
         if hits_path:
             score += 0.5
+        if self._is_mounted(row, set(weights)):
+            score -= self.MOUNTED_PENALTY
         for bad in self.OUT_OF_PLACE.get(enclosure, ()) + self.ONLY_IF_ASKED:
             if (bad in path_tokens or bad in file_tokens) and bad not in weights:
                 score -= 2.5
@@ -471,6 +496,14 @@ class DungeondraftMatcher:
         # That is the quiet failure this whole project is trying to avoid, and
         # it also made the scene check report nothing missing, ever. Say no
         # instead: a prop with no asset is what the prop foundry is for.
+        # Whatever either step found, something that stands on the floor beats
+        # something made for a wall. Only when every candidate is mounted does
+        # a mounted one get used.
+        asked_words = set(self._tokens(clean_kind))
+        standing = [r for r in rows if not self._is_mounted(r, asked_words)]
+        if standing:
+            rows = standing
+
         if not rows:
             return None
 
