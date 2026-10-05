@@ -120,7 +120,87 @@ def validate_dungeondraft_map(map_data: dict) -> List[str]:
     if max_used_node_id >= next_node_id:
         errors.append(f"world.next_node_id ({next_node_id:#x}) is not strictly greater than max used node_id ({max_used_node_id:#x})")
 
+    errors.extend(render_problems(map_data))
     return errors
+
+
+def _poly(text: str) -> List[Tuple[float, float]]:
+    # Past the opening bracket: "PoolVector2Array" has a 2 in its own name.
+    body = (text or "").split("(", 1)[-1]
+    nums = [float(v) for v in re.findall(r"-?\d+(?:\.\d+)?", body)]
+    return list(zip(nums[0::2], nums[1::2]))
+
+
+def _inside(px: float, py: float, pts: List[Tuple[float, float]]) -> bool:
+    inside, j = False, len(pts) - 1
+    for i in range(len(pts)):
+        xi, yi = pts[i]
+        xj, yj = pts[j]
+        if (yi > py) != (yj > py) and px < (xj - xi) * (py - yi) / (yj - yi) + xi:
+            inside = not inside
+        j = i
+    return inside
+
+
+def render_problems(map_data: dict) -> List[str]:
+    """What opens without complaint but draws wrong. Each was a real map.
+
+    Dungeondraft draws floor tiles only inside a building shape, colours tiles
+    and walls from the map rather than the texture, and opens at the zoom the
+    file says. Get any of those wrong and the file is valid and the map is not.
+    """
+    problems = []
+    world = map_data.get("world", {})
+    width, height = int(world.get("width", 0)), int(world.get("height", 0))
+    lvl = world.get("levels", {}).get("0", {})
+    tiles = lvl.get("tiles", {})
+    cells = [int(v) for v in re.findall(r"-?\d+", tiles.get("cells", ""))]
+    colours = tiles.get("colors") or []
+    tiled = [(i % width, i // width) for i, c in enumerate(cells) if c >= 0] if width else []
+
+    # Tiles outside every shape are never drawn.
+    shapes = [_poly(t) for t in (lvl.get("shapes", {}).get("polygons") or [])]
+    lost = [c for c in tiled
+            if not any(_inside((c[0] + 0.5) * 256, (c[1] + 0.5) * 256, s) for s in shapes if len(s) >= 3)]
+    # A wall or door square carries a tile only so the floor runs under it;
+    # the part of it outside the building is allowed to go undrawn. Those sit
+    # within a square or two of a building - a door at the end of a bridge is
+    # two - so anything that close is not counted.
+    near = [(dx, dy) for dx in (-2, -1, 0, 1, 2) for dy in (-2, -1, 0, 1, 2)]
+    floor_lost = [c for c in lost
+                  if not any(_inside((c[0] + 0.5 + dx) * 256, (c[1] + 0.5 + dy) * 256, s)
+                             for dx, dy in near for s in shapes if len(s) >= 3)]
+    if floor_lost:
+        problems.append(f"{len(floor_lost)} tiled squares lie outside every building shape and "
+                        f"will not be drawn (first at {floor_lost[0]})")
+
+    # A shape with no tiles in it draws as a black hole.
+    tiled_set = set(tiled)
+    for n, s in enumerate(shapes):
+        if len(s) < 3:
+            continue
+        xs = [x for x, _ in s]
+        ys = [y for _, y in s]
+        inner = [(cx, cy) for cy in range(int(min(ys) // 256), int(max(ys) // 256) + 1)
+                 for cx in range(int(min(xs) // 256), int(max(xs) // 256) + 1)
+                 if _inside((cx + 0.5) * 256, (cy + 0.5) * 256, s)]
+        if inner and not (set(inner) & tiled_set):
+            problems.append(f"building shape {n} holds no floor and will draw as a black hole")
+
+    # Untinted stock tiles and walls are white.
+    if tiled and all(str(colours[i // 1]).lower() == "ffffffff"
+                     for i in (y * width + x for x, y in tiled) if i < len(colours)):
+        problems.append("every tile is coloured ffffffff - stock tilesets draw white untinted")
+    for wall in lvl.get("walls", []):
+        if str(wall.get("color", "")).lower() == "ffffffff":
+            problems.append("a wall is coloured ffffffff - stock walls draw white untinted")
+            break
+
+    # Opening a map zoomed right in hides it.
+    zoom = float(map_data.get("header", {}).get("editor_state", {}).get("camera_zoom", 1) or 1)
+    if width and zoom < min(width * 256 / 1800.0, height * 256 / 1100.0) * 0.8:
+        problems.append(f"camera_zoom {zoom} opens the map zoomed in past its own edges")
+    return problems
 
 
 def run_checks() -> int:

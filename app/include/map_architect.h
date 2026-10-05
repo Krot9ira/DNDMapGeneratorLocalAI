@@ -1143,6 +1143,50 @@ inline bool RoomIsBuilt(const RoomSpec& room) {
     return has(all, built);
 }
 
+// A built room on an open-air site is a building standing in the open: a hut
+// in a clearing, a barn on a farm. The outdoor generators carve ground, not
+// walls, so until this existed a room called "Witch's Hut" came out as a patch
+// of floor in the ferns with its cot and cauldron scattered round it. Mirrors
+// architect._build_huts.
+inline void BuildHuts(TileGrid& g, std::vector<std::pair<RoomSpec, Rect>>& rooms,
+                      Rng& rng, const std::string& enclosure, const std::string& layout) {
+    // Only where the generator carves ground and nothing else: streets,
+    // districts and harbours build their own houses, and ruins are meant to be
+    // broken. Mirrors architect._GROUND_ROOM_LAYOUTS.
+    if (enclosure != "open") return;
+    if (layout != "open" && layout != "forest" && layout != "swamp") return;
+    std::vector<Rect> outdoor;
+    for (const auto& rp : rooms)
+        if (!RoomIsBuilt(rp.first)) outdoor.push_back(rp.second);
+    for (auto& rp : rooms) {
+        if (!RoomIsBuilt(rp.first)) continue;
+        Rect& r = rp.second;
+        int want = rp.first.size == 's' ? 4 : (rp.first.size == 'l' ? 7 : 5);
+        double cx = r.x + r.w / 2.0, cy = r.y + r.h / 2.0;
+        int iw = std::min(std::max(r.w, want), g.cols - 4);
+        int ih = std::min(std::max(r.h, want), g.rows - 4);
+        int ix = Clampi((int)std::lround(cx - iw / 2.0), 2, g.cols - iw - 2);
+        int iy = Clampi((int)std::lround(cy - ih / 2.0), 2, g.rows - ih - 2);
+        g.FillRect(ix - 1, iy - 1, iw + 2, ih + 2, Tile::Wall);
+        g.FillRect(ix, iy, iw, ih, Tile::Floor);
+        r = Rect{ix, iy, iw, ih};
+
+        // The door goes in the wall that faces where people come from.
+        double tx = g.cols / 2.0, ty = g.rows / 2.0;
+        double best = 1e18;
+        for (const Rect& o : outdoor) {
+            auto c = o.Center();
+            double d = (c.first - cx) * (c.first - cx) + (c.second - cy) * (c.second - cy);
+            if (d < best) { best = d; tx = c.first; ty = c.second; }
+        }
+        double dx = tx - cx, dy = ty - cy;
+        if (std::fabs(dx) >= std::fabs(dy))
+            g.Set(dx > 0 ? ix + iw : ix - 1, iy + rng.Int(0, ih - 1), Tile::Door);
+        else
+            g.Set(ix + rng.Int(0, iw - 1), dy > 0 ? iy + ih : iy - 1, Tile::Door);
+    }
+}
+
 // Join the outdoor rooms of an open-air site into one continuous surface.
 // Walls are derived from where floor meets nothing, so two rooms with a gap
 // between them get a wall each and a door between them. Outdoors there is no
@@ -1695,19 +1739,33 @@ inline std::vector<Feature> PlaceProps(const TileGrid& g, const RoomList& rooms,
                 t == Tile::Rubble) walkable.push_back({x, y});
         }
     int target = Clampi((int)(walkable.size() / 26.0 * density), 0, 260);
+    // What a built room asked for stays in it: on an open-air site the ground
+    // outside takes only what the outdoor rooms asked for, and nothing lands
+    // inside a building. Mirrors the same rule in architect._place_props.
+    const bool openAir = EnclosureOf(spec.style_enclosure, spec.style_category,
+                                     spec.layout, "") == "open";
+    std::set<std::pair<int, int>> builtCells;
     std::vector<std::string> askedKinds;
-    for (const auto& rp : rooms)
+    for (const auto& rp : rooms) {
+        if (openAir && RoomIsBuilt(rp.first)) {
+            const Rect& r = rp.second;
+            for (int yy = r.y; yy < r.y + r.h; ++yy)
+                for (int xx = r.x; xx < r.x + r.w; ++xx) builtCells.insert({xx, yy});
+            continue;
+        }
         for (const auto& p : rp.first.props) {
             std::string k = NormalizeProp(p);
             if (!k.empty() &&
                 std::find(askedKinds.begin(), askedKinds.end(), k) == askedKinds.end())
                 askedKinds.push_back(k);
         }
+    }
     const std::vector<std::string>& topPool = askedKinds.empty() ? pool : askedKinds;
     if (!topPool.empty() && (int)features.size() < target) {
         rng.Shuffle(walkable);
         for (const auto& cell : walkable) {
             if ((int)features.size() >= target) break;
+            if (builtCells.count(cell)) continue;
             commit(rng.Pick(topPool), cell, /*filler=*/true);
         }
     }
@@ -1829,6 +1887,7 @@ inline MapData Build(DesignSpec spec, uint32_t seed) {
     // so that spreading stops at whatever the scene has already put down.
     ApplyAnnotationGround(g, spec.annotations);
     std::set<std::pair<int, int>> sceneWalls = ApplyTerrainZones(g, spec);
+    BuildHuts(g, rooms, rng, EnclosureOf(spec.style_enclosure, spec.style_category, L, ""), L);
     OpenUpOutdoorRooms(g, rooms, EnclosureOf(spec.style_enclosure, spec.style_category,
                                              L, ""));
     ApplyTerrain(g, rooms, spec, rng);

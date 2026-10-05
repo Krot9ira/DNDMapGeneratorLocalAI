@@ -672,17 +672,38 @@ DesignSpec SpecFromUi(AppState& app) {
     spec.rows = app.rows;
     spec.border = std::clamp(app.config.border_cells, 0, 8);
 
-    spec.rooms = {
-        {"main_hall", "Main Hall",
-         "The largest space, worn smooth down the middle where people walk.", 'l',
-         "none", {}, false, 0, 0, 0, 0},
-        {"side_room", "Side Chamber",
-         "A smaller room off the main one, its floor less worn.", 'm',
-         "none", {}, false, 0, 0, 0, 0},
-        {"back_room", "Back Chamber",
-         "The room furthest from the entrance, dusty and little used.", 'm',
-         "none", {}, false, 0, 0, 0, 0}
-    };
+    // A hall and two chambers are buildings. On a site with no roof a built
+    // room is now given walls, so the outdoor defaults name ground instead -
+    // the same three the tools use (architect._DEFAULT_OPEN_ROOMS).
+    // Only where a room is a patch of ground; on a street, a district or a
+    // harbour the default rooms are the houses (architect._GROUND_ROOM_LAYOUTS).
+    const bool groundRooms = spec.layout == "open" || spec.layout == "forest" ||
+                             spec.layout == "swamp";
+    if (groundRooms) {
+        spec.rooms = {
+            {"open_ground", "Open Ground",
+             "The widest stretch of ground, trodden bare down the middle.", 'l',
+             "none", {}, false, 0, 0, 0, 0},
+            {"near_edge", "Near Edge",
+             "A smaller patch off to one side, less walked on.", 'm',
+             "none", {}, false, 0, 0, 0, 0},
+            {"far_edge", "Far Edge",
+             "The ground furthest from the way in, overgrown and quiet.", 'm',
+             "none", {}, false, 0, 0, 0, 0}
+        };
+    } else {
+        spec.rooms = {
+            {"main_hall", "Main Hall",
+             "The largest space, worn smooth down the middle where people walk.", 'l',
+             "none", {}, false, 0, 0, 0, 0},
+            {"side_room", "Side Chamber",
+             "A smaller room off the main one, its floor less worn.", 'm',
+             "none", {}, false, 0, 0, 0, 0},
+            {"back_room", "Back Chamber",
+             "The room furthest from the entrance, dusty and little used.", 'm',
+             "none", {}, false, 0, 0, 0, 0}
+        };
+    }
     return spec;
 }
 

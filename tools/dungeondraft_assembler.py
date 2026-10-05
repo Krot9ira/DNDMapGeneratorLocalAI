@@ -10,15 +10,61 @@ import json
 import math
 import os
 import random
+import re
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Set, Tuple
 
 from architect import (
-    BRIDGE, DOOR, FLOOR, PIT, RUBBLE, STAIRS, VEGETATION, WALL, WATER, WINDOW,
+    BRIDGE, DOOR, FLOOR, PIT, RUBBLE, STAIRS, VEGETATION, VOID, WALL, WATER, WINDOW,
     enclosure_of, zones_to_grid,
 )
 from dungeondraft_matcher import DungeondraftMatcher, DEFAULT_STOCK_LIGHT
 from dungeondraft_db import DB_PATH_DEFAULT
+
+
+def is_colourable(asset: Dict[str, Any]) -> bool:
+    """Does this asset carry Dungeondraft's pure-red tint mask?
+
+    Stock beds, tablecloths, banners and fire carry their colour as a pure
+    #ff0000 region that Dungeondraft replaces with the object's custom colour.
+    Left untinted, that region is drawn as it is - which is why a cot, a
+    tablecloth and a hearth all came out the same fire-engine red.
+    """
+    # The palette is quantised from the shaded sprite, so the mask comes back
+    # as #c10000 as often as #ff0000: strongly red, next to no green or blue.
+    for colour in re.findall(r"#([0-9a-f]{6})", str(asset.get("palette") or "").lower()):
+        r, g, b = int(colour[0:2], 16), int(colour[2:4], 16), int(colour[4:6], 16)
+        if r >= 0x90 and g <= 0x28 and b <= 0x28:
+            return True
+    return False
+
+
+def tint_for(style_id: str, kind: str) -> str:
+    """An ARGB tint for a colourable object, drawn from the style's palette.
+
+    Cloth and fire get the warmest colour the style has; anything else the
+    plainest earth tone, so a tinted thing sits in the same picture as the
+    rest of the map rather than announcing itself.
+    """
+    try:
+        from architect import style_data
+        palette = [str(c).lstrip("#") for c in (style_data(style_id).get("hex_palette") or [])]
+    except Exception:
+        palette = []
+    palette = [c for c in palette if len(c) == 6]
+    if not palette:
+        return "ff8a6a4a"
+    def rgb(c):
+        return int(c[0:2], 16), int(c[2:4], 16), int(c[4:6], 16)
+    fiery = any(w in kind for w in ("fire", "hearth", "brazier", "torch", "candle", "lamp", "lantern", "forge"))
+    if fiery:
+        return "ffd9772b"
+    if any(w in kind for w in ("tree", "bush", "shrub", "fern", "leaf", "leaves", "vine", "moss")):
+        # Foliage takes the greenest colour the style has.
+        return "ff" + max(palette, key=lambda c: rgb(c)[1] - (rgb(c)[0] + rgb(c)[2]) / 2.0).lower()
+    # Warmth is red over blue; the warmest entry reads as cloth or wood.
+    best = max(palette, key=lambda c: rgb(c)[0] - rgb(c)[2])
+    return "ff" + best.lower()
 
 
 def format_vector2(x: float, y: float) -> str:
@@ -589,6 +635,56 @@ class DungeondraftAssembler:
     def __init__(self, matcher: Optional[DungeondraftMatcher] = None, db_path: Optional[Path] = None):
         self.matcher = matcher or DungeondraftMatcher(db_path=db_path)
         self.node_counter = 0
+        self._default_colours: Optional[Dict[str, str]] = None
+
+    def default_colour(self, res_path: str, fallback: str = "ffffffff") -> str:
+        """The ARGB colour Dungeondraft gives a tileset or wall when you pick it.
+
+        Stock tilesets and walls are line art over a colour mask: the
+        texture is white, and the colour lives in the tileset's or wall's own
+        definition file (data/tilesets/*.dungeondraft_tileset, data/walls/
+        *.dungeondraft_wall) and is copied into the map on every tile and
+        every wall. Writing "ffffffff" there, as this did, is asking for
+        white - which is exactly how every floor and every wall came out.
+        """
+        if self._default_colours is None:
+            self._default_colours = {}
+            packs = []
+            try:
+                cur = self.matcher.db.conn.cursor()
+                packs = [r[0] for r in cur.execute("SELECT file_path FROM packs WHERE file_path IS NOT NULL")]
+            except Exception:
+                packs = []
+            from dungeondraft_pck import PckReader
+            for pack_path in packs:
+                try:
+                    reader = PckReader(pack_path)
+                except Exception:
+                    continue
+                for entry in reader.entries:
+                    if not (entry.endswith(".dungeondraft_tileset") or entry.endswith(".dungeondraft_wall")):
+                        continue
+                    try:
+                        data = json.loads(reader.read_bytes(entry).decode("utf-8", "replace"))
+                    except Exception:
+                        continue
+                    path = str(data.get("path") or "").lstrip("/")
+                    colour = str(data.get("color") or "").lstrip("#")
+                    if not path or len(colour) not in (6, 8):
+                        continue
+                    if len(colour) == 6:
+                        colour = "ff" + colour
+                    # Stock definitions name their texture relative to res://,
+                    # a pack's relative to the pack's own folder.
+                    if path.startswith("res://"):
+                        key = path
+                    elif entry.startswith("res://packs/"):
+                        pack_root = "/".join(entry.split("/")[:4])
+                        key = pack_root + "/" + path if not path.startswith("packs/") else "res://" + path
+                    else:
+                        key = "res://" + path
+                    self._default_colours[key.lower()] = colour.lower()
+        return self._default_colours.get(str(res_path).lower(), fallback)
 
     def _next_node_id(self) -> str:
         """Generate the next unique node_id as a lowercase hex string."""
@@ -659,6 +755,40 @@ class DungeondraftAssembler:
 
         tiles_lookup = dict(DEFAULT_TILES_LOOKUP)
         deck_index = None
+        # Outdoors the ground is terrain, not tiles: a clearing paved in
+        # cobbles is what every forest and camp used to get. Only what was
+        # built gets a floor, and on an open-air site that floor is planks.
+        built_cells: Set[Tuple[int, int]] = set()
+        if enclosure == "open":
+            from architect import _room_is_built
+            for area in areas:
+                if _room_is_built({"label": area.get("label", ""),
+                                   "description": area.get("description", "")}):
+                    ax, ay = int(area.get("x", 0)), int(area.get("y", 0))
+                    aw, ah = int(area.get("w", 0)), int(area.get("h", 0))
+                    for y in range(ay - 1, ay + ah + 1):
+                        for x in range(ax - 1, ax + aw + 1):
+                            # The margin is for the building's own wall; the
+                            # ground past it is the street, and tiling it laid
+                            # a strip of planks down the alley between two
+                            # warehouses.
+                            inner = ax <= x < ax + aw and ay <= y < ay + ah
+                            if inner or zones_grid.get(x, y) in (WALL, DOOR, WINDOW):
+                                built_cells.add((x, y))
+            # Dungeondraft's own wood floor first - the smart tileset it opens
+            # with - and a plank tileset from the library only when it is
+            # missing.
+            plank_res, plank_pack = "", ""
+            for cand in self.matcher.tilesets:
+                if cand["file_name"].lower().startswith("tileset_wood_vertical"):
+                    plank_res, plank_pack = cand["res_path"], cand["pack_id"]
+                    break
+            if not plank_res:
+                plank_res, plank_pack = self.matcher.match_floor_tileset(style_id="wood plank")
+            if plank_res:
+                floor_tileset_res, tileset_pack = plank_res, plank_pack
+                if plank_pack and plank_pack != "default":
+                    packs_referenced.add(plank_pack)
         if floor_tileset_res and not is_cave:
             tiles_lookup["0"] = floor_tileset_res
 
@@ -686,17 +816,24 @@ class DungeondraftAssembler:
                         idx = deck_idx
                     elif kind == WALL:
                         # Floor runs underneath a wall. Leaving the wall band
-                        # bare is what makes a finished room read as a sketch.
+                        # bare is what makes a finished room read as a sketch -
+                        # and inside a building's floor shape Dungeondraft
+                        # draws no terrain at all, so a bare wall cell there is
+                        # a black square. Corners only touch the floor
+                        # diagonally, hence all eight neighbours.
                         neighbours = [zones_grid.get(x + dx, y + dy)
-                                      for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1))]
+                                      for dx in (-1, 0, 1) for dy in (-1, 0, 1)
+                                      if dx or dy]
                         if any(k in paved for k in neighbours):
                             idx = 0
                         elif BRIDGE in neighbours:
                             idx = deck_idx
+                    if enclosure == "open" and idx == 0 and (x, y) not in built_cells:
+                        idx = None
                     if idx is not None:
                         tiles_cells[y * cols + x] = idx
 
-            if all(c < 0 for c in tiles_cells):
+            if all(c < 0 for c in tiles_cells) and enclosure != "open":
                 # A plan with areas but no tile zones - fall back to the rooms.
                 for area in areas:
                     ax, ay = int(area.get("x", 0)), int(area.get("y", 0))
@@ -708,6 +845,13 @@ class DungeondraftAssembler:
         # One colour per cell, not per tileset: Dungeondraft indexes this array
         # by cell, and an empty one leaves every tile untinted to black.
         tiles_colors = ["ffffffff"] * (cols * rows)
+        slot_colour: Dict[int, str] = {}
+        for i, idx in enumerate(tiles_cells):
+            if idx < 0:
+                continue
+            if idx not in slot_colour:
+                slot_colour[idx] = self.default_colour(tiles_lookup.get(str(idx), ""))
+            tiles_colors[i] = slot_colour[idx]
 
         # 2. Terrain Splatmap (4 samples/cell/axis)
         splat_w = cols * 4
@@ -798,11 +942,20 @@ class DungeondraftAssembler:
                     # A solid mass is already outlined along the cell edges.
                     wall_shapes.extend((ring, True) for ring, _hole in trace_region_rings(region))
 
+            # A wall is laid on the outer edge of its tiles, which for a
+            # building that fills the whole field is the edge of the map: half
+            # the wall off the canvas and, in Dungeondraft, not drawn at all.
+            # Keep every wall at least one square inside the map.
+            max_x, max_y = cols * CELL_PX, rows * CELL_PX
+            wall_shapes = [([(min(max(x, CELL_PX), max_x - CELL_PX) if x in (0, max_x) else x,
+                              min(max(y, CELL_PX), max_y - CELL_PX) if y in (0, max_y) else y)
+                             for x, y in pts], loop)
+                           for pts, loop in wall_shapes]
             for pts, loop in wall_shapes:
                 walls_list.append({
                     "points": format_pool_vector2_array(pts),
                     "texture": wall_texture_res,
-                    "color": "ffffffff",
+                    "color": self.default_colour(wall_texture_res, "ff7f7e71"),
                     "loop": loop,
                     "type": 1,
                     "joint": 1,
@@ -836,7 +989,7 @@ class DungeondraftAssembler:
                 walls_list.append({
                     "points": format_pool_vector2_array(poly_pts),
                     "texture": wall_texture_res,
-                    "color": "ffffffff",
+                    "color": self.default_colour(wall_texture_res, "ff7f7e71"),
                     "loop": True,
                     "type": 1,
                     "joint": 1,
@@ -859,6 +1012,101 @@ class DungeondraftAssembler:
                         cave_floor_cells.add((x, y))
         cave_bitmap_str, cave_entrance_str = generate_cave_bitmaps(
             cols, rows, cave_floor_cells, is_cave)
+
+        # Every closed wall is a building, and a building has a floor shape.
+        # Dungeondraft draws floor tiles only inside shapes.polygons - the
+        # outlines its Building tool records beside the wall that bounds them
+        # - so a map whose shapes were empty showed terrain where every tiled
+        # floor should have been, however many tiles it carried. A wall that
+        # bounds a shape is type 0; a free-drawn one stays type 1.
+        #
+        # Only a wall that encloses floor is a building, though. A rock
+        # pillar or a solid block of masonry is a closed wall too, and inside a
+        # building with no tiles Dungeondraft draws nothing at all - a cavern's
+        # nine pillars came out as nine black pits. Caves have no buildings.
+        def enclosed_cells(pts):
+            xs = [x for x, _ in pts]; ys = [y for _, y in pts]
+            out = []
+            for cy in range(int(min(ys) // CELL_PX), int(max(ys) // CELL_PX) + 1):
+                for cx in range(int(min(xs) // CELL_PX), int(max(xs) // CELL_PX) + 1):
+                    px, py = (cx + 0.5) * CELL_PX, (cy + 0.5) * CELL_PX
+                    inside, j = False, len(pts) - 1
+                    for i in range(len(pts)):
+                        xi, yi = pts[i]; xj, yj = pts[j]
+                        if (yi > py) != (yj > py) and px < (xj - xi) * (py - yi) / (yj - yi) + xi:
+                            inside = not inside
+                        j = i
+                    if inside:
+                        out.append((cx, cy))
+            return out
+
+        sheltered: Set[Tuple[int, int]] = set()
+        for wall, pts, loop in zip(walls_list, wall_points, wall_loops):
+            if is_cave or not loop or len(pts) < 3:
+                continue
+            cells_in = [c for c in enclosed_cells(pts) if 0 <= c[0] < cols and 0 <= c[1] < rows]
+            if not cells_in:
+                continue
+            # On open ground only rooms named as buildings were floored, so a
+            # house whose room was called "Ashen Yard" stood roofless on bare
+            # earth inside four good walls. A closed wall round walkable
+            # ground is a building whatever the room is called: floor it.
+            if enclosure == "open":
+                indoor = [c for c in cells_in if zones_grid.get(*c) in (FLOOR, DOOR, WINDOW, STAIRS, WALL)]
+                if len(indoor) * 2 >= len(cells_in) and any(zones_grid.get(*c) == FLOOR for c in indoor):
+                    for cx, cy in indoor:
+                        i = cy * cols + cx
+                        if tiles_cells[i] < 0:
+                            tiles_cells[i] = 0
+                            tiles_colors[i] = self.default_colour(tiles_lookup.get("0", ""))
+            floored = sum(1 for c in cells_in if tiles_cells[c[1] * cols + c[0]] >= 0)
+            if floored * 2 < len(cells_in):
+                continue
+            # A closed wall with nothing but wall inside it - a one-square
+            # stub at a ship's bow - is masonry, not a room. Made a building,
+            # it touched the deck's own outline and Dungeondraft then drew
+            # neither.
+            if not any(zones_grid.get(cx, cy) not in (WALL, VOID) for cx, cy in cells_in):
+                continue
+            shapes_polygons.append(format_pool_vector2_array(pts))
+            shapes_walls.append(int(wall["node_id"], 16))
+            wall["type"] = 0
+            sheltered.update(cells_in)
+
+        # Inside a building Dungeondraft draws no terrain, so anything there
+        # without a tile is drawn over black: a flooded hall's water came out
+        # nearly black while the pools outside were clear. Everything a
+        # building encloses gets its floor, and water and pits lie over it.
+        for cx, cy in sheltered:
+            if 0 <= cx < cols and 0 <= cy < rows:
+                i = cy * cols + cx
+                if tiles_cells[i] < 0 and zones_grid.get(cx, cy) not in (VOID,):
+                    tiles_cells[i] = 0
+                    tiles_colors[i] = self.default_colour(tiles_lookup.get("0", ""))
+
+        # Floor that no closed wall encloses still needs an outline or its
+        # tiles are never drawn: a ship's deck, whose hull is left open for
+        # the gangway; a burnt-out house with a wall gone; a corridor in a
+        # palace whose outer wall encloses more water than floor.
+        # Dungeondraft takes a floor shape with no wall behind it (-1).
+        if not is_cave:
+            # Wall squares are tiled only so the floor runs under the wall;
+            # outside any building they are the outside, not more floor.
+            loose = {(i % cols, i // cols) for i, idx in enumerate(tiles_cells)
+                     if idx >= 0 and zones_grid.get(i % cols, i // cols) not in (WALL, DOOR, WINDOW)} - sheltered
+            # ...except the rim a hull stands on, which is deck. Only there:
+            # anywhere else the rim is shared with the room next door, and two
+            # outlines that touch are drawn as neither.
+            deck = {c for c in loose if zones_grid.get(*c) == BRIDGE}
+            loose |= {(i % cols, i // cols) for i, idx in enumerate(tiles_cells)
+                      if idx >= 0 and zones_grid.get(i % cols, i // cols) == WALL
+                      and any((i % cols + dx, i // cols + dy) in deck
+                              for dx in (-1, 0, 1) for dy in (-1, 0, 1))} - sheltered
+            for region in connected_cell_groups(loose, diagonal=False):
+                for ring, hole in trace_region_rings(region):
+                    if not hole and len(ring) >= 3:
+                        shapes_polygons.append(format_pool_vector2_array(ring))
+                        shapes_walls.append(-1)
 
         # Doorways and windows become portals cut into the wall they interrupt.
         # A run of adjacent opening cells is one portal, as wide as the run.
@@ -975,13 +1223,16 @@ class DungeondraftAssembler:
             center_px_x = (fx + fw / 2.0) * 256.0
             center_px_y = (fy + fh / 2.0) * 256.0
 
+            # What closes the site in also says which drawers of the library
+            # it may borrow from - but a prop standing inside a hut on that
+            # site is indoors, and a cot matched as if it stood in the ferns
+            # came back as the one broken bed the library files elsewhere.
+            here = "timber" if (int(fx), int(fy)) in built_cells else enclosure
             prop_match = self.matcher.match_prop(
                 prop_kind=kind,
                 style_id=style_id,
                 seed=seed + int(fx * 31 + fy),
-                # What closes the site in also says which drawers of the
-                # library it may borrow from: a forest has no furniture in it.
-                enclosure=enclosure,
+                enclosure=here,
             )
 
             if prop_match:
@@ -1005,7 +1256,7 @@ class DungeondraftAssembler:
                         fit = round(1.0 / over, 4)
 
                 obj_nid = self._next_node_id()
-                objects_list.append({
+                placed_obj = {
                     "position": format_vector2(center_px_x, center_px_y),
                     "rotation": round(rot_rad, 5),
                     "scale": format_vector2(fit, fit),
@@ -1015,7 +1266,10 @@ class DungeondraftAssembler:
                     "shadow": True,
                     "block_light": False,
                     "node_id": obj_nid,
-                })
+                }
+                if is_colourable(prop_match):
+                    placed_obj["custom_color"] = tint_for(style_id, kind.lower())
+                objects_list.append(placed_obj)
                 matched_props_report.append({
                     "kind": kind,
                     "matched_asset": p_res,
@@ -1051,6 +1305,68 @@ class DungeondraftAssembler:
                 if feat.get("label"):
                     miss["label"] = str(feat["label"])
                 unmatched_props_report.append(miss)
+
+        # 4b. Woodland. The plan's vegetation is thicket and canopy, and until
+        # this existed it was painted as a flat sheet of grass: a forest with
+        # the hut in it and not one tree. Canopy goes down as tree objects on
+        # the vegetation cells, thinning to nothing beside anything walkable so
+        # the clearings, the path and the hut stay readable.
+        veg_cells = cells_of_kind(zones_grid, {VEGETATION})
+        taken = {(int(f.get("x", 0)), int(f.get("y", 0))) for f in features}
+        if veg_cells:
+            tree_rng = random.Random(seed * 7919 + 17)
+            open_kinds = {FLOOR, DOOR, WINDOW, STAIRS, RUBBLE, BRIDGE}
+            # A few different crowns, not one crown a hundred and fifty times:
+            # the matcher picks among equally good answers by seed, so asking
+            # a handful of times gives a handful of trees to draw from.
+            tree_picks = [m for m in (self.matcher.match_prop("tree", style_id=style_id, seed=seed + k * 101,
+                                                             enclosure=enclosure) for k in range(5)) if m]
+            # A palm or a mangrove is a tree, but not in this wood unless the
+            # style says so; a dead one is scenery, not canopy.
+            foreign = ("palm", "mangrove", "cactus", "dead", "burnt", "snow")
+            tree_picks = [m for m in tree_picks
+                          if not any(w in m["file_name"].lower() and w not in style_id.lower()
+                                     for w in foreign)] or tree_picks[:1]
+            bush_match = self.matcher.match_prop("bush", style_id=style_id, seed=seed + 1,
+                                                 enclosure=enclosure)
+            tree_match = tree_picks[0] if tree_picks else None
+            for (vx, vy) in sorted(veg_cells):
+                if (vx, vy) in taken:
+                    continue
+                near_open = any(zones_grid.get(vx + dx, vy + dy) in open_kinds
+                                for dx in (-1, 0, 1) for dy in (-1, 0, 1))
+                # Dense where nothing is going on, sparse at the edge of a
+                # clearing, and roughly one crown per two squares so crowns
+                # overlap into a canopy rather than standing in a grid.
+                chance = 0.12 if near_open else 0.45
+                if tree_rng.random() > chance:
+                    continue
+                pick = bush_match if (near_open and bush_match) else (
+                    tree_rng.choice(tree_picks) if tree_picks else None)
+                if not pick:
+                    continue
+                p_pack = pick.get("pack_id", "default")
+                if p_pack and p_pack != "default":
+                    packs_referenced.add(p_pack)
+                nat = max(float(pick.get("grid_w") or 1.0), float(pick.get("grid_h") or 1.0))
+                want = 0.9 if pick is bush_match else 1.6
+                fit = round(min(1.0, want / nat), 4) if nat > 0 else 1.0
+                jx = (tree_rng.random() - 0.5) * 0.8
+                jy = (tree_rng.random() - 0.5) * 0.8
+                canopy = {
+                    "position": format_vector2((vx + 0.5 + jx) * 256.0, (vy + 0.5 + jy) * 256.0),
+                    "rotation": round(tree_rng.uniform(0, 2 * math.pi), 5),
+                    "scale": format_vector2(fit, fit),
+                    "mirror": tree_rng.random() < 0.5,
+                    "texture": pick["res_path"],
+                    "layer": 300,
+                    "shadow": True,
+                    "block_light": False,
+                    "node_id": self._next_node_id(),
+                }
+                if is_colourable(pick):
+                    canopy["custom_color"] = tint_for(style_id, "tree")
+                objects_list.append(canopy)
 
         # 5. Build Asset Manifest
         # Query packs table for manifest details of referenced packs
@@ -1093,7 +1409,12 @@ class DungeondraftAssembler:
                 "editor_state": {
                     "current_level": 0,
                     "camera_position": f"Vector2( {cols * 128}, {rows * 128} )",
-                    "camera_zoom": 1,
+                    # Godot's zoom is how many map pixels one screen pixel
+                    # covers, so 1 is fully zoomed in - a 25-square map opened
+                    # showing four squares. Fit the whole map in a typical
+                    # editor viewport instead, the way Dungeondraft itself
+                    # saves a map somebody zoomed out to look at.
+                    "camera_zoom": round(max(cols * 256 / 1800.0, rows * 256 / 1100.0, 1.0), 2),
                     "guide_position": "null",
                     "trace_image": None,
                     "color_palettes": DEFAULT_COLOR_PALETTES,

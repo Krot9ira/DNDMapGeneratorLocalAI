@@ -167,9 +167,20 @@ class DungeondraftMatcher:
         texture is a wasted slot, and nothing the assembler paints into it
         would be visible as a different kind of ground.
         """
+        # The plain texture for any of the words first, and only then a
+        # variant that merely contains one: "grass" used to land on
+        # terrain_dry_grass because it sorted first, and a lush forest came out
+        # the colour of hay - and once plain grass was taken, "moss" never got
+        # asked because dry grass answered for "grass" again.
+        free = [t for t in self.terrain if t["res_path"] not in (taken or ())]
         for word in words:
-            for t in self.terrain:
-                if word in t["file_name"].lower() and t["res_path"] not in (taken or ()):
+            for t in free:
+                stem = t["file_name"].lower().rsplit(".", 1)[0]
+                if stem.replace("terrain_", "").split("_") == [word]:
+                    return t["res_path"], t["pack_id"]
+        for word in words:
+            for t in free:
+                if word in t["file_name"].lower():
                     return t["res_path"], t["pack_id"]
         return None
 
@@ -261,6 +272,9 @@ class DungeondraftMatcher:
         "frame": ("tent",),
         "tunnel": ("log", "hollow"),
         "undergrowth": ("fern", "shrub", "bush", "grass"),
+        "hearth": ("fireplace",),
+        "fireplace": ("hearth",),
+        "stool": ("chair", "bench"),
     }
 
     # Words the plan uses that no file is named after, where searching for the
@@ -299,7 +313,11 @@ class DungeondraftMatcher:
     # library files every plain rock under clutter/lava_rocks, so "rock" in a
     # forest came back as a lump of volcanic glass; a scene that actually wants
     # one says "lava" and keeps it.
-    ONLY_IF_ASKED = ("lava", "sewer", "gore", "blood")
+    ONLY_IF_ASKED = ("lava", "sewer", "gore", "blood",
+                     # Themed sets: a dwarven table is what a dwarf hall asks
+                     # for, not what a witch's hut gets for asking for a table.
+                     "dwarven", "elven", "egypt", "egyptian", "roman", "scifi", "cyber",
+                     "flotsam", "floating", "sunken", "wreck")
 
     # Words that say a thing is fixed to a wall or hung from above. Every prop a
     # plan asks for is set down on the floor of the map, and a wall torch set
@@ -391,8 +409,11 @@ class DungeondraftMatcher:
             score += 0.5
         if self._is_mounted(row, set(weights)):
             score -= self.MOUNTED_PENALTY
-        for bad in self.OUT_OF_PLACE.get(enclosure, ()) + self.ONLY_IF_ASKED:
+        for bad in self.ONLY_IF_ASKED:
             if (bad in path_tokens or bad in file_tokens) and bad not in weights:
+                return -1.0
+        for bad in self.OUT_OF_PLACE.get(enclosure, ()):
+            if bad in path_tokens and bad not in weights:
                 score -= 2.5
                 break
         return score
@@ -414,16 +435,77 @@ class DungeondraftMatcher:
         # Step 1: Query enrichment for exact object_kind match
         query = """
         SELECT a.id, a.pack_id, a.res_path, a.file_name, a.subpath, a.width,
-               a.height, a.grid_w, a.grid_h, a.content_hash, e.object_kind,
+               a.height, a.grid_w, a.grid_h, a.content_hash, a.palette, e.object_kind,
                e.description, e.confidence
         FROM assets a
         JOIN enrichment e ON a.content_hash = e.content_hash
         WHERE a.category = 'objects' AND a.state = 'ok'
           AND (e.object_kind = ? OR e.object_kind LIKE ?)
         """
-        cur.execute(query, (clean_kind, f"%{clean_kind}%"))
-        rows = [dict(r) for r in cur.fetchall()]
+        # No footprint filter. The cataloguer's footprint is a guess it makes
+        # from an enum with no definitions - it filed barrels under "overhang"
+        # and statues under "ceiling" - and keeping only "floor" threw away two
+        # thirds of the catalogue, leaving a ship's mast as the best "barrel".
+        # The catalogue names things head-last, like the plan does: "oak tree"
+        # is a tree, "tree stump" is a stump. Matching the word anywhere in the
+        # name turned every tree in a forest into a stump the moment the
+        # cataloguer had described one.
+        # The request and what the library may call it instead - "hearth" is
+        # catalogued as "stone fireplace" - each as an exact kind or the head
+        # of a longer one.
+        asked = [clean_kind] + [alt for w in self._tokens(clean_kind) for alt in self.SYNONYMS.get(w, ())]
+        rows_by_path: Dict[str, Dict[str, Any]] = {}
+        for term in dict.fromkeys(asked):
+            cur.execute(query, (term, f"% {term}"))
+            for r in cur.fetchall():
+                rows_by_path.setdefault(r["res_path"], dict(r))
+        rows = list(rows_by_path.values())
         how = "described"
+
+        # A described match is still a match among several, and they are not
+        # all equal: for "barrel" the catalogue offers "barrel", "floating
+        # barrel" and "broken barrel", and picking among them by hash put
+        # flotsam in a hut's clearing. Score them by how much of the catalogue
+        # name the request accounts for, with the same out-of-place penalties
+        # the file-name path applies, and keep only the best band.
+        if rows:
+            request = set(self._tokens(clean_kind))
+            wanted = request | {alt for w in request for alt in self.SYNONYMS.get(w, ())}
+            # The cataloguer names the material along with the thing - "wooden
+            # barrel", "stone table" - and the material is not what was asked.
+            materials = self.MODIFIERS | {"stone", "wooden", "wood", "iron", "metal", "clay",
+                                          "glass", "brass", "copper", "steel", "bronze"}
+            scored = []
+            for row in rows:
+                kind_tokens = [t for t in self._tokens(row.get("object_kind") or "") if t not in materials]
+                if not kind_tokens:
+                    continue
+                hit = len([t for t in kind_tokens if t in wanted])
+                score = 3.0 * hit / float(len(kind_tokens))
+                if set(kind_tokens) <= wanted:
+                    score += 2.0
+                path_tokens = set(self._tokens(row.get("subpath") or ""))
+                file_tokens = self._tokens(str(row.get("file_name") or "").rsplit(".", 1)[0])
+                # The drawer it is filed in agreeing is what separates a barrel
+                # in supplies/barrels from one drifting in clutter/water.
+                if path_tokens & wanted:
+                    score += 0.5
+                if self._is_mounted(row, request):
+                    score -= self.MOUNTED_PENALTY
+                if any((bad in path_tokens or bad in file_tokens) and bad not in request
+                       for bad in self.ONLY_IF_ASKED):
+                    continue
+                for bad in self.OUT_OF_PLACE.get(enclosure, ()):
+                    if bad in path_tokens and bad not in request:
+                        score -= 2.5
+                        break
+                if score > 0:
+                    scored.append((score, row))
+            if scored:
+                best = max(sc for sc, _ in scored)
+                rows = [r for sc, r in scored if sc >= best - 0.25]
+            else:
+                rows = []
 
         # Step 2: Fall back to what the files are called. Every word of the
         # request is asked about, not just the first one - "dense fern
@@ -464,7 +546,7 @@ class DungeondraftMatcher:
             seen: Dict[str, Dict[str, Any]] = {}
             fallback_query = """
             SELECT a.id, a.pack_id, a.res_path, a.file_name, a.subpath,
-                   a.width, a.height, a.grid_w, a.grid_h, a.content_hash,
+                   a.width, a.height, a.grid_w, a.grid_h, a.content_hash, a.palette,
                    a.file_name as object_kind, '' as description,
                    0.6 as confidence
             FROM assets a

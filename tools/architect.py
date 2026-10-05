@@ -1231,6 +1231,60 @@ def _room_is_built(room_spec):
     return any(word in text for word in _BUILT_WORDS)
 
 
+# A built room on an open-air site is a building standing in the open: a hut
+# in a clearing, a barn on a farm. The outdoor generators carve ground, not
+# walls, so until this existed a room called "Witch's Hut" came out as a patch
+# of floor in the ferns with its cot and cauldron scattered round it.
+_HUT_INTERIOR = {"s": 4, "m": 5, "l": 7}
+
+
+def _build_huts(grid, rooms, rng, enclosure, layout=""):
+    """Put walls and a door round every built room of an open-air site.
+
+    The room's rectangle becomes the interior, grown to a size a room can
+    actually hold, and a wall is laid round it. The door faces the nearest
+    outdoor room - the clearing the hut opens onto - or the map's middle when
+    there is none.
+    """
+    # Only where the generator carves ground and nothing else. A street, a
+    # district or a harbour builds its own houses, and ruins are meant to be
+    # broken: walling their rooms again turned every ruin into an intact
+    # house with a door in it.
+    if enclosure != "open" or layout not in _GROUND_ROOM_LAYOUTS:
+        return
+    outdoor = [r for r in rooms if not _room_is_built(r.get("spec"))]
+    for room in rooms:
+        spec_room = room.get("spec") or {}
+        if not _room_is_built(spec_room):
+            continue
+        x, y, w, h = room["rect"]
+        want = _HUT_INTERIOR.get(str(spec_room.get("size", "m"))[:1], 5)
+        cx, cy = x + w / 2.0, y + h / 2.0
+        iw = max(w, want)
+        ih = max(h, want)
+        # Leave the wall ring and one square of ground inside the field.
+        iw = min(iw, grid.cols - 4)
+        ih = min(ih, grid.rows - 4)
+        ix = _clamp(int(round(cx - iw / 2.0)), 2, grid.cols - iw - 2)
+        iy = _clamp(int(round(cy - ih / 2.0)), 2, grid.rows - ih - 2)
+        grid.fill_rect(ix - 1, iy - 1, iw + 2, ih + 2, WALL)
+        grid.fill_rect(ix, iy, iw, ih, FLOOR)
+        room["rect"] = (ix, iy, iw, ih)
+
+        # The door goes in the wall that faces where people come from.
+        if outdoor:
+            tx, ty = min((_rect_center(o["rect"]) for o in outdoor),
+                         key=lambda c: (c[0] - cx) ** 2 + (c[1] - cy) ** 2)
+        else:
+            tx, ty = grid.cols / 2.0, grid.rows / 2.0
+        dx, dy = tx - cx, ty - cy
+        if abs(dx) >= abs(dy):
+            door = (ix + iw if dx > 0 else ix - 1, iy + rng.randrange(ih))
+        else:
+            door = (ix + rng.randrange(iw), iy + ih if dy > 0 else iy - 1)
+        grid.set(door[0], door[1], DOOR)
+
+
 def _open_up_outdoor_rooms(grid, rooms, enclosure):
     """Join the outdoor rooms of an open-air site into one continuous surface.
 
@@ -1832,8 +1886,21 @@ def _place_props(grid, rooms, spec, rng, style_props=None):
                 walkable_cells.append((x, y))
     target = int(len(walkable_cells) / 26.0 * density)
     target = _clamp(target, 0, 260)
+    # What a built room asked for stays in it. The top-up used to draw on
+    # every room's list and drop the result anywhere walkable, which is how a
+    # hut's cauldron and cot ended up out in the ferns. On an open-air site the
+    # ground outside takes only what the outdoor rooms and the style asked for,
+    # and nothing lands inside a building.
+    open_air = enclosure_of(spec.get("style"), spec.get("layout")) == "open"
+    outdoor_rooms = [r for r in rooms if not (open_air and _room_is_built(r.get("spec")))]
+    built_cells = set()
+    if open_air:
+        for r in rooms:
+            if _room_is_built(r.get("spec")):
+                bx, by, bw, bh = r["rect"]
+                built_cells.update((x, y) for y in range(by, by + bh) for x in range(bx, bx + bw))
     asked_kinds = list(dict.fromkeys(
-        k for room in rooms
+        k for room in outdoor_rooms
         for k in (normalize_prop(p) for p in (room["spec"].get("props") or [])) if k))
     top_pool = asked_kinds or pool
     if top_pool and len(features) < target:
@@ -1841,6 +1908,8 @@ def _place_props(grid, rooms, spec, rng, style_props=None):
         for cell in walkable_cells:
             if len(features) >= target:
                 break
+            if cell in built_cells:
+                continue
             commit(rng.choice(top_pool), cell, filler=True)
 
     # Explicit features from the caller always win.
@@ -1929,6 +1998,18 @@ _DEFAULT_ROOMS = [
     {"id": "back_room", "label": "Back Chamber", "size": "m", "props": [],
      "description": "The room furthest from the entrance, dusty and little used."},
 ]
+# The same three, for a site with no roof. A hall and two chambers are
+# buildings, and now that a built room on open ground is given walls, the
+# indoor defaults would put three huts on every clearing.
+_GROUND_ROOM_LAYOUTS = ("open", "forest", "swamp")
+_DEFAULT_OPEN_ROOMS = [
+    {"id": "open_ground", "label": "Open Ground", "size": "l", "props": [],
+     "description": "The widest stretch of ground, trodden bare down the middle."},
+    {"id": "near_edge", "label": "Near Edge", "size": "m", "props": [],
+     "description": "A smaller patch off to one side, less walked on."},
+    {"id": "far_edge", "label": "Far Edge", "size": "m", "props": [],
+     "description": "The ground furthest from the way in, overgrown and quiet."},
+]
 
 
 def _clip_sentence(text, limit):
@@ -2009,7 +2090,13 @@ def normalize_spec(spec):
                 entry[key] = r[key]
         clean_rooms.append(entry)
     if not clean_rooms:
-        clean_rooms = [dict(r) for r in _DEFAULT_ROOMS]
+        # Only where a room is a patch of ground. On a street, a district or
+        # a harbour the default rooms are the houses, and naming them as ground
+        # dissolved every house on the lane into one sheet of floor.
+        defaults = (_DEFAULT_OPEN_ROOMS
+                    if out.get("layout") in _GROUND_ROOM_LAYOUTS
+                    else _DEFAULT_ROOMS)
+        clean_rooms = [dict(r) for r in defaults]
     out["rooms"] = clean_rooms[:9]
 
     terrain = spec.get("terrain")
@@ -2109,6 +2196,8 @@ def build(spec, seed=None):
     # that spreading stops at whatever the scene has already put down.
     _apply_annotation_ground(grid, spec.get("annotations"))
     scene_walls = _apply_terrain_zones(grid, spec)
+    _build_huts(grid, rooms, rng, enclosure_of(spec.get("style"), spec.get("layout")),
+                spec.get("layout", ""))
     _open_up_outdoor_rooms(grid, rooms,
                            enclosure_of(spec.get("style"), spec.get("layout")))
     _apply_terrain(grid, rooms, spec, rng)
